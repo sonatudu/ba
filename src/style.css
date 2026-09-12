@@ -579,13 +579,6 @@ select {
   color: rgba(5, 46, 22, 0.75);
 }
 
-.receipt-label {
-  text-transform: uppercase;
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-
 .bubble-text {
   white-space: pre-wrap;
   word-break: break-word;
