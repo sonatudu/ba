@@ -14,8 +14,8 @@
     "open:android": "CAPACITOR_ANDROID_STUDIO_PATH=\"${CAPACITOR_ANDROID_STUDIO_PATH:-$HOME/android-studio/bin/studio.sh}\" cap open android"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
     "@capacitor/cli": "^6.2.2",
+    "concurrently": "^9.1.2",
     "vite": "^5.4.11"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "@capacitor/splash-screen": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "maplibre-gl": "^6.9.0"
   }
 }

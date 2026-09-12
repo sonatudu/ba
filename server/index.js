@@ -18,7 +18,9 @@ mkdirSync(requestsDir, { recursive: true });
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_MS = 1000 * 60 * 60 * 24 * 30;
-
+const PAIR_CODE = "192746";
+const COUPLE_ROOM_ID = "BA-OURS";
+const COUPLE_MEMBERS = ["ba", "ma"];
 function hashHex(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -249,15 +251,36 @@ function rateLimit(key, max, windowMs) {
   return true;
 }
 
-function issueToken(username, roomId) {
+function issueToken(username, roomId, deviceId) {
   const token = randomBytes(32).toString("hex");
   writeSession({
     tokenHash: hashHex(token),
     username,
+    deviceId: deviceId || "",
     roomId: roomId || null,
     expiresAt: Date.now() + SESSION_MS,
   });
   return token;
+}
+
+const GATE_SU = "mo";
+const GATE_RIN = "do";
+
+function lettersOf(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .slice(0, 2);
+}
+
+function assignWho(room, deviceId, requested) {
+  if (!room.devices || typeof room.devices !== "object") room.devices = {};
+  const known = COUPLE_MEMBERS.includes(room.devices[deviceId]) ? room.devices[deviceId] : "";
+  if (known) return known;
+  const who = COUPLE_MEMBERS.includes(requested) ? requested : "";
+  if (!who) return null;
+  room.devices[deviceId] = who;
+  return who;
 }
 
 function publicRoom(room, username) {
@@ -271,28 +294,60 @@ function publicRoom(room, username) {
     kdfSalt: room.kdfSalt,
     blob: room.blob,
     iv: room.iv,
+    updatedAt: Number(room.updatedAt || 0),
   };
+}
+
+function pairCodeOk(value) {
+  const code = String(value || "").replace(/\D/g, "");
+  if (!code) return false;
+  return safeEqual(hashHex(code), hashHex(PAIR_CODE));
+}
+
+function ensureCoupleRoom() {
+  let room = readRoom(COUPLE_ROOM_ID);
+  if (!room) {
+    room = {
+      id: COUPLE_ROOM_ID,
+      members: [...COUPLE_MEMBERS],
+      startedOn: "",
+      kdfSalt: randomBytes(16).toString("hex"),
+      blob: "",
+      iv: "",
+      chat: [],
+      readAt: {},
+      deliveredAt: {},
+      typing: {},
+      presence: {},
+      locations: {},
+      signals: [],
+      statuses: [],
+      disappearMs: 0,
+      devices: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    writeRoom(room);
+  }
+  room.members = [...COUPLE_MEMBERS];
+  if (!room.devices || typeof room.devices !== "object") room.devices = {};
+  return withChat(room);
 }
 
 function requireAuth(req, res) {
   const header = String(req.headers.authorization || "");
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) {
-    res.status(401).json({ error: "Please log in." });
+    res.status(401).json({ error: "Please enter the private code." });
     return null;
   }
   const session = readSession(hashHex(token));
-  if (!session) {
-    res.status(401).json({ error: "Please log in." });
+  if (!session || !COUPLE_MEMBERS.includes(session.username)) {
+    res.status(401).json({ error: "Please enter the private code." });
     return null;
   }
-  const user = readUser(session.username);
-  if (!user) {
-    res.status(401).json({ error: "Please log in." });
-    return null;
-  }
-  const room = user.roomId ? readRoom(user.roomId) : null;
-  return { session, user, room };
+  const room = ensureCoupleRoom();
+  return { session, user: { username: session.username }, room };
 }
 
 function withChat(room) {
@@ -301,6 +356,7 @@ function withChat(room) {
   if (!room.deliveredAt || typeof room.deliveredAt !== "object") room.deliveredAt = {};
   if (!room.typing || typeof room.typing !== "object") room.typing = {};
   if (!room.presence || typeof room.presence !== "object") room.presence = {};
+  if (!room.locations || typeof room.locations !== "object") room.locations = {};
   if (!Array.isArray(room.signals)) room.signals = [];
   if (!Array.isArray(room.statuses)) room.statuses = [];
   if (!Number.isFinite(room.disappearMs)) room.disappearMs = 0;
@@ -326,164 +382,62 @@ function publicChat(room, username) {
   };
 }
 
+ensureCoupleRoom();
+
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "3mb" }));
 
-app.post("/api/register", (req, res) => {
-  const ip = req.ip || "local";
-  if (!rateLimit(`register:${ip}`, 10, 60 * 60 * 1000)) {
-    return res.status(429).json({ error: "Too many accounts. Try later." });
+app.post("/api/enter", (req, res) => {
+  const code = String(req.body?.code || "").replace(/\D/g, "");
+  const deviceId = String(req.body?.deviceId || "").slice(0, 80);
+  if (!pairCodeOk(code)) {
+    return res.status(401).json({ error: "That code is wrong." });
   }
-  const username = normalizeUser(req.body?.username);
-  const password = String(req.body?.password || "");
-  if (!validUser(username)) {
-    return res.status(400).json({ error: "Username must be 3–24 letters, numbers, or _." });
+  if (deviceId.length < 8) {
+    return res.status(400).json({ error: "Could not open this phone." });
   }
-  if (password.length < 4) {
-    return res.status(400).json({ error: "Password needs at least 4 characters." });
+  const room = ensureCoupleRoom();
+  const requested = String(req.body?.who || "").trim().toLowerCase();
+  const locked = COUPLE_MEMBERS.includes(room.devices?.[deviceId]) ? room.devices[deviceId] : "";
+  if (!locked && !COUPLE_MEMBERS.includes(requested)) {
+    return res.status(400).json({ error: "Pick Ba or Ma." });
   }
-  if (readUser(username)) {
-    return res.status(409).json({ error: "That username is already taken." });
-  }
-  const passSalt = randomBytes(16).toString("hex");
-  writeUser({
-    username,
-    passSalt,
-    passHash: scrypt(password, passSalt),
-    roomId: null,
-    createdAt: Date.now(),
-  });
-  res.json({ token: issueToken(username, null), username, roomId: null });
-});
-
-app.post("/api/login", (req, res) => {
-  const ip = req.ip || "local";
-  if (!rateLimit(`login:${ip}`, 20, 10 * 60 * 1000)) {
-    return res.status(429).json({ error: "Too many login tries. Wait a bit." });
-  }
-  const username = normalizeUser(req.body?.username);
-  const password = String(req.body?.password || "");
-  const user = readUser(username);
-  if (!user || !safeEqual(user.passHash, scrypt(password, user.passSalt))) {
-    return res.status(401).json({ error: "Username or password is wrong." });
-  }
-  if (!user.roomId) {
-    return res.json({ token: issueToken(username, null), username, roomId: null });
-  }
-  const room = readRoom(user.roomId);
-  if (!room || !room.members.includes(username)) {
-    return res.json({ token: issueToken(username, null), username, roomId: null });
-  }
-  const token = issueToken(username, room.id);
-  res.json({ token, username, ...publicRoom(room, username) });
-});
-
-app.post("/api/requests", (req, res) => {
-  const auth = requireAuth(req, res);
-  if (!auth) return;
-  if (auth.user.roomId) {
-    return res.status(409).json({ error: "You already have a room." });
-  }
-  const partnerName = normalizeUser(req.body?.partner);
-  const message = String(req.body?.message || "").trim().slice(0, 500);
-  const wantedId = String(req.body?.roomId || "")
-    .trim()
-    .toUpperCase();
-  if (!partnerName) {
-    return res.status(400).json({ error: "Add your partner’s username." });
-  }
-  if (partnerName === auth.user.username) {
-    return res.status(400).json({ error: "Add your partner, not yourself." });
-  }
-  const partner = readUser(partnerName);
-  if (!partner) {
-    return res.status(404).json({ error: "That username does not exist yet." });
-  }
-  const duplicate = allRequests().find(
-    (item) =>
-      (item.from === auth.user.username && item.to === partnerName) ||
-      (item.from === partnerName && item.to === auth.user.username)
-  );
-  if (duplicate) {
-    return res.status(409).json({ error: "A request is already waiting between you two." });
-  }
-  let roomId = wantedId;
-  if (roomId) {
-    if (!/^[A-Z0-9-]{6,24}$/.test(roomId)) {
-      return res.status(400).json({ error: "Room id can be letters, numbers, and dashes." });
+  if (!locked) {
+    const su = lettersOf(req.body?.su);
+    const rin = lettersOf(req.body?.rin);
+    if (su.length !== 2 || rin.length !== 2) {
+      return res.status(401).json({ error: "Answer the setup questions.", needSetup: true });
     }
-    if (roomIdReserved(roomId)) {
-      return res.status(409).json({ error: "That room id is already taken." });
+    if (!safeEqual(hashHex(su), hashHex(GATE_SU)) || !safeEqual(hashHex(rin), hashHex(GATE_RIN))) {
+      return res.status(401).json({ error: "Those answers are wrong.", needSetup: true });
     }
-  } else {
-    roomId = uniqueRoomId();
   }
-  const item = {
-    id: randomBytes(8).toString("hex"),
-    from: auth.user.username,
-    to: partnerName,
-    roomId,
-    message,
-    createdAt: Date.now(),
-  };
-  writeRequest(item);
-  res.json(publicRequest(item));
+  const who = assignWho(room, deviceId, requested || locked);
+  if (!who) return res.status(400).json({ error: "Pick Ba or Ma." });
+  writeRoom(room);
+  const token = issueToken(who, room.id, deviceId);
+  res.json({ token, username: who, ...publicRoom(room, who) });
 });
 
-app.get("/api/requests", (req, res) => {
+app.post("/api/identity", (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  const mine = allRequests().filter((item) => item.from === auth.user.username || item.to === auth.user.username);
-  const incoming = auth.user.roomId
-    ? []
-    : mine.filter((item) => item.to === auth.user.username).map(publicRequest);
-  res.json({
-    incoming,
-    outgoing: mine.filter((item) => item.from === auth.user.username).map(publicRequest),
-  });
-});
-
-app.post("/api/requests/:id/accept", (req, res) => {
-  const auth = requireAuth(req, res);
-  if (!auth) return;
-  if (auth.user.roomId) {
-    return res.status(409).json({ error: "You already have a room." });
+  const who = String(req.body?.who || "").trim().toLowerCase();
+  if (!COUPLE_MEMBERS.includes(who)) {
+    return res.status(400).json({ error: "Pick Ba or Ma." });
   }
-  const item = readRequest(req.params.id);
-  if (!item || item.to !== auth.user.username) {
-    return res.status(404).json({ error: "Request not found." });
-  }
-  const fromUser = readUser(item.from);
-  if (!fromUser || fromUser.roomId) {
-    deleteRequest(item.id);
-    return res.status(409).json({ error: "That request is no longer valid." });
-  }
-  if (roomExists(item.roomId)) {
-    return res.status(409).json({ error: "That room id is already taken." });
-  }
-  const room = finishRoom(fromUser, auth.user, item.roomId);
-  const token = issueToken(auth.user.username, room.id);
-  res.json({ token, username: auth.user.username, ...publicRoom(room, auth.user.username) });
-});
-
-app.post("/api/requests/:id/decline", (req, res) => {
-  const auth = requireAuth(req, res);
-  if (!auth) return;
-  const item = readRequest(req.params.id);
-  if (!item || (item.to !== auth.user.username && item.from !== auth.user.username)) {
-    return res.status(404).json({ error: "Request not found." });
-  }
-  deleteRequest(item.id);
-  res.json({ ok: true });
+  if (!auth.room.devices || typeof auth.room.devices !== "object") auth.room.devices = {};
+  if (auth.session.deviceId) auth.room.devices[auth.session.deviceId] = who;
+  auth.session.username = who;
+  writeSession(auth.session);
+  writeRoom(auth.room);
+  res.json({ username: who, ...publicRoom(auth.room, who) });
 });
 
 app.get("/api/me", (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!auth.room) {
-    return res.json({ tokenNeeded: false, username: auth.user.username, roomId: null });
-  }
   res.json({
     username: auth.user.username,
     ...publicRoom(auth.room, auth.user.username),
@@ -580,6 +534,31 @@ app.put("/api/chat/:id", (req, res) => {
   if (!item) return res.status(404).json({ error: "Message not found." });
   item.iv = iv;
   item.blob = blob;
+  auth.room.updatedAt = Date.now();
+  writeRoom(auth.room);
+  res.json(publicChat(auth.room, auth.user.username));
+});
+
+app.delete("/api/chat", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!auth.room) return res.status(404).json({ error: "Create a room with your partner first." });
+  withChat(auth.room);
+  auth.room.chat = [];
+  auth.room.updatedAt = Date.now();
+  writeRoom(auth.room);
+  res.json(publicChat(auth.room, auth.user.username));
+});
+
+app.delete("/api/chat/:id", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!auth.room) return res.status(404).json({ error: "Create a room with your partner first." });
+  withChat(auth.room);
+  const item = auth.room.chat.find((row) => row.id === req.params.id);
+  if (!item) return res.json(publicChat(auth.room, auth.user.username));
+  if (item.from !== auth.user.username) return res.status(403).json({ error: "Cannot delete that message." });
+  auth.room.chat = auth.room.chat.filter((row) => row.id !== req.params.id);
   auth.room.updatedAt = Date.now();
   writeRoom(auth.room);
   res.json(publicChat(auth.room, auth.user.username));
@@ -691,6 +670,115 @@ app.post("/api/disappear", (req, res) => {
   res.json({ disappearMs: auth.room.disappearMs });
 });
 
+function publicPin(pin) {
+  if (!pin || !Number.isFinite(Number(pin.lat)) || !Number.isFinite(Number(pin.lng))) return null;
+  const heading = Number(pin.heading);
+  return {
+    lat: Number(pin.lat),
+    lng: Number(pin.lng),
+    acc: Number(pin.acc || 0),
+    heading: Number.isFinite(heading) && heading >= 0 && heading <= 360 ? heading : null,
+    at: Number(pin.at || 0),
+  };
+}
+
+function locationPins(room) {
+  withChat(room);
+  const locs = room.locations || {};
+  const pins = [];
+  for (const [id, pin] of Object.entries(locs)) {
+    const pub = publicPin(pin);
+    if (!pub) continue;
+    let who = COUPLE_MEMBERS.includes(pin.who) ? pin.who : "";
+    if (!who && COUPLE_MEMBERS.includes(id)) who = id;
+    if (!who && COUPLE_MEMBERS.includes(room.devices?.[id])) who = room.devices[id];
+    pins.push({ ...pub, id, who: who || "ba" });
+  }
+  return pins;
+}
+
+function latestByWho(pins) {
+  const out = { ba: null, ma: null };
+  for (const pin of pins) {
+    if (!COUPLE_MEMBERS.includes(pin.who)) continue;
+    if (!out[pin.who] || Number(pin.at) > Number(out[pin.who].at || 0)) out[pin.who] = publicPin(pin);
+  }
+  return out;
+}
+
+function placePayload(room) {
+  const pins = locationPins(room);
+  return { ...latestByWho(pins), pins };
+}
+
+app.get("/api/location", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  res.json(placePayload(auth.room));
+});
+
+app.post("/api/location", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  withChat(auth.room);
+  const who = auth.user.username;
+  const deviceId = String(auth.session.deviceId || req.body?.deviceId || "").slice(0, 80);
+  const key = deviceId.length >= 8 ? deviceId : who;
+  if (req.body?.share === false) {
+    delete auth.room.locations[key];
+    writeRoom(auth.room);
+    return res.json(placePayload(auth.room));
+  }
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: "Location missing." });
+  }
+  if (COUPLE_MEMBERS.includes(key) === false) delete auth.room.locations[who];
+  const heading = Number(req.body?.heading);
+  auth.room.locations[key] = {
+    lat: Math.round(lat * 1e7) / 1e7,
+    lng: Math.round(lng * 1e7) / 1e7,
+    acc: Math.max(0, Number(req.body?.acc) || 0),
+    heading: Number.isFinite(heading) && heading >= 0 && heading <= 360 ? Math.round(heading * 10) / 10 : null,
+    at: Date.now(),
+    who,
+  };
+  writeRoom(auth.room);
+  res.json(placePayload(auth.room));
+});
+
+app.get("/api/map/:z/:x/:y", async (req, res) => {
+  const z = Number(req.params.z);
+  const x = Number(req.params.x);
+  const y = Number(req.params.y);
+  if (![z, x, y].every((n) => Number.isInteger(n) && n >= 0) || z > 19) {
+    return res.status(400).end();
+  }
+  const urls = [
+    `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`,
+  ];
+  for (const url of urls) {
+    try {
+      const img = await fetch(url, {
+        headers: { "User-Agent": "Ba/1.0 (private couple map)", Accept: "image/png,image/*" },
+      });
+      if (!img.ok) continue;
+      const type = String(img.headers.get("content-type") || "");
+      if (type && !type.startsWith("image/")) continue;
+      const buf = Buffer.from(await img.arrayBuffer());
+      if (buf.length < 800) continue;
+      res.setHeader("Content-Type", type.startsWith("image/") ? type : "image/png");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.send(buf);
+    } catch {
+      /* try next */
+    }
+  }
+  res.status(502).end();
+});
+
 app.delete("/api/account", (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
@@ -698,11 +786,27 @@ app.delete("/api/account", (req, res) => {
   if (!rateLimit(`delete:${ip}`, 8, 60 * 60 * 1000)) {
     return res.status(429).json({ error: "Too many tries. Wait a bit." });
   }
-  const password = String(req.body?.password || "");
-  if (!safeEqual(auth.user.passHash, scrypt(password, auth.user.passSalt))) {
-    return res.status(401).json({ error: "Password is wrong." });
+  const code = String(req.body?.code ?? req.body?.pin ?? "");
+  if (!pairCodeOk(code)) {
+    return res.status(401).json({ error: "That code is wrong." });
   }
-  wipeAccount(auth.user);
+  wipeAccount({
+    username: auth.user.username,
+    roomId: auth.session.roomId || auth.room?.id || COUPLE_ROOM_ID,
+  });
+  const room = ensureCoupleRoom();
+  if (!room.devices || typeof room.devices !== "object") room.devices = {};
+  for (const name of readdirSync(sessionsDir)) {
+    try {
+      const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
+      if (COUPLE_MEMBERS.includes(sess.username) && sess.deviceId) {
+        room.devices[sess.deviceId] = sess.username;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  writeRoom(room);
   res.json({ ok: true });
 });
 
