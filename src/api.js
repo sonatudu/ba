@@ -1,40 +1,33 @@
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://127.0.0.1:8787" : "");
+export const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function request(path, { method = "GET", token, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Can't reach the room.");
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed.");
+  if (!res.ok) {
+    const err = new Error(data.error || "Request failed.");
+    err.needSetup = Boolean(data.needSetup);
+    throw err;
+  }
   return data;
 }
 
-export function registerUser(body) {
-  return request("/api/register", { method: "POST", body });
+export function enterRoom(body) {
+  return request("/api/enter", { method: "POST", body });
 }
 
-export function loginUser(body) {
-  return request("/api/login", { method: "POST", body });
-}
-
-export function sendRequest(token, body) {
-  return request("/api/requests", { method: "POST", token, body });
-}
-
-export function listRequests(token) {
-  return request("/api/requests", { token });
-}
-
-export function acceptRequest(token, id) {
-  return request(`/api/requests/${id}/accept`, { method: "POST", token });
-}
-
-export function declineRequest(token, id) {
-  return request(`/api/requests/${id}/decline`, { method: "POST", token });
+export function setIdentity(token, who) {
+  return request("/api/identity", { method: "POST", token, body: { who } });
 }
 
 export function loadMe(token) {
@@ -53,8 +46,8 @@ export function logoutCloud(token) {
   return request("/api/logout", { method: "POST", token }).catch(() => {});
 }
 
-export function deleteAccount(token, password) {
-  return request("/api/account", { method: "DELETE", token, body: { password } });
+export function deleteAccount(token, code) {
+  return request("/api/account", { method: "DELETE", token, body: { code } });
 }
 
 export function loadChat(token) {
@@ -71,6 +64,14 @@ export function readChat(token) {
 
 export function updateChat(token, id, body) {
   return request(`/api/chat/${id}`, { method: "PUT", token, body });
+}
+
+export function removeChat(token, id) {
+  return request(`/api/chat/${id}`, { method: "DELETE", token });
+}
+
+export function clearChat(token) {
+  return request("/api/chat", { method: "DELETE", token });
 }
 
 export function typingChat(token, on) {
@@ -95,4 +96,12 @@ export function setDisappear(token, ms) {
 
 export function sendStatus(token, body) {
   return request("/api/status", { method: "POST", token, body });
+}
+
+export function loadPlaces(token) {
+  return request("/api/location", { token });
+}
+
+export function sendPlace(token, body) {
+  return request("/api/location", { method: "POST", token, body });
 }
