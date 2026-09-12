@@ -511,7 +511,6 @@ function paintChatThread(thread, stickToBottom) {
           ${reactHtml}
           <div class="bubble-meta">
             <span>${fmtClock(item.at)}</span>
-            <span class="receipt-label">${receipt === "seen" ? "Seen" : receipt === "delivered" ? "Delivered" : "Sent"}</span>
           </div>
         </div>
       </div>
@@ -1798,15 +1797,7 @@ async function runChatAction(act, ids, extra) {
     return;
   }
   if (act === "info" && items[0]) {
-    const item = items[0];
-    let status = "Received";
-    if (item.from === session.username) {
-      if (item.pending) status = "Sending";
-      else if (Number(chatReadAt[partnerUsername()] || 0) >= item.at) status = "Seen";
-      else if (Number(chatDeliveredAt[partnerUsername()] || 0) >= item.at) status = "Delivered";
-      else status = "Sent";
-    }
-    alert(`${new Date(item.at).toLocaleString()}\n${status}`);
+    alert(new Date(items[0].at).toLocaleString());
     closeChatMenu();
     return;
   }
