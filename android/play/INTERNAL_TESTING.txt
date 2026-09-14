@@ -1,0 +1,31 @@
+Ba — signed AAB + internal testing
+==================================
+
+1) One-time: fill signing secrets (do not commit)
+   cp android/keystore.properties.example android/keystore.properties
+   Edit android/keystore.properties with the passwords you set when creating
+   /home/sona/ba-upload.jks (alias is usually key0).
+
+2) Build a signed Play upload
+   npm run build:aab
+
+   Output (typical):
+   android/app/build/outputs/bundle/release/app-release.aab
+
+   Or the copy Android Studio puts at:
+   android/app/release/app-release.aab
+
+3) Play Console — Internal testing
+   https://play.google.com/console
+   • Create app “Ba” if needed (Free, App)
+   • App content → Privacy policy:
+     https://sonatudu.github.io/ba/privacy.html
+   • Main store listing → upload graphics from android/play/
+   • Testing → Internal testing → Create release → upload the .aab
+   • Add tester Gmail addresses → create email list → copy the opt-in link
+
+4) Keep forever (offline backup)
+   /home/sona/ba-upload.jks + the passwords
+   Losing them means you cannot update this Play listing with the same upload key.
+
+Version in this project: versionCode 2, versionName 1.1.0
