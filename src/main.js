@@ -2133,6 +2133,7 @@ let monthSlideDir = 0;
 let openDiaryDay = "";
 let openMemoryId = null;
 let memoryDraftDate = "";
+let memoriesComposing = false;
 let routineWho = "";
 let cycleMonth = "";
 let cycleEditId = "";
@@ -2552,6 +2553,10 @@ function goTab(id) {
   if (id !== "today") {
     todayDraftId = null;
     openDiaryDay = "";
+    overviewComposing = false;
+  }
+  if (id !== "memories" && id !== "dates") {
+    memoriesComposing = false;
   }
   if (id !== "cycle") {
     courseHistMonth = "";
@@ -2914,6 +2919,11 @@ function goHome() {
   }
   if ((tab === "memories" || tab === "dates") && openMemoryId) {
     openMemoryId = null;
+    render();
+    return;
+  }
+  if ((tab === "memories" || tab === "dates") && memoriesComposing) {
+    memoriesComposing = false;
     render();
     return;
   }
@@ -4915,10 +4925,12 @@ function datesView() {
                   </div>`;
                 })
                 .join("")
-            : `<p class="memories-empty">No memories yet. Add a date and title below.</p>`
+            : `<p class="memories-empty">No memories yet.</p>`
         }
       </article>
-      <form class="memories-compose card">
+      ${
+        memoriesComposing
+          ? `<form class="memories-compose card">
         <div class="memories-compose-date">
           <span class="memories-compose-label">Date</span>
           ${appCalPickerHtml("memory-new-date", memoryDraftDate)}
@@ -4934,19 +4946,14 @@ function datesView() {
           </button>
         </div>
         <textarea data-story rows="2" maxlength="4000" placeholder="Story (optional)"></textarea>
-      </form>
+      </form>`
+          : `<div class="memories-add-wrap">
+        <button type="button" class="memories-add-btn" data-memories-add>Add</button>
+      </div>`
+      }
     </div>
   `);
   const menu = storyDeleteMenu(wrap);
-  const titleBox = wrap.querySelector("[data-title]");
-  const storyBox = wrap.querySelector("[data-story]");
-  const yearlyBox = wrap.querySelector("[data-yearly]");
-  const saveBtn = wrap.querySelector("[data-save]");
-  const syncSave = () => {
-    const ready = Boolean(titleBox.value.trim() && memoryDraftDate);
-    saveBtn.disabled = !ready;
-    saveBtn.classList.toggle("is-ready", ready);
-  };
   const bindCard = (node) => {
     const id = node.dataset.memory;
     const item = state.dates.find((row) => row.id === id);
@@ -4983,6 +4990,23 @@ function datesView() {
     });
   };
   wrap.querySelectorAll("[data-memory]").forEach(bindCard);
+  if (!memoriesComposing) {
+    wrap.querySelector("[data-memories-add]")?.addEventListener("click", () => {
+      memoriesComposing = true;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(memoryDraftDate)) memoryDraftDate = isoToday();
+      render();
+    });
+    return wrap;
+  }
+  const titleBox = wrap.querySelector("[data-title]");
+  const storyBox = wrap.querySelector("[data-story]");
+  const yearlyBox = wrap.querySelector("[data-yearly]");
+  const saveBtn = wrap.querySelector("[data-save]");
+  const syncSave = () => {
+    const ready = Boolean(titleBox.value.trim() && memoryDraftDate);
+    saveBtn.disabled = !ready;
+    saveBtn.classList.toggle("is-ready", ready);
+  };
   bindAppCalPicker(wrap, "memory-new-date", {
     getIso: () => memoryDraftDate,
     setIso: (iso) => {
@@ -5005,14 +5029,13 @@ function datesView() {
       noYear: Boolean(yearlyBox.checked),
       at: Date.now(),
     };
-    setState({ dates: [item, ...state.dates] }, true);
-    titleBox.value = "";
-    storyBox.value = "";
-    yearlyBox.checked = false;
+    memoriesComposing = false;
     memoryDraftDate = isoToday();
+    setState({ dates: [item, ...state.dates] }, true);
     render();
   });
   syncSave();
+  requestAnimationFrame(() => titleBox?.focus());
   return wrap;
 }
 

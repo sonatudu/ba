@@ -4086,6 +4086,32 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   box-shadow: var(--elev);
 }
 
+.memories-add-wrap {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+}
+
+.memories-add-btn {
+  min-width: 7.5rem;
+  min-height: 42px;
+  padding: 10px 22px;
+  border: 1px solid color-mix(in srgb, var(--gold) 36%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--gold) 12%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.memories-add-btn:active {
+  transform: scale(0.97);
+}
+
 .memories-compose.is-edit {
   margin-top: 0;
   padding-bottom: 14px;
