@@ -356,9 +356,63 @@ function cycleFlowOf(value) {
   return flow === "light" || flow === "medium" || flow === "heavy" ? flow : "";
 }
 
+function defaultSymptomList() {
+  return CYCLE_SYMPTOMS.map(([id, label]) => ({ id, label }));
+}
+
+function symptomIdFromLabel(label) {
+  const base = String(label || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return base || `sym_${uid()}`;
+}
+
+function normalizeSymptomList(list) {
+  const out = [];
+  const seen = new Set();
+  for (const item of Array.isArray(list) ? list : []) {
+    let id = "";
+    let label = "";
+    if (typeof item === "string") {
+      label = item.trim().slice(0, 40);
+      id = symptomIdFromLabel(label);
+    } else if (Array.isArray(item)) {
+      id = String(item[0] || "").trim().toLowerCase().slice(0, 48);
+      label = String(item[1] || item[0] || "").trim().slice(0, 40);
+    } else if (item && typeof item === "object") {
+      label = String(item.label || item.name || "").trim().slice(0, 40);
+      id = String(item.id || "").trim().toLowerCase().slice(0, 48) || symptomIdFromLabel(label);
+    }
+    if (!label) continue;
+    if (!id) id = symptomIdFromLabel(label);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, label });
+    if (out.length >= 40) break;
+  }
+  return out;
+}
+
+function symptomLabelOf(id, list) {
+  const key = String(id || "").trim().toLowerCase();
+  if (!key) return "";
+  const fromList = (Array.isArray(list) ? list : []).find((row) => row.id === key);
+  if (fromList?.label) return fromList.label;
+  return CYCLE_SYMPTOMS.find(([symId]) => symId === key)?.[1] || key.replace(/_/g, " ");
+}
+
+/** Checked symptoms for a period — any non-empty ids the user selected. */
 function cycleSymptomsOf(list) {
-  const allowed = new Set(CYCLE_SYMPTOMS.map(([id]) => id));
-  return [...new Set((Array.isArray(list) ? list : []).map((item) => String(item || "").toLowerCase()).filter((id) => allowed.has(id)))];
+  return [
+    ...new Set(
+      (Array.isArray(list) ? list : [])
+        .map((item) => String(item || "").trim().toLowerCase().slice(0, 48))
+        .filter(Boolean)
+    ),
+  ].slice(0, 40);
 }
 
 function normalizeCyclePeriod(item) {
@@ -536,6 +590,7 @@ function normalizeCycle(value) {
     taken: normalizeCycleTaken(src.taken || src.medTaken),
     courses,
     lastMedName,
+    symptomList: Array.isArray(src.symptomList) ? normalizeSymptomList(src.symptomList) : defaultSymptomList(),
   };
 }
 
@@ -561,7 +616,7 @@ const defaultState = () => ({
   todos: [],
   checkins: [],
   daily: { habits: [], days: {} },
-  cycle: { who: "ba", cycleLen: 28, periodLen: 5, periods: [], meds: defaultCycleMeds(), taken: {}, courses: [], lastMedName: "" },
+  cycle: { who: "ba", cycleLen: 28, periodLen: 5, periods: [], meds: defaultCycleMeds(), taken: {}, courses: [], lastMedName: "", symptomList: defaultSymptomList() },
 });
 
 function contentState(value) {
@@ -2082,7 +2137,9 @@ let routineWho = "";
 let cycleMonth = "";
 let cycleEditId = "";
 let cycleDraft = null;
-let cycleSymptomsOpen = false;
+let cycleSymptomsAdding = false;
+let cycleSymptomsRemoving = false;
+let cycleSymptomDraft = "";
 let courseEditId = "";
 let courseDraft = null;
 let courseHistMonth = "";
@@ -2500,7 +2557,9 @@ function goTab(id) {
     courseHistMonth = "";
     periodHistMonth = "";
     cycleSettingsOpen = false;
-    cycleSymptomsOpen = false;
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomDraft = "";
   }
   if (id === "daily") {
     dailyViewDay = "";
@@ -5364,7 +5423,7 @@ function periodHistorySummaryHtml(row, nextStart, periodLen) {
   const meta = cycleHistoryMeta(row, nextStart, periodLen);
   const flowLabel = CYCLE_FLOWS.find(([id]) => id === row.flow)?.[1] || "";
   const symptoms = (row.symptoms || [])
-    .map((id) => CYCLE_SYMPTOMS.find((pair) => pair[0] === id)?.[1] || id)
+    .map((id) => symptomLabelOf(id, ensureCycle().symptomList))
     .filter(Boolean)
     .join(" · ");
   const range = row.end
@@ -5416,7 +5475,9 @@ function cyclePeriodMonthView(group) {
     periodHistMonth = "";
     cycleEditId = id;
     cycleDraft = draftFromPeriod(item);
-    cycleSymptomsOpen = true;
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomDraft = "";
     render();
     requestAnimationFrame(() =>
       document.querySelector("[data-log]")?.scrollIntoView({ block: "start" })
@@ -5444,7 +5505,9 @@ function cyclePeriodMonthView(group) {
         if (cycleEditId === id) {
           cycleEditId = "";
           cycleDraft = emptyCycleDraft();
-          cycleSymptomsOpen = false;
+          cycleSymptomsAdding = false;
+          cycleSymptomsRemoving = false;
+          cycleSymptomDraft = "";
         }
         writeCycle({ periods: remaining });
       },
@@ -5579,10 +5642,14 @@ function cycleView() {
     if (!item) {
       cycleEditId = "";
       cycleDraft = emptyCycleDraft();
-      cycleSymptomsOpen = false;
+      cycleSymptomsAdding = false;
+      cycleSymptomsRemoving = false;
+      cycleSymptomDraft = "";
     } else if (cycleDraft.id !== item.id) {
       cycleDraft = draftFromPeriod(item);
-      cycleSymptomsOpen = true;
+      cycleSymptomsAdding = false;
+      cycleSymptomsRemoving = false;
+      cycleSymptomDraft = "";
     }
   }
   if (courseEditId) {
@@ -5732,36 +5799,37 @@ function cycleView() {
               )}
             </div>
           </div>
-          <div class="cycle-record-block cycle-symptoms-block">
+          <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsRemoving ? " is-removing" : ""}">
             <div class="cycle-symptoms-head">
               <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
-              ${
-                cycleSymptomsOpen
-                  ? `<button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>`
-                  : `<button type="button" class="cycle-symptoms-toggle" data-symptoms-open>${
-                      (cycleDraft.symptoms || []).length ? "Edit" : "Add"
-                    }</button>`
-              }
+              <div class="cycle-symptoms-actions">
+                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving ? "disabled" : ""}>Add</button>
+                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove>
+                  ${cycleSymptomsRemoving ? "Done" : "Remove"}
+                </button>
+              </div>
             </div>
             ${
-              cycleSymptomsOpen
-                ? `<div class="cycle-checks" role="group" aria-labelledby="cycle-symptoms-label">
-              ${CYCLE_SYMPTOMS.map(
-                ([id, label]) =>
-                  `<label class="cycle-check"><input type="checkbox" data-sym="${id}"${cycleDraft.symptoms.includes(id) ? " checked" : ""} /><span>${escapeHtml(label)}</span></label>`
-              ).join("")}
-            </div>`
-                : `<p class="cycle-symptoms-summary">${
-                    (cycleDraft.symptoms || []).length
-                      ? escapeHtml(
-                          cycleDraft.symptoms
-                            .map((id) => CYCLE_SYMPTOMS.find((pair) => pair[0] === id)?.[1] || id)
-                            .filter(Boolean)
-                            .join(" · ")
-                        )
-                      : "None added"
-                  }</p>`
+              cycleSymptomsAdding
+                ? `<form class="cycle-symptom-add" data-symptom-add-form>
+              <input type="text" data-symptom-input maxlength="40" placeholder="Symptom name" value="${escapeHtml(cycleSymptomDraft)}" enterkeyhint="done" autocomplete="off" />
+              <button type="submit" class="cycle-symptoms-toggle">Save</button>
+              <button type="button" class="cycle-symptoms-toggle" data-symptom-add-cancel>Cancel</button>
+            </form>`
+                : ""
             }
+            <div class="cycle-checks" role="group" aria-labelledby="cycle-symptoms-label">
+              ${(cycle.symptomList || [])
+                .map(
+                  (row) =>
+                    `<label class="cycle-check${cycleSymptomsRemoving ? " is-removable" : ""}"><input type="checkbox" data-sym="${escapeHtml(row.id)}"${
+                      cycleDraft.symptoms.includes(row.id) ? " checked" : ""
+                    }${cycleSymptomsRemoving ? " disabled" : ""} /><span>${escapeHtml(row.label)}</span></label>`
+                )
+                .join("")}
+              ${(cycle.symptomList || []).length ? "" : `<p class="cycle-symptoms-summary">No symptoms yet — tap Add.</p>`}
+            </div>
+            ${cycleSymptomsRemoving ? `<p class="cycle-symptoms-hint">Tap a symptom to remove it from your list.</p>` : ""}
           </div>
           <div class="cycle-record-block">
             <label class="cycle-record-label" for="cycle-note">Notes</label>
@@ -5934,23 +6002,75 @@ function cycleView() {
     });
   });
   wrap.querySelectorAll("[data-sym]").forEach((input) => {
+    const row = input.closest(".cycle-check");
+    if (cycleSymptomsRemoving) {
+      row?.addEventListener("click", (event) => {
+        event.preventDefault();
+        const id = input.dataset.sym;
+        if (!id) return;
+        readDraftDates();
+        readCourseDraftFrom();
+        const nextList = (ensureCycle().symptomList || []).filter((item) => item.id !== id);
+        cycleDraft.symptoms = cycleDraft.symptoms.filter((item) => item !== id);
+        writeCycle({ symptomList: nextList }, true);
+        render();
+      });
+      return;
+    }
     input.addEventListener("change", () => {
       const id = input.dataset.sym;
       if (input.checked && !cycleDraft.symptoms.includes(id)) cycleDraft.symptoms = [...cycleDraft.symptoms, id];
       else if (!input.checked) cycleDraft.symptoms = cycleDraft.symptoms.filter((item) => item !== id);
     });
   });
-  wrap.querySelector("[data-symptoms-open]")?.addEventListener("click", () => {
+  wrap.querySelector("[data-symptoms-add]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
-    cycleSymptomsOpen = true;
+    cycleSymptomsRemoving = false;
+    cycleSymptomsAdding = true;
+    cycleSymptomDraft = "";
     render();
   });
-  wrap.querySelector("[data-symptoms-done]")?.addEventListener("click", () => {
+  wrap.querySelector("[data-symptoms-remove]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
-    cycleSymptomsOpen = false;
+    cycleSymptomsAdding = false;
+    cycleSymptomDraft = "";
+    cycleSymptomsRemoving = !cycleSymptomsRemoving;
     render();
+  });
+  wrap.querySelector("[data-symptom-add-cancel]")?.addEventListener("click", () => {
+    cycleSymptomsAdding = false;
+    cycleSymptomDraft = "";
+    render();
+  });
+  wrap.querySelector("[data-symptom-add-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    readDraftDates();
+    readCourseDraftFrom();
+    const input = wrap.querySelector("[data-symptom-input]");
+    const label = String(input?.value || cycleSymptomDraft || "").trim().slice(0, 40);
+    if (!label) {
+      if (err) err.textContent = "Enter a symptom name.";
+      return;
+    }
+    const id = symptomIdFromLabel(label);
+    const latest = ensureCycle();
+    if ((latest.symptomList || []).some((row) => row.id === id || row.label.toLowerCase() === label.toLowerCase())) {
+      if (err) err.textContent = "That symptom is already in your list.";
+      return;
+    }
+    if ((latest.symptomList || []).length >= 40) {
+      if (err) err.textContent = "Symptom list is full.";
+      return;
+    }
+    cycleSymptomsAdding = false;
+    cycleSymptomDraft = "";
+    writeCycle({ symptomList: [...(latest.symptomList || []), { id, label }] }, true);
+    render();
+  });
+  wrap.querySelector("[data-symptom-input]")?.addEventListener("input", (event) => {
+    cycleSymptomDraft = String(event.target.value || "").slice(0, 40);
   });
   wrap.querySelector("[data-save]").addEventListener("click", () => {
     readDraftDates();
@@ -5978,14 +6098,18 @@ function cycleView() {
     const others = latest.periods.filter((item) => item.id !== row.id);
     const wasEdit = Boolean(cycleDraft.id);
     cycleEditId = "";
-    cycleSymptomsOpen = false;
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomDraft = "";
     cycleDraft = emptyCycleDraft();
     writeCycle({ who: "ba", periods: [row, ...others] });
     showAppToast(wasEdit ? "Period updated" : "Period saved");
   });
   wrap.querySelector("[data-cancel]")?.addEventListener("click", () => {
     cycleEditId = "";
-    cycleSymptomsOpen = false;
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomDraft = "";
     cycleDraft = emptyCycleDraft();
     render();
   });
@@ -6122,6 +6246,9 @@ function cycleView() {
     cycleSettingsOpen = true;
     render();
   });
+  if (cycleSymptomsAdding) {
+    requestAnimationFrame(() => wrap.querySelector("[data-symptom-input]")?.focus());
+  }
   return wrap;
 }
 
