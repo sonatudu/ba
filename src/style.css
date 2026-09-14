@@ -3676,6 +3676,25 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   color: color-mix(in srgb, var(--rose) 40%, var(--ink));
 }
 
+.compose-done-btn {
+  align-self: flex-end;
+  min-height: 32px;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.compose-done-btn:active {
+  transform: scale(0.97);
+}
+
 .overview-save svg {
   width: 18px;
   height: 18px;
