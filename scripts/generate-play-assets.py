@@ -110,6 +110,11 @@ def write_play_icon():
     PLAY.mkdir(parents=True, exist_ok=True)
     dest = PLAY / "icon-512.png"
     if dest.exists():
+        # Ensure store icon stays circular (no cream square pad).
+        icon = Image.open(dest).convert("RGBA")
+        cleaned = circular_mask(icon)
+        if cleaned.tobytes() != icon.tobytes():
+            save_png(cleaned, dest)
         return
     save_png(draw_mark(512, bg=PAGE, pad_ratio=0.12), dest)
 
