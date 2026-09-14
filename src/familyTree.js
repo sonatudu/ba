@@ -163,7 +163,6 @@ function cardHtml(escapeHtml, person, role = "") {
   const roleClass = role ? ` is-${role}` : "";
   return `
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
-      ${person.locked ? "" : `<button class="tree-del" type="button" data-del aria-label="Delete">×</button>`}
       ${FACE}
       <input data-field="name" value="${escapeHtml(person.name || "")}" />
       <input data-field="nick" placeholder=" " value="${escapeHtml(person.nick || "")}" />

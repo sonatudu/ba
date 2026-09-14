@@ -292,7 +292,7 @@ export function routineHtml(escapeHtml, who) {
   if (who === "ma") {
     return `
       <article class="card routine-card">
-        <h3>Ma</h3>
+        <h3>Classes</h3>
         ${gridHtml(escapeHtml, MA_SLOTS, MA_DAYS)}
       </article>
       <article class="card routine-card">
@@ -313,7 +313,7 @@ export function routineHtml(escapeHtml, who) {
   ).join("");
   return `
     <article class="card routine-card">
-      <h3>Ba</h3>
+      <h3>Classes</h3>
       ${gridHtml(escapeHtml, BAU_SLOTS, BAU_DAYS)}
     </article>
     <article class="card routine-card">

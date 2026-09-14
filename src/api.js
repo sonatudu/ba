@@ -4,14 +4,19 @@ async function request(path, { method = "GET", token, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   let res;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
     });
   } catch {
     throw new Error("Can't reach the room.");
+  } finally {
+    clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -42,8 +47,12 @@ export function saveCloud(token, body) {
   return request("/api/data", { method: "PUT", token, body });
 }
 
-export function logoutCloud(token) {
-  return request("/api/logout", { method: "POST", token }).catch(() => {});
+export function logoutCloud(token, deviceId) {
+  return request("/api/logout", {
+    method: "POST",
+    token,
+    body: deviceId ? { deviceId } : {},
+  }).catch(() => {});
 }
 
 export function deleteAccount(token, code) {
@@ -71,7 +80,7 @@ export function removeChat(token, id) {
 }
 
 export function clearChat(token) {
-  return request("/api/chat", { method: "DELETE", token });
+  return request("/api/chat", { method: "DELETE", token, body: { confirm: true } });
 }
 
 export function typingChat(token, on) {
