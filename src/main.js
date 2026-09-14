@@ -4677,9 +4677,10 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
       : upcoming.diff === 1
         ? "Tomorrow"
         : `In ${upcoming.diff} days`
-    : memoryRelLabel(item);
+    : "";
   const dateLine = memoryDay(item);
   const years = upcoming?.years || 0;
+  const meta = [when, dateLine].filter(Boolean).join(" · ");
   const badges = [
     item.noYear ? `<span class="memories-badge">Yearly</span>` : "",
     isKeptMemory(item.id) ? `<span class="memories-badge is-kept">Kept</span>` : "",
@@ -4690,12 +4691,11 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
   return `
     <article class="memories-note${item.noYear ? " is-yearly" : ""}${isKeptMemory(item.id) ? " is-kept" : ""}" data-memory="${escapeHtml(item.id)}" role="button" tabindex="0">
       <div class="memories-note-top">
-        <p class="memories-note-when">${escapeHtml(when)}</p>
+        <p class="memories-note-when">${escapeHtml(meta)}</p>
         ${badges ? `<div class="memories-badges">${badges}</div>` : ""}
       </div>
-      <p class="memories-note-date">${escapeHtml(dateLine)}</p>
       <h3 class="memories-note-title">${escapeHtml(text)}</h3>
-      ${story ? `<p class="memories-note-story">${escapeHtml(story.length > 140 ? `${story.slice(0, 140)}…` : story)}</p>` : ""}
+      ${story ? `<p class="memories-note-story">${escapeHtml(story.length > 90 ? `${story.slice(0, 90)}…` : story)}</p>` : ""}
     </article>
   `;
 }
