@@ -96,8 +96,10 @@ def load_play_icon(size=None, circular=False):
 def circular_mask(img):
     """Keep the medallion disc; drop the square cream pad behind it."""
     w, h = img.size
+    # Icon sources keep ~5% cream margin outside the blue rim.
+    inset = max(2, int(min(w, h) * 0.055))
     mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).ellipse((1, 1, w - 2, h - 2), fill=255)
+    ImageDraw.Draw(mask).ellipse((inset, inset, w - 1 - inset, h - 1 - inset), fill=255)
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     out.paste(img, (0, 0), mask)
     return out
