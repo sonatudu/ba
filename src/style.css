@@ -667,21 +667,50 @@ body.on-family .shell {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
   border: 1px solid color-mix(in srgb, var(--ok) 22%, var(--line));
   border-radius: var(--r-xl);
   background: var(--card);
   --rail: color-mix(in srgb, var(--ok) 45%, transparent);
   box-shadow: var(--elev);
-  overflow: hidden;
+  overflow: visible;
   background-clip: padding-box;
-  contain: paint;
+}
+
+.todo-add-wrap {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+}
+
+.todo-add-btn {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--ok) 36%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ok) 12%, var(--paper));
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.todo-add-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.todo-add-btn:active {
+  transform: scale(0.96);
 }
 
 .todo-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 10px;
 }
@@ -706,32 +735,6 @@ body.on-family .shell {
 .todo-compose [data-new]::placeholder {
   color: var(--ink-soft);
   font-weight: 400;
-}
-
-.todo-save {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  color: var(--ink-soft);
-  opacity: 1;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-
-.todo-save.is-ready {
-  border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
-  background: color-mix(in srgb, var(--ok) 16%, var(--paper));
-  color: color-mix(in srgb, var(--ok) 35%, var(--ink));
-}
-
-.todo-save svg {
-  width: 18px;
-  height: 18px;
-  display: block;
 }
 
 .todo-add-actions {
@@ -778,29 +781,22 @@ body.on-family .shell {
 .todo-pri {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
 
 .todo-who button,
-.todo-filters button,
-.todo-pri button {
+.todo-filters button {
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   color: var(--ink-soft);
-  font-family: var(--font);
+  font: inherit;
   font-size: var(--fs-label);
   font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.todo-who button,
-.todo-pri button {
-  min-width: 0;
   padding: 6px 10px;
+  cursor: pointer;
 }
 
 .todo-who button.is-on,
@@ -810,12 +806,74 @@ body.on-family .shell {
   color: var(--ink);
 }
 
+.todo-pri-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+
+.todo-pri-dot::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+}
+
+.todo-pri-dot.is-near::before {
+  background: var(--danger);
+}
+
+.todo-pri-dot.is-soon::before {
+  background: var(--gold);
+}
+
+.todo-pri-dot.is-later::before {
+  background: var(--accent);
+}
+
+.todo-pri-dot.is-on {
+  border-color: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.todo-pri-dot.is-near.is-on {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.todo-pri-dot.is-soon.is-on {
+  border-color: color-mix(in srgb, var(--gold) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 18%, transparent);
+}
+
+.todo-pri-dot.is-later.is-on {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .todo-when {
-  display: none;
+  display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 0 0 32px;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.todo-when-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.todo-when-label {
+  font-size: var(--fs-label);
+  font-weight: 650;
+  color: var(--ink-soft);
 }
 
 .todo-compose.is-when .todo-when,
@@ -827,28 +885,21 @@ body.on-family .shell {
   display: none !important;
 }
 
-.todo-when .date-picker {
-  width: 100%;
-}
-
 .todo-when .time-picker select[data-part="h"] {
-  flex: 1.1;
+  min-width: 4.5rem;
 }
 
 .todo-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  align-self: flex-start;
-  margin: 0 0 0 32px;
-  padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
-  color: color-mix(in srgb, var(--accent) 45%, var(--ink));
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
   font-size: var(--fs-label);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  color: var(--ink-soft);
 }
 
 .todo-chip[hidden] {
@@ -856,68 +907,39 @@ body.on-family .shell {
 }
 
 .todo-chip button {
-  width: auto;
-  height: auto;
-  padding: 0;
   border: 0;
-  border-radius: 0;
   background: transparent;
-  color: inherit;
-  opacity: 0.85;
-  cursor: pointer;
+  color: var(--ink-soft);
   font: inherit;
-  font-size: inherit;
+  font-size: var(--fs-label);
   font-weight: 650;
   line-height: 1;
-}
-
-.todo-pri [data-pri="near"].is-on {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
-  background: color-mix(in srgb, var(--danger) 14%, var(--paper));
-  color: color-mix(in srgb, var(--danger) 35%, var(--ink));
-}
-
-.todo-pri [data-pri="soon"].is-on {
-  border-color: color-mix(in srgb, var(--gold) 45%, var(--line));
-  background: color-mix(in srgb, var(--gold) 14%, var(--paper));
-  color: color-mix(in srgb, var(--gold) 40%, var(--ink));
-}
-
-.todo-pri [data-pri="later"].is-on {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
-  color: var(--ink);
+  cursor: pointer;
 }
 
 .todo-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 10px;
   border: 0;
   background: transparent;
-  margin: 0 -4px;
+  margin: 0;
 }
 
 .todo-item {
   position: relative;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 10px;
+  grid-template-columns: 24px minmax(0, 1fr) 12px;
   align-items: start;
   gap: 12px;
-  padding: 12px 8px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
+  padding: 12px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
 }
 
 .todo-item:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: 44px;
-  right: 8px;
-  bottom: 0;
-  height: 1px;
-  background: var(--line);
+  display: none;
 }
 
 .todo-list[hidden] {
@@ -942,20 +964,25 @@ body.on-family .shell {
   padding: 6px 10px;
 }
 
-.todo-item.is-near,
-.todo-item.is-soon,
-.todo-item.is-later,
-.todo-item.is-done.is-near,
-.todo-item.is-done.is-soon,
-.todo-item.is-done.is-later {
-  background: transparent;
-  box-shadow: none;
+.todo-item.is-near {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: color-mix(in srgb, var(--danger) 7%, var(--paper));
+}
+
+.todo-item.is-soon {
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: color-mix(in srgb, var(--gold) 8%, var(--paper));
+}
+
+.todo-item.is-later {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper));
 }
 
 .todo-flag {
-  width: 8px;
-  height: 8px;
-  margin-top: 8px;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
   border-radius: 50%;
   background: var(--accent);
 }
@@ -966,6 +993,10 @@ body.on-family .shell {
 
 .todo-item.is-soon .todo-flag {
   background: var(--gold);
+}
+
+.todo-item.is-later .todo-flag {
+  background: var(--accent);
 }
 
 .todo-item [data-done] {
@@ -994,6 +1025,10 @@ body.on-family .shell {
   border-left: 2px solid #fff;
   border-bottom: 2px solid #fff;
   transform: rotate(-45deg);
+}
+
+.todo-flag[hidden] {
+  display: none;
 }
 
 .todo-body {

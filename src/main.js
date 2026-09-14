@@ -2194,6 +2194,7 @@ let todoDraftPri = "later";
 let todoDraftDue = "";
 let todoDraftTime = "";
 let todoWhenOpen = false;
+let todosComposing = false;
 let dailyViewDay = "";
 let dailyDraftSlot = "morning";
 let dailyEditing = false;
@@ -2558,6 +2559,10 @@ function goTab(id) {
   }
   if (id !== "memories" && id !== "dates") {
     memoriesComposing = false;
+  }
+  if (id !== "todo") {
+    todosComposing = false;
+    todoWhenOpen = false;
   }
   if (id !== "cycle") {
     courseHistMonth = "";
@@ -2926,6 +2931,12 @@ function goHome() {
   }
   if ((tab === "memories" || tab === "dates") && memoriesComposing) {
     memoriesComposing = false;
+    render();
+    return;
+  }
+  if (tab === "todo" && todosComposing) {
+    todosComposing = false;
+    todoWhenOpen = false;
     render();
     return;
   }
@@ -6374,12 +6385,11 @@ function todoView() {
         <div class="todo-list" data-list ${shown.length ? "" : "hidden"}></div>
         ${shown.length ? "" : `<p class="todo-empty">${all.length ? "Nothing in this list." : "No tasks yet."}</p>`}
       </article>
-      <form class="todo-compose${todoWhenOpen ? " is-when" : ""}">
+      ${
+        todosComposing
+          ? `<form class="todo-compose card${todoWhenOpen ? " is-when" : ""}">
         <div class="todo-add-row">
           <input data-new maxlength="200" placeholder="Add a task" autocomplete="off" />
-          <button class="todo-save" type="submit" aria-label="Save task">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8.6-8.6 1.4 1.4z"/></svg>
-          </button>
         </div>
         <div class="todo-add-actions">
           <button type="button" data-toggle-when class="${todoWhenOpen || dueChip ? "is-on" : ""}" aria-label="Date and time" aria-pressed="${todoWhenOpen}">
@@ -6394,62 +6404,34 @@ function todoView() {
             <button type="button" data-who="ma" class="${todoDraftWho === "ma" ? "is-on" : ""}">Ma</button>
           </div>
           <div class="todo-pri" role="group" aria-label="Priority">
-            <button type="button" data-pri="near" class="${todoDraftPri === "near" ? "is-on" : ""}">Near</button>
-            <button type="button" data-pri="soon" class="${todoDraftPri === "soon" ? "is-on" : ""}">Soon</button>
-            <button type="button" data-pri="later" class="${todoDraftPri === "later" ? "is-on" : ""}">Later</button>
+            <button type="button" data-pri="near" class="todo-pri-dot is-near${todoDraftPri === "near" ? " is-on" : ""}" aria-label="Near" title="Near"></button>
+            <button type="button" data-pri="soon" class="todo-pri-dot is-soon${todoDraftPri === "soon" ? " is-on" : ""}" aria-label="Soon" title="Soon"></button>
+            <button type="button" data-pri="later" class="todo-pri-dot is-later${todoDraftPri === "later" ? " is-on" : ""}" aria-label="Later" title="Later"></button>
           </div>
         </div>
         <div class="todo-when" ${todoWhenOpen ? "" : "hidden"}>
-          ${datePickerHtml("todo-due", todoDraftDue, { future: true })}
+          <div class="todo-when-date">
+            <span class="todo-when-label">Date</span>
+            ${appCalPickerHtml("todo-due", todoDraftDue || "", { clearable: true, minIso: isoToday() })}
+          </div>
           ${timePickerHtml("todo-time", todoDraftTime)}
         </div>
         <div class="todo-chip" data-due-chip ${dueChip ? "" : "hidden"}>
           <span data-due-text>${escapeHtml(dueChip)}</span>
           <button type="button" data-clear-when>Clear</button>
         </div>
-      </form>
+        <button type="submit" class="compose-done-btn" data-todo-save>Save</button>
+      </form>`
+          : `<div class="todo-add-wrap">
+        <button type="button" class="todo-add-btn" data-todo-add aria-label="Add task">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>`
+      }
     </div>
   `);
   const list = wrap.querySelector("[data-list]");
-  const composer = wrap.querySelector("[data-new]");
-  const form = wrap.querySelector("form");
-  const saveBtn = wrap.querySelector(".todo-save");
-  const whenBox = wrap.querySelector(".todo-when");
-  const chip = wrap.querySelector("[data-due-chip]");
-  const chipText = wrap.querySelector("[data-due-text]");
-  const whenToggle = wrap.querySelector("[data-toggle-when]");
   const menu = storyDeleteMenu(wrap);
-  const paintWhen = () => {
-    todoDraftDue = readDatePicker(wrap, "todo-due");
-    todoDraftTime = readTimePicker(wrap, "todo-time");
-    const label = todoDueLabel({ due: todoDraftDue, time: todoDraftTime });
-    chipText.textContent = label;
-    chip.hidden = !label;
-    whenToggle.classList.toggle("is-on", todoWhenOpen || Boolean(label));
-  };
-  const addItem = () => {
-    const text = composer.value.trim();
-    if (!text) return;
-    todoDraftDue = readDatePicker(wrap, "todo-due");
-    todoDraftTime = readTimePicker(wrap, "todo-time");
-    if (todoDraftTime && !todoDraftDue) todoDraftDue = isoToday();
-    const item = {
-      id: uid(),
-      text,
-      done: false,
-      from: currentName(),
-      at: Date.now(),
-      who: todoDraftWho,
-      pri: todoDraftPri,
-      due: todoDraftDue,
-      time: todoDraftTime,
-    };
-    composer.value = "";
-    todoDraftDue = "";
-    todoDraftTime = "";
-    todoWhenOpen = false;
-    setState({ todos: [item, ...(state.todos || [])] });
-  };
   const addRow = (item) => {
     const who = todoWhoOf(item);
     const pri = todoPriOf(item);
@@ -6466,7 +6448,7 @@ function todoView() {
             ${who !== "us" ? `<span class="todo-owner">${whoLabel}</span>` : ""}
           </p>` : ""}
         </div>
-        <span class="todo-flag" ${pri === "later" ? "hidden" : ""} title="${todoPriLabel(pri)}"></span>
+        <span class="todo-flag" title="${todoPriLabel(pri)}" aria-hidden="true"></span>
       </article>
     `);
     let wait = 0;
@@ -6501,6 +6483,72 @@ function todoView() {
     return row;
   };
   shown.forEach((item) => list.append(addRow(item)));
+  wrap.querySelectorAll("[data-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      todoFilter = button.dataset.filter;
+      render();
+    });
+  });
+  if (!todosComposing) {
+    wrap.querySelector("[data-todo-add]")?.addEventListener("click", () => {
+      todosComposing = true;
+      todoWhenOpen = false;
+      render();
+    });
+    return wrap;
+  }
+  const composer = wrap.querySelector("[data-new]");
+  const form = wrap.querySelector("form");
+  const whenBox = wrap.querySelector(".todo-when");
+  const chip = wrap.querySelector("[data-due-chip]");
+  const chipText = wrap.querySelector("[data-due-text]");
+  const whenToggle = wrap.querySelector("[data-toggle-when]");
+  const paintWhen = () => {
+    todoDraftTime = readTimePicker(wrap, "todo-time");
+    const label = todoDueLabel({ due: todoDraftDue, time: todoDraftTime });
+    if (chipText) chipText.textContent = label;
+    if (chip) chip.hidden = !label;
+    whenToggle?.classList.toggle("is-on", todoWhenOpen || Boolean(label));
+  };
+  const closeCompose = () => {
+    todosComposing = false;
+    todoWhenOpen = false;
+    todoDraftDue = "";
+    todoDraftTime = "";
+    render();
+  };
+  const addItem = () => {
+    const text = composer.value.trim();
+    todoDraftTime = readTimePicker(wrap, "todo-time");
+    if (todoDraftTime && !todoDraftDue) todoDraftDue = isoToday();
+    if (!text) {
+      closeCompose();
+      return;
+    }
+    const item = {
+      id: uid(),
+      text,
+      done: false,
+      from: currentName(),
+      at: Date.now(),
+      who: todoDraftWho,
+      pri: todoDraftPri,
+      due: todoDraftDue,
+      time: todoDraftTime,
+    };
+    todoDraftDue = "";
+    todoDraftTime = "";
+    todoWhenOpen = false;
+    todosComposing = false;
+    setState({ todos: [item, ...(state.todos || [])] });
+  };
+  bindAppCalPicker(wrap, "todo-due", {
+    getIso: () => todoDraftDue || "",
+    setIso: (iso) => {
+      todoDraftDue = /^\d{4}-\d{2}-\d{2}$/.test(iso || "") ? iso : "";
+      paintWhen();
+    },
+  });
   wrap.querySelectorAll("[data-who]").forEach((button) => {
     button.addEventListener("click", () => {
       todoDraftWho = button.dataset.who === "ba" || button.dataset.who === "ma" ? button.dataset.who : "us";
@@ -6514,12 +6562,6 @@ function todoView() {
       wrap.querySelectorAll("[data-pri]").forEach((item) => item.classList.toggle("is-on", item === button));
     });
   });
-  wrap.querySelectorAll("[data-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      todoFilter = button.dataset.filter;
-      render();
-    });
-  });
   whenToggle.addEventListener("click", () => {
     todoWhenOpen = !todoWhenOpen;
     form.classList.toggle("is-when", todoWhenOpen);
@@ -6527,21 +6569,25 @@ function todoView() {
     whenToggle.setAttribute("aria-pressed", String(todoWhenOpen));
     paintWhen();
   });
-  wrap.querySelector("[data-clear-when]").addEventListener("click", () => {
+  wrap.querySelector("[data-clear-when]")?.addEventListener("click", () => {
     todoDraftDue = "";
     todoDraftTime = "";
-    wrap.querySelectorAll("[data-date-name='todo-due'] select, [data-time-name='todo-time'] select").forEach((sel) => {
+    wrap.querySelectorAll("[data-time-name='todo-time'] select").forEach((sel) => {
       sel.value = "";
     });
+    const cal = wrap.querySelector('[data-cal-name="todo-due"]');
+    if (cal) {
+      cal.dataset.calIso = "";
+      const trigger = cal.querySelector("[data-cal-open]");
+      if (trigger && !trigger.classList.contains("is-icon")) trigger.textContent = "Pick a date";
+      const clearBtn = cal.querySelector("[data-cal-clear]");
+      if (clearBtn) clearBtn.hidden = true;
+    }
     paintWhen();
   });
-  wrap.querySelectorAll(".todo-when select").forEach((sel) => {
+  wrap.querySelectorAll(".todo-when [data-time-name] select").forEach((sel) => {
     sel.addEventListener("change", paintWhen);
   });
-  const paintSave = () => {
-    saveBtn.classList.toggle("is-ready", Boolean(composer.value.trim()));
-  };
-  composer.addEventListener("input", paintSave);
   composer.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -6552,7 +6598,8 @@ function todoView() {
     event.preventDefault();
     addItem();
   });
-  paintSave();
+  paintWhen();
+  requestAnimationFrame(() => composer?.focus());
   return wrap;
 }
 
