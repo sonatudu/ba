@@ -2934,14 +2934,6 @@ function goHome() {
     render();
     return;
   }
-  if (tab === "today" && openDiaryDay) {
-    openDiaryDay = "";
-    todayDraftId = null;
-    overviewComposing = false;
-    pendingScrollY = Number(todayScrollY) || 0;
-    render();
-    return;
-  }
   if (tab === "cycle" && cycleSettingsOpen) {
     cycleSettingsOpen = false;
     pendingScrollY = Number(cycleScrollY) || 0;
@@ -2962,6 +2954,9 @@ function goHome() {
   }
   if (tab === "home") return;
   todayDraftId = null;
+  openDiaryDay = "";
+  overviewComposing = false;
+  openNoteId = null;
   whereFull = false;
   document.body.classList.remove("map-full");
   tab = "home";
@@ -4545,6 +4540,7 @@ function todayDayView(day) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
           </button>
         </div>
+        <button type="button" class="compose-done-btn" data-overview-done>Done</button>
       </form>`
           : `<div class="overview-add-wrap">
         <button type="button" class="overview-add-btn" data-overview-add>Add</button>
@@ -4601,6 +4597,11 @@ function todayDayView(day) {
     });
   });
   box.addEventListener("input", syncSave);
+  wrap.querySelector("[data-overview-done]")?.addEventListener("click", () => {
+    overviewComposing = false;
+    todayDraftId = null;
+    render();
+  });
   wrap.querySelector("form").addEventListener("submit", (event) => {
     event.preventDefault();
     const text = box.value.trim();
@@ -4948,6 +4949,7 @@ function datesView() {
           </button>
         </div>
         <textarea data-story rows="2" maxlength="4000" placeholder="Story (optional)"></textarea>
+        <button type="button" class="compose-done-btn" data-memories-done>Done</button>
       </form>`
           : `<div class="memories-add-wrap">
         <button type="button" class="memories-add-btn" data-memories-add>Add</button>
@@ -5017,6 +5019,11 @@ function datesView() {
     },
   });
   titleBox.addEventListener("input", syncSave);
+  wrap.querySelector("[data-memories-done]")?.addEventListener("click", () => {
+    memoriesComposing = false;
+    memoryDraftDate = isoToday();
+    render();
+  });
   wrap.querySelector("form").addEventListener("submit", (event) => {
     event.preventDefault();
     const text = titleBox.value.trim();
@@ -5837,7 +5844,7 @@ function cycleView() {
                 ? `<form class="cycle-symptom-add" data-symptom-add-form>
               <input type="text" data-symptom-input maxlength="40" placeholder="Symptom name" value="${escapeHtml(cycleSymptomDraft)}" enterkeyhint="done" autocomplete="off" />
               <button type="submit" class="cycle-symptoms-toggle">Save</button>
-              <button type="button" class="cycle-symptoms-toggle" data-symptom-add-cancel>Cancel</button>
+              <button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>
             </form>`
                 : ""
             }
@@ -5857,16 +5864,16 @@ function cycleView() {
               ${
                 cycleSymptomsEditing
                   ? `<div class="cycle-symptoms-actions">
-                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving ? "disabled" : ""}>Add</button>
-                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove>
-                  ${cycleSymptomsRemoving ? "Done" : "Remove"}
+                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving || cycleSymptomsAdding ? "disabled" : ""}>Add</button>
+                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove ${cycleSymptomsAdding ? "disabled" : ""}>
+                  Remove
                 </button>
+                ${cycleSymptomsAdding ? "" : `<button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>`}
               </div>`
-                  : ""
-              }
-              <button type="button" class="cycle-symptoms-edit${cycleSymptomsEditing ? " is-on" : ""}" data-symptoms-edit aria-label="${cycleSymptomsEditing ? "Done editing symptoms" : "Edit symptoms"}" aria-pressed="${cycleSymptomsEditing ? "true" : "false"}">
+                  : `<button type="button" class="cycle-symptoms-edit" data-symptoms-edit aria-label="Edit symptoms" aria-pressed="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
-              </button>
+              </button>`
+              }
             </div>
           </div>
           <div class="cycle-record-block">
@@ -6061,16 +6068,28 @@ function cycleView() {
       else if (!input.checked) cycleDraft.symptoms = cycleDraft.symptoms.filter((item) => item !== id);
     });
   });
+  const exitCycleSymptomsModes = () => {
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = false;
+    cycleSymptomDraft = "";
+  };
   wrap.querySelector("[data-symptoms-edit]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
-    cycleSymptomsEditing = !cycleSymptomsEditing;
-    if (!cycleSymptomsEditing) {
-      cycleSymptomsAdding = false;
-      cycleSymptomsRemoving = false;
-      cycleSymptomDraft = "";
-    }
+    cycleSymptomsEditing = true;
+    cycleSymptomsAdding = false;
+    cycleSymptomsRemoving = false;
+    cycleSymptomDraft = "";
     render();
+  });
+  wrap.querySelectorAll("[data-symptoms-done]").forEach((button) => {
+    button.addEventListener("click", () => {
+      readDraftDates();
+      readCourseDraftFrom();
+      exitCycleSymptomsModes();
+      render();
+    });
   });
   wrap.querySelector("[data-symptoms-add]")?.addEventListener("click", () => {
     readDraftDates();
@@ -6088,11 +6107,6 @@ function cycleView() {
     cycleSymptomsAdding = false;
     cycleSymptomDraft = "";
     cycleSymptomsRemoving = !cycleSymptomsRemoving;
-    render();
-  });
-  wrap.querySelector("[data-symptom-add-cancel]")?.addEventListener("click", () => {
-    cycleSymptomsAdding = false;
-    cycleSymptomDraft = "";
     render();
   });
   wrap.querySelector("[data-symptom-add-form]")?.addEventListener("submit", (event) => {
