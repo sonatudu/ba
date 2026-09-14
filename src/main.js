@@ -1,3 +1,4 @@
+import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
@@ -263,6 +264,23 @@ async function initNative() {
     await Promise.race([SplashScreen.hide(), new Promise((resolve) => window.setTimeout(resolve, 700))]);
   } catch {
     /* web and some emulators skip this */
+  }
+  try {
+    App.addListener("backButton", ({ canGoBack }) => {
+      if (session?.token && tab !== "home") {
+        goHome();
+        return;
+      }
+      if (session?.token && tab === "home") {
+        // Nested closes happen inside goHome when tab !== home; on home, leave the app.
+        App.exitApp();
+        return;
+      }
+      if (canGoBack) history.back();
+      else App.exitApp();
+    });
+  } catch {
+    /* web */
   }
 }
 
@@ -2583,6 +2601,8 @@ function goTab(id) {
   if (id === "routine") routineWho = partnerId();
   tab = id;
   markSectionSeen(id);
+  if (history.state?.ba === "section") history.replaceState({ ba: "section", tab: id }, "");
+  else history.pushState({ ba: "section", tab: id }, "");
   persist().catch(() => {});
   render();
   startChatLoop();
@@ -2964,6 +2984,14 @@ function goHome() {
     return;
   }
   if (tab === "home") return;
+  if (history.state?.ba === "section") {
+    history.back();
+    return;
+  }
+  settleHome();
+}
+
+function settleHome() {
   todayDraftId = null;
   openDiaryDay = "";
   overviewComposing = false;
@@ -2982,15 +3010,16 @@ function requestLeaveChat() {
 }
 
 window.addEventListener("popstate", () => {
-  leaveChat();
+  if (tab === "chat") {
+    leaveChat();
+    return;
+  }
+  settleHome();
 });
 
 function chatView() {
   const wrap = el(`
     <section class="wa-app">
-      <button class="back-ghost" type="button" data-back aria-label="Back">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.5 5.5 8 12l7.5 6.5 1.4-1.6L11.2 12l5.7-5.9z"/></svg>
-      </button>
       <div class="wa-thread" data-chat-thread></div>
       <button class="jump-end" type="button" data-jump-end hidden>↓</button>
       <div class="wa-dock">
@@ -3034,7 +3063,6 @@ function chatView() {
     return true;
   };
   input.setAttribute("enterkeyhint", chatEnterSends() ? "send" : "enter");
-  wrap.querySelector("[data-back]").addEventListener("click", () => requestLeaveChat());
   paintChatThread(thread, true);
   ensureChatViewport();
   requestAnimationFrame(fitChatViewport);
@@ -8459,16 +8487,11 @@ function appView() {
         tab === "home"
           ? ""
           : `<header class="topbar">
-        <button class="back-ghost" type="button" data-back aria-label="Back">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.5 5.5 8 12l7.5 6.5 1.4-1.6L11.2 12l5.7-5.9z"/></svg>
-        </button>
         <h1 class="wordmark">${escapeHtml(pageTitle())}</h1>
       </header>`
       }
     </div>
   `);
-  const back = shell.querySelector("[data-back]");
-  if (back) back.addEventListener("click", goHome);
   const views = {
     home: homeView,
     routine: routineView,
