@@ -6800,7 +6800,7 @@ button.is-down:not(:disabled):not(.inmap-dot),
 .cycle-settings-launch {
   display: flex;
   justify-content: center;
-  padding: 8px 0 4px;
+  padding: 12px 0 calc(28px + env(safe-area-inset-bottom, 0px));
 }
 
 .cycle-settings-btn {
