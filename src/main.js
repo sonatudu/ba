@@ -721,8 +721,6 @@ const DAILY_SLOTS = [
 ];
 
 const DAILY_HABIT_LIMIT = 36;
-/** Completion graph & progress rollup begin on this day (app launch). */
-const DAILY_GRAPH_START = "2026-09-13";
 const DAILY_GRAPH_RANGES = [
   ["today", "Today"],
   ["week", "Week"],
@@ -731,6 +729,20 @@ const DAILY_GRAPH_RANGES = [
   ["overall", "Overall"],
 ];
 
+/** First day anyone checked a habit — graph & rollups begin here (not a fixed launch date). */
+function dailyFirstInputDay(daily) {
+  const days = daily?.days || {};
+  const keys = Object.keys(days)
+    .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
+    .sort();
+  for (const day of keys) {
+    const ticks = days[day];
+    if (!ticks || typeof ticks !== "object") continue;
+    const has = Object.values(ticks).some((tick) => tick && typeof tick === "object" && (tick.ba || tick.ma));
+    if (has) return day;
+  }
+  return "";
+}
 function defaultDailyHabits() {
   return [
     { id: "bathing", label: "Bathing", slot: "morning" },
@@ -872,7 +884,7 @@ function normalizeDailyProgress(raw, habits, days) {
   const progress = {};
   const source = raw && typeof raw === "object" ? raw : {};
   Object.keys(source).forEach((day) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < DAILY_GRAPH_START) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
     const row = source[day];
     if (!row || typeof row !== "object") return;
     const total = Math.max(0, Math.round(Number(row.total) || 0));
@@ -883,16 +895,10 @@ function normalizeDailyProgress(raw, habits, days) {
     };
   });
   Object.keys(days || {}).forEach((day) => {
-    if (day < DAILY_GRAPH_START) return;
     progress[day] = dailyProgressRow(habits, days[day]);
   });
   const today = isoToday();
-  if (today >= DAILY_GRAPH_START) {
-    progress[today] = dailyProgressRow(habits, (days || {})[today] || {});
-  }
-  if (DAILY_GRAPH_START <= today && !progress[DAILY_GRAPH_START]) {
-    progress[DAILY_GRAPH_START] = dailyProgressRow(habits, (days || {})[DAILY_GRAPH_START] || {});
-  }
+  progress[today] = dailyProgressRow(habits, (days || {})[today] || {});
   return progress;
 }
 
@@ -923,19 +929,20 @@ function dailyGraphRangeOf(value) {
 
 function clampDailyIso(iso, today = isoToday()) {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : today;
-  if (day < DAILY_GRAPH_START) return DAILY_GRAPH_START > today ? today : DAILY_GRAPH_START;
   if (day > today) return today;
   return day;
 }
 
-function dailyGraphFloor(today = isoToday()) {
-  return DAILY_GRAPH_START > today ? today : DAILY_GRAPH_START;
+function dailyGraphFloor(today = isoToday(), daily = null) {
+  const first = dailyFirstInputDay(daily);
+  if (!first) return today;
+  return first > today ? today : first;
 }
 
 function dailyGraphPoints(daily, range, today = isoToday()) {
   const progress = daily?.progress || {};
   const want = dailyGraphRangeOf(range);
-  const floor = dailyGraphFloor(today);
+  const floor = dailyGraphFloor(today, daily);
   const end = today;
   const pointFor = (day, label) => {
     if (day < floor) {
@@ -951,14 +958,16 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
     };
   };
 
-  if (end < DAILY_GRAPH_START) return [];
+  if (!dailyFirstInputDay(daily) && want !== "today") {
+    return [];
+  }
 
   if (want === "today") {
     const stamp = new Date(`${end}T12:00:00`);
     return [pointFor(end, stamp.toLocaleDateString(undefined, { weekday: "short" }))];
   }
 
-  // Full axis range for the mode; values before floor stay blank (not plotted).
+  // Axis starts at first input day when the chosen range would begin earlier.
   let from = end;
   if (want === "week") from = shiftIsoDay(end, -6);
   else if (want === "month") from = shiftIsoDay(end, -29);
@@ -971,6 +980,7 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
     from = earliest || dayKeys || floor;
     if (from > end) from = end;
   }
+  if (from < floor) from = floor;
   const days = isoDaySpan(from, end);
   if (!days.length) return [];
 
@@ -1201,17 +1211,15 @@ function monthEndIso(monthKey) {
   return dayKey(stamp.getTime());
 }
 
-/** Days in the viewed month for the Daily strip: 1st (or graph start) → today. */
+/** Days in the viewed month for the Daily strip: 1st → today (within that month). */
 function dailyMonthStripDays(viewDay, today = isoToday()) {
   const day = clampDailyIso(viewDay, today);
   const monthKey = day.slice(0, 7);
   const monthStart = `${monthKey}-01`;
-  const floor = dailyGraphFloor(today);
-  const start = monthStart < floor ? floor : monthStart;
   const monthEnd = monthEndIso(monthKey) || today;
   const end = monthEnd > today ? today : monthEnd;
-  if (start > end) return [clampDailyIso(today, today)];
-  return isoDaySpan(start, end);
+  if (monthStart > end) return [clampDailyIso(today, today)];
+  return isoDaySpan(monthStart, end);
 }
 
 function bindDailyStrip(scroller, viewDay, { recenter = false } = {}) {
@@ -6704,7 +6712,7 @@ function dailyView() {
                 .join("")}
             </div>
           </div>
-          <div class="daily-jump">${appCalPickerHtml("daily-jump", viewDay, { icon: true, minIso: DAILY_GRAPH_START, maxIso: today })}</div>
+          <div class="daily-jump">${appCalPickerHtml("daily-jump", viewDay, { icon: true, maxIso: today })}</div>
         </div>
       </article>
       ${
