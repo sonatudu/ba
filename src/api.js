@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_URL || "";
+export const API_BASE = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 async function request(path, { method = "GET", token, body } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -14,7 +14,12 @@ async function request(path, { method = "GET", token, body } = {}) {
       signal: ctrl.signal,
     });
   } catch {
-    throw new Error("Can't reach the room.");
+    const onPages = typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname);
+    throw new Error(
+      onPages && !API_BASE
+        ? "Ba’s server is not connected to this GitHub Pages site yet."
+        : "Can't reach the room."
+    );
   } finally {
     clearTimeout(timer);
   }
