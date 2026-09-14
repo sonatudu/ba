@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "build:app": "vite build && cap sync android",
     "build:android": "vite build && cap sync android",
+    "build:aab": "vite build && cap sync android && cd android && ./gradlew bundleRelease",
     "open:android": "CAPACITOR_ANDROID_STUDIO_PATH=\"${CAPACITOR_ANDROID_STUDIO_PATH:-$HOME/android-studio/bin/studio.sh}\" cap open android"
   },
   "devDependencies": {
