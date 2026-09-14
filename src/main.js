@@ -3658,39 +3658,6 @@ function bindCourseSeg(root, name, onPick) {
   });
 }
 
-function diaryMonthPeekHtml(monthKey) {
-  const today = isoToday();
-  const written = new Set(state.notes.map(noteDay).filter((iso) => iso.startsWith(`${monthKey}-`)));
-  const cells = monthGridCells(monthKey, (iso, day) => {
-    const counts = dayToneCounts(iso);
-    return {
-      empty: false,
-      iso,
-      day,
-      today: iso === today,
-      written: written.has(iso),
-      good: counts.good > 0,
-      bad: counts.bad > 0,
-      sunday: isSundayIso(iso),
-    };
-  });
-  return `
-    <div class="diary-month-head">
-      <h2>${escapeHtml(monthLabelForKey(monthKey))}</h2>
-    </div>
-    <div class="diary-week" aria-hidden="true">${monthWeekHeaderHtml()}</div>
-    <div class="diary-grid">
-      ${cells
-        .map((cell) =>
-          cell.empty
-            ? `<span class="diary-cell is-mute"></span>`
-            : `<span class="diary-cell${cell.today ? " is-today" : ""}${cell.written ? " is-written" : ""}${cell.good ? " is-good" : ""}${cell.bad ? " is-bad" : ""}${cell.sunday ? " is-sunday" : ""}">${cell.day}</span>`
-        )
-        .join("")}
-    </div>
-  `;
-}
-
 function cycleMonthPeekHtml(monthKey, cycle) {
   const today = isoToday();
   const marks = cycleDayMarks(cycle);
@@ -4027,21 +3994,6 @@ function diaryPlaceholder(iso, tone = "good") {
   const parts = diaryDayParts(iso);
   if (!parts.long) return kind === "bad" ? "Something hard that day" : "Something good that day";
   return kind === "bad" ? `Something hard on ${parts.long}` : `Something good on ${parts.long}`;
-}
-
-function diaryPreview(day) {
-  const { good, bad, total } = dayToneCounts(day);
-  if (!total) return "";
-  const bits = [];
-  if (good) bits.push(`${good} good`);
-  if (bad) bits.push(`${bad} bad`);
-  const summary = bits.join(" · ");
-  const text = notesForDay(day)
-    .map((note) => String(note.text || "").replace(/\s+/g, " ").trim())
-    .filter(Boolean)[0];
-  if (!text) return summary;
-  const clip = text.length > 64 ? `${text.slice(0, 63)}…` : text;
-  return summary ? `${summary} — ${clip}` : clip;
 }
 
 function openDiary(day) {
@@ -4625,102 +4577,6 @@ function todayDayView(day) {
   return wrap;
 }
 
-function todayMonthView() {
-  const today = isoToday();
-  const monthKey = diaryMonthKey(diaryMonth);
-  diaryMonth = monthKey;
-  const monthDate = new Date(`${monthKey}-01T12:00:00`);
-  const monthLabel = Number.isNaN(monthDate.getTime())
-    ? monthKey
-    : monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const firstDow = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const written = new Set(state.notes.map(noteDay).filter((iso) => iso.startsWith(`${monthKey}-`)));
-  const cells = [];
-  for (let i = 0; i < firstDow; i += 1) cells.push({ empty: true });
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const iso = `${monthKey}-${String(day).padStart(2, "0")}`;
-    const counts = dayToneCounts(iso);
-    cells.push({
-      iso,
-      day,
-      today: iso === today,
-      written: written.has(iso),
-      good: counts.good > 0,
-      bad: counts.bad > 0,
-      sunday: isSundayIso(iso),
-    });
-  }
-  const rows = [...written];
-  if (monthKey === today.slice(0, 7) && !written.has(today)) rows.push(today);
-  rows.sort();
-  const wrap = el(`
-    <div class="overview-page">
-      <article class="card overview-cal diary-month">
-        <div class="diary-month-head">
-          <h2>${escapeHtml(monthLabel)}</h2>
-        </div>
-        <div class="diary-week" aria-hidden="true">${monthWeekHeaderHtml()}</div>
-        <div class="diary-grid">
-          ${cells
-            .map((cell) =>
-              cell.empty
-                ? `<span class="diary-cell is-mute"></span>`
-                : `<button type="button" class="diary-cell${cell.today ? " is-today" : ""}${cell.written ? " is-written" : ""}${cell.good ? " is-good" : ""}${cell.bad ? " is-bad" : ""}${cell.sunday ? " is-sunday" : ""}" data-day="${cell.iso}" aria-label="${escapeHtml(diaryDayParts(cell.iso).long)}${cell.written ? ", written" : ""}">${cell.day}</button>`
-            )
-            .join("")}
-        </div>
-        <p class="overview-cal-legend" aria-hidden="true"><span class="is-good">Good</span><span class="is-bad">Bad</span></p>
-      </article>
-      <article class="card overview-days">
-        <div class="overview-days-head">
-          <h3>Days</h3>
-          <button type="button" class="overview-today-btn" data-open-today>Today</button>
-        </div>
-        <div class="diary-days">
-          ${
-            rows.length
-              ? rows
-                  .map((iso) => {
-                    const parts = diaryDayParts(iso);
-                    const preview = diaryPreview(iso);
-                    const count = notesForDay(iso).length;
-                    const counts = dayToneCounts(iso);
-                    const emptyToday = iso === today && !count;
-                    return `<button type="button" class="diary-row${iso === today ? " is-today" : ""}${count ? " is-written" : ""}${counts.good ? " has-good" : ""}${counts.bad ? " has-bad" : ""}" data-open-day="${iso}">
-                      <span class="diary-row-date"><strong>${escapeHtml(parts.num)}</strong><em>${escapeHtml(parts.dow)}</em></span>
-                      <span class="diary-row-copy">
-                        <span class="diary-row-title">${iso === today ? "Today" : escapeHtml(parts.weekday)}</span>
-                        <span class="diary-row-text">${emptyToday ? "Write good and bad from today" : escapeHtml(preview || "Open day")}</span>
-                      </span>
-                    </button>`;
-                  })
-                  .join("")
-              : `<p class="diary-empty">Pick a day to log good and bad moments.</p>`
-          }
-        </div>
-      </article>
-    </div>
-  `);
-  const goMonth = (delta) => {
-    monthSlideDir = delta;
-    diaryMonth = shiftMonthKey(diaryMonth, delta);
-    render();
-  };
-  const diaryCal = wrap.querySelector(".diary-month");
-  const slideDir = monthSlideDir;
-  monthSlideDir = 0;
-  playMonthSlide(diaryCal, slideDir);
-  bindMonthSwipe(diaryCal, goMonth, (delta) => diaryMonthPeekHtml(shiftMonthKey(monthKey, delta)));
-  wrap.querySelectorAll("[data-day], [data-open-day]").forEach((button) => {
-    button.addEventListener("click", () => openDiary(button.dataset.day || button.dataset.openDay));
-  });
-  wrap.querySelector("[data-open-today]")?.addEventListener("click", () => openDiary(today));
-  return wrap;
-}
-
 function todayView() {
   diaryMonth = diaryMonthKey(diaryMonth);
   if (openNoteId) {
@@ -4731,8 +4587,8 @@ function todayView() {
     }
     openNoteId = null;
   }
-  if (openDiaryDay) return todayDayView(openDiaryDay);
-  return todayMonthView();
+  if (!openDiaryDay) openDiaryDay = isoToday();
+  return todayDayView(openDiaryDay);
 }
 
 function memoryDay(item) {
