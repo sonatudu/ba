@@ -9,7 +9,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const dataDir = join(root, "data");
+const dataDir = process.env.DATA_DIR ? String(process.env.DATA_DIR) : join(root, "data");
 const usersDir = join(dataDir, "users");
 const roomsDir = join(dataDir, "rooms");
 const sessionsDir = join(dataDir, "sessions");
@@ -20,6 +20,7 @@ mkdirSync(roomsDir, { recursive: true });
 mkdirSync(sessionsDir, { recursive: true });
 mkdirSync(requestsDir, { recursive: true });
 mkdirSync(tileDiskDir, { recursive: true });
+console.log(`[ba] data directory: ${dataDir}`);
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_MS = 1000 * 60 * 60 * 24 * 30;
