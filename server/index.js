@@ -1044,6 +1044,35 @@ function rewriteOfmUrls(value) {
   return value;
 }
 
+function publicApiBase(req) {
+  const fromEnv = String(process.env.PUBLIC_API_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https")
+    .split(",")[0]
+    .trim();
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "")
+    .split(",")[0]
+    .trim();
+  if (!host) return "";
+  return `${proto}://${host}`;
+}
+
+/** MapLibre resolves root-relative tile URLs against the app origin, not this API. */
+function withAbsoluteApiPaths(value, base) {
+  if (!base) return value;
+  if (typeof value === "string") {
+    if (value.startsWith("/api/map")) return `${base}${value}`;
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((item) => withAbsoluteApiPaths(item, base));
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, next] of Object.entries(value)) out[key] = withAbsoluteApiPaths(next, base);
+    return out;
+  }
+  return value;
+}
+
 function fetchUpstream(url, accept, timeoutMs = 8000, hops = 0) {
   return new Promise((resolve, reject) => {
     let parsed;
@@ -1349,8 +1378,9 @@ function politicalMapStyle(ofm) {
 
 app.get("/api/map/style", async (req, res) => {
   const dark = String(req.query.t || "") !== "day";
+  const apiBase = publicApiBase(req);
   if (String(req.query.k || "") === "political") {
-    const style = politicalMapStyle(null);
+    const style = withAbsoluteApiPaths(politicalMapStyle(null), apiBase);
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.json(style);
   }
@@ -1358,7 +1388,7 @@ app.get("/api/map/style", async (req, res) => {
   const hit = mapStyleCache.get(key);
   if (hit && Date.now() - hit.at < 30 * 60 * 1000) {
     res.setHeader("Cache-Control", "public, max-age=3600");
-    return res.json(hit.style);
+    return res.json(withAbsoluteApiPaths(hit.style, apiBase));
   }
   const raw = await fetchOfmOrNull(dark ? "dark" : "liberty", 700);
   if (!raw) {
@@ -1375,14 +1405,14 @@ app.get("/api/map/style", async (req, res) => {
       return enhanceMapStyle(next, dark, extra);
     });
     res.setHeader("Cache-Control", "public, max-age=60");
-    return res.json(enhanceMapStyle({ version: 8, sources: {}, layers: [] }, dark, null));
+    return res.json(withAbsoluteApiPaths(enhanceMapStyle({ version: 8, sources: {}, layers: [] }, dark, null), apiBase));
   }
   let extra = null;
   if (dark) extra = await fetchOfmOrNull("liberty", 400);
   const style = enhanceMapStyle(raw, dark, extra);
   mapStyleCache.set(key, { at: Date.now(), style });
   res.setHeader("Cache-Control", "public, max-age=3600");
-  res.json(style);
+  res.json(withAbsoluteApiPaths(style, apiBase));
 });
 
 const SAT_MAX_Z = 19;

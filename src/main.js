@@ -7287,10 +7287,39 @@ function mapSatTemplate() {
 
 function rewriteMapRequest(url) {
   if (typeof url !== "string") return { url };
+  // Styles from the API use root-relative /api/map paths. MapLibre resolves those
+  // against the page origin (GitHub Pages / Capacitor localhost), not the API host.
+  try {
+    const base = typeof location !== "undefined" ? location.href : "https://localhost/";
+    const parsed = new URL(url, base);
+    if (parsed.pathname.startsWith("/api/map")) {
+      return { url: `${API_BASE || ""}${parsed.pathname}${parsed.search}` };
+    }
+  } catch {
+    /* fall through */
+  }
+  if (url.startsWith("/api/map")) {
+    return { url: `${API_BASE || ""}${url}` };
+  }
   if (/tiles\.openfreemap\.org/i.test(url)) {
     return { url: url.replace(/https?:\/\/tiles\.openfreemap\.org/i, `${API_BASE || ""}/api/map/ofm`) };
   }
   return { url };
+}
+
+function absolutizeMapStyle(style) {
+  if (!style || typeof style !== "object") return style;
+  const fix = (value) => {
+    if (typeof value === "string") return rewriteMapRequest(value).url;
+    if (Array.isArray(value)) return value.map(fix);
+    if (value && typeof value === "object") {
+      const out = {};
+      for (const [key, next] of Object.entries(value)) out[key] = fix(next);
+      return out;
+    }
+    return value;
+  };
+  return fix(style);
 }
 
 function rasterStyle() {
@@ -7397,18 +7426,18 @@ function styleHasOverlayLayers(style) {
 
 async function loadMapStyle() {
   const base = quickMapStyle();
-  if (whereMapKind === "political") return { style: base, vector: false };
+  if (whereMapKind === "political") return { style: absolutizeMapStyle(base), vector: false };
   try {
     const res = await fetch(mapStyleUrl());
     if (!res.ok) throw new Error("style");
-    const ofm = await res.json();
+    const ofm = absolutizeMapStyle(await res.json());
     const hasNames = (ofm.layers || []).some(isWhereNameLayer);
     if (!styleHasStreetFills(ofm) && ofm.sources?.baSat && hasNames) {
       return { style: ofm, vector: true };
     }
-    return { style: mergeOfmNameLayersOntoRaster(base, ofm), vector: hasNames };
+    return { style: absolutizeMapStyle(mergeOfmNameLayersOntoRaster(base, ofm)), vector: hasNames };
   } catch {
-    return { style: base, vector: false };
+    return { style: absolutizeMapStyle(base), vector: false };
   }
 }
 
