@@ -2178,6 +2178,8 @@ let cycleScrollY = 0;
 let pendingScrollY = null;
 let todayScrollY = 0;
 let gate = "home";
+/** Keeps a verified room code when setup answers are still needed (avoids typing the code twice). */
+let pendingLogin = null;
 let createdInvite = "";
 let inbox = { incoming: [], outgoing: [] };
 let chatLog = [];
@@ -2432,6 +2434,7 @@ async function logout() {
     /* ignore */
   }
   forgetLocalIdentity();
+  pendingLogin = null;
   await logoutCloud(token, id);
   tab = "home";
   gate = "home";
@@ -2440,8 +2443,9 @@ async function logout() {
 
 function gateView() {
   const setup = localStorage.getItem(SETUP_KEY) !== "1";
-  const savedWho = readSavedWho();
+  const savedWho = readSavedWho() || coupleId(pendingLogin?.who);
   let pickedWho = savedWho;
+  const codeReady = Boolean(pendingLogin?.code) && setup;
   const card = el(`
     <div class="setup">
       <form class="setup-card">
@@ -2465,10 +2469,14 @@ function gateView() {
           </div>
         </div>
         `}
-        <div class="field">
+        ${
+          codeReady
+            ? ""
+            : `<div class="field">
           <label for="code">Code</label>
-          <input id="code" name="code" inputmode="numeric" autocomplete="off" required maxlength="12" />
-        </div>
+          <input id="code" name="code" inputmode="numeric" autocomplete="off" required maxlength="12" value="${escapeHtml(pendingLogin?.code || "")}" />
+        </div>`
+        }
         <p class="err" data-err></p>
         <button class="btn rose" type="submit">Open</button>
       </form>
@@ -2484,13 +2492,14 @@ function gateView() {
     event.preventDefault();
     const err = card.querySelector("[data-err]");
     err.textContent = "";
-    const code = card.querySelector("#code").value.replace(/\D/g, "");
+    const codeInput = card.querySelector("#code");
+    const code = (codeInput?.value || pendingLogin?.code || "").replace(/\D/g, "");
     if (!code) {
       err.textContent = "Enter the code.";
       return;
     }
     try {
-      const who = coupleId(pickedWho) || readSavedWho();
+      const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
       if (!savedWho && who !== "ba" && who !== "ma") {
         err.textContent = "Pick Ba or Ma.";
         return;
@@ -2503,6 +2512,7 @@ function gateView() {
         body.rin = card.querySelector("#rin").value;
       }
       const entered = await enterRoom(body);
+      pendingLogin = null;
       localStorage.setItem(SETUP_KEY, "1");
       saveWho(coupleId(entered.username) || who);
       await openSession(entered);
@@ -2514,7 +2524,9 @@ function gateView() {
         onPages && /Can't reach|not connected/i.test(String(error.message || ""))
           ? "This GitHub Pages link needs a hosted Ba server. Deploy the API (see render.yaml), set the VITE_API_URL secret, then redeploy Pages."
           : error.message;
-      if (error.needSetup && localStorage.getItem(SETUP_KEY) === "1") {
+      if (error.needSetup) {
+        const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
+        pendingLogin = { code, who: who || "" };
         try {
           localStorage.removeItem(SETUP_KEY);
         } catch {
