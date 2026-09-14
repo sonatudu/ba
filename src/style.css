@@ -6146,6 +6146,13 @@ button.is-down:not(:disabled):not(.inmap-dot),
   margin: 0;
 }
 
+.cycle-symptoms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .cycle-symptoms-toggle {
   flex: none;
   min-height: 32px;
@@ -6165,13 +6172,61 @@ button.is-down:not(:disabled):not(.inmap-dot),
   transform: scale(0.97);
 }
 
+.cycle-symptoms-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.cycle-symptoms-toggle.is-on {
+  border-color: color-mix(in srgb, var(--rose) 40%, var(--line));
+  background: color-mix(in srgb, var(--rose) 14%, var(--paper));
+}
+
+.cycle-symptom-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.cycle-symptom-add input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-label);
+}
+
+.cycle-symptom-add input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
 .cycle-symptoms-summary {
   margin: 0;
+  grid-column: 1 / -1;
   color: var(--ink-soft);
   font-size: var(--fs-label);
   font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.4;
+}
+
+.cycle-symptoms-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  line-height: 1.35;
+}
+
+.cycle-symptoms-block.is-removing .cycle-check.is-removable {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--rose) 28%, var(--line));
 }
 
 .cycle-page .cycle-check {

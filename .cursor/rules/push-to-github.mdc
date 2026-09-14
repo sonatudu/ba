@@ -1,0 +1,17 @@
+---
+description: Always commit and push Ba app changes to GitHub so Pages stays live
+alwaysApply: true
+---
+
+# Push every change to GitHub
+
+This app is used via **GitHub Pages** (`https://sonatudu.github.io/ba/`). Local-only builds are not enough.
+
+After finishing user-requested code changes:
+
+1. Run `npm run build` when frontend files changed.
+2. Commit the relevant source changes (not `android/.idea/`, secrets, or unrelated junk).
+3. `git push origin HEAD` (or the current feature branch) so Pages/Actions can deploy.
+4. Prefer telling the user the live site will update after deploy rather than asking them to hard-refresh.
+
+Do this continuously for Ba work unless the user explicitly says not to push.
