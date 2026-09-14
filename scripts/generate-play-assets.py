@@ -79,37 +79,78 @@ def write_launcher_icons():
         save_png(fg, out / "ic_launcher_foreground.png")
 
 
+def load_play_icon(size=None, circular=False):
+    """Prefer the handcrafted Play icon; fall back to the letter mark."""
+    for name in ("icon-512.png", "icon-source-flower-center.png", "icon-master.png"):
+        path = PLAY / name
+        if path.exists():
+            icon = Image.open(path).convert("RGBA")
+            if size and icon.size != (size, size):
+                icon = icon.resize((size, size), Image.Resampling.LANCZOS)
+            if circular:
+                icon = circular_mask(icon)
+            return icon
+    return draw_mark(size or 512, bg=PAGE, pad_ratio=0.12)
+
+
+def circular_mask(img):
+    """Keep the medallion disc; drop the square cream pad behind it."""
+    w, h = img.size
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).ellipse((1, 1, w - 2, h - 2), fill=255)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
 def write_play_icon():
+    """Keep a crafted icon-512.png if present; only generate the letter mark when missing."""
     PLAY.mkdir(parents=True, exist_ok=True)
-    save_png(draw_mark(512, bg=PAGE, pad_ratio=0.12), PLAY / "icon-512.png")
+    dest = PLAY / "icon-512.png"
+    if dest.exists():
+        return
+    save_png(draw_mark(512, bg=PAGE, pad_ratio=0.12), dest)
 
 
 def write_feature_graphic():
     w, h = 1024, 500
     img = Image.new("RGBA", (w, h), PAGE)
     draw = ImageDraw.Draw(img)
-    # Soft vertical wash
+    # Soft vertical wash — deep navy matching the app shell
     for y in range(h):
         t = y / (h - 1)
         r = int(PAGE[0] + (14 - PAGE[0]) * t * 0.35)
         g = int(PAGE[1] + (24 - PAGE[1]) * t * 0.35)
         b = int(PAGE[2] + (48 - PAGE[2]) * t * 0.45)
         draw.line((0, y, w, y), fill=(r, g, b, 255))
-    # Accent glow disc
+    # Gold / blue glow discs to echo the medallion
     glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse((620, -80, 1080, 380), fill=(74, 114, 240, 55))
-    gd.ellipse((680, 180, 1120, 620), fill=(242, 163, 184, 28))
+    gd.ellipse((620, -80, 1080, 380), fill=(74, 114, 240, 48))
+    gd.ellipse((700, 200, 1140, 640), fill=(232, 196, 138, 36))
+    gd.ellipse((-120, 260, 260, 620), fill=(74, 114, 240, 22))
     img = Image.alpha_composite(img, glow)
     draw = ImageDraw.Draw(img)
 
-    mark = draw_mark(220, bg=(0, 0, 0, 0), pad_ratio=0.12)
-    img.alpha_composite(mark, (72, (h - 220) // 2))
+    mark_size = 268
+    mark = load_play_icon(mark_size, circular=True)
+    # Soft round shadow under the medallion
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    mx, my = 64, (h - mark_size) // 2
+    sd.ellipse(
+        (mx + 10, my + mark_size - 36, mx + mark_size - 10, my + mark_size + 18),
+        fill=(0, 0, 0, 70),
+    )
+    img = Image.alpha_composite(img, shadow)
+    img.alpha_composite(mark, (mx, my))
+    draw = ImageDraw.Draw(img)
 
+    text_x = mx + mark_size + 48
     title = font(92)
     sub = font(28, bold=False)
-    draw.text((340, 160), "Ba", font=title, fill=INK)
-    draw.text((340, 280), "A private room for two.", font=sub, fill=INK_SOFT)
+    draw.text((text_x, 158), "Ba", font=title, fill=INK)
+    draw.text((text_x, 278), "A private room for two.", font=sub, fill=INK_SOFT)
     save_png(img.convert("RGB").convert("RGBA"), PLAY / "feature-graphic-1024x500.png")
 
 
