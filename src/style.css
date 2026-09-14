@@ -3418,6 +3418,32 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   flex: none;
 }
 
+.overview-add-wrap {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+}
+
+.overview-add-btn {
+  min-width: 7.5rem;
+  min-height: 42px;
+  padding: 10px 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.overview-add-btn:active {
+  transform: scale(0.97);
+}
+
 .overview-panel {
   display: flex;
   flex-direction: column;
@@ -6107,6 +6133,45 @@ button.is-down:not(:disabled):not(.inmap-dot),
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.cycle-symptoms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cycle-symptoms-head .cycle-record-label {
+  margin: 0;
+}
+
+.cycle-symptoms-toggle {
+  flex: none;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.cycle-symptoms-toggle:active {
+  transform: scale(0.97);
+}
+
+.cycle-symptoms-summary {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
 }
 
 .cycle-page .cycle-check {

@@ -319,6 +319,7 @@ const CYCLE_SYMPTOMS = [
   ["spotting", "Spotting"],
   ["backache", "Backache"],
   ["nausea", "Nausea"],
+  ["angry", "Angry"],
   ["irritable", "Irritable"],
   ["anxious", "Anxious"],
   ["low_mood", "Low mood"],
@@ -2070,6 +2071,7 @@ let saveTimer = 0;
 let tab = "home";
 let todayDraftId = null;
 let overviewTone = "good";
+let overviewComposing = false;
 let openNoteId = null;
 let diaryMonth = "";
 let monthSlideDir = 0;
@@ -2080,6 +2082,7 @@ let routineWho = "";
 let cycleMonth = "";
 let cycleEditId = "";
 let cycleDraft = null;
+let cycleSymptomsOpen = false;
 let courseEditId = "";
 let courseDraft = null;
 let courseHistMonth = "";
@@ -2497,6 +2500,7 @@ function goTab(id) {
     courseHistMonth = "";
     periodHistMonth = "";
     cycleSettingsOpen = false;
+    cycleSymptomsOpen = false;
   }
   if (id === "daily") {
     dailyViewDay = "";
@@ -2862,6 +2866,7 @@ function goHome() {
   if (tab === "today" && openDiaryDay) {
     openDiaryDay = "";
     todayDraftId = null;
+    overviewComposing = false;
     pendingScrollY = Number(todayScrollY) || 0;
     render();
     return;
@@ -3976,6 +3981,7 @@ function diaryPreview(day) {
 function openDiary(day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
   todayScrollY = pageScrollY();
+  if (openDiaryDay !== day) overviewComposing = false;
   openDiaryDay = day;
   diaryMonth = day.slice(0, 7);
   openNoteId = null;
@@ -4453,9 +4459,11 @@ function todayDayView(day) {
           <div class="overview-jump">${appCalPickerHtml("overview-jump", day, { icon: true })}</div>
         </div>
       </article>
-      ${overviewPanelHtml("good", goodNotes)}
-      ${overviewPanelHtml("bad", badNotes)}
-      <form class="overview-compose card">
+      ${goodNotes.length ? overviewPanelHtml("good", goodNotes) : ""}
+      ${badNotes.length ? overviewPanelHtml("bad", badNotes) : ""}
+      ${
+        overviewComposing
+          ? `<form class="overview-compose card">
         <div class="overview-tone" role="group" aria-label="Good or bad">
           <button type="button" class="overview-tone-btn${overviewTone === "good" ? " is-on" : ""}" data-tone="good">Good</button>
           <button type="button" class="overview-tone-btn${overviewTone === "bad" ? " is-on" : ""}" data-tone="bad">Bad</button>
@@ -4466,11 +4474,41 @@ function todayDayView(day) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
           </button>
         </div>
-      </form>
+      </form>`
+          : `<div class="overview-add-wrap">
+        <button type="button" class="overview-add-btn" data-overview-add>Add</button>
+      </div>`
+      }
     </div>
   `);
   const menu = storyDeleteMenu(wrap);
   const box = wrap.querySelector("[data-new]");
+  goodNotes.forEach((note) => {
+    const card = todayNoteCard(note);
+    wrap.querySelector('[data-list="good"]')?.append(card);
+    bindDiaryNote(card, { menu, box });
+  });
+  badNotes.forEach((note) => {
+    const card = todayNoteCard(note);
+    wrap.querySelector('[data-list="bad"]')?.append(card);
+    bindDiaryNote(card, { menu, box });
+  });
+  bindAppCalPicker(wrap, "overview-jump", {
+    getIso: () => day,
+    setIso: (iso) => {
+      const next = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : "";
+      if (!next || next === day) return;
+      openDiary(next);
+    },
+  });
+  if (!overviewComposing) {
+    wrap.querySelector("[data-overview-add]")?.addEventListener("click", () => {
+      overviewComposing = true;
+      overviewTone = "good";
+      render();
+    });
+    return wrap;
+  }
   const saveBtn = wrap.querySelector("[data-save]");
   const syncSave = () => {
     const ready = Boolean(box.value.trim());
@@ -4485,16 +4523,6 @@ function todayDayView(day) {
     wrap.querySelector(".overview-compose")?.classList.toggle("is-bad", overviewTone === "bad");
     wrap.querySelector(".overview-compose")?.classList.toggle("is-good", overviewTone === "good");
   };
-  goodNotes.forEach((note) => {
-    const card = todayNoteCard(note);
-    wrap.querySelector('[data-list="good"]')?.append(card);
-    bindDiaryNote(card, { menu, box });
-  });
-  badNotes.forEach((note) => {
-    const card = todayNoteCard(note);
-    wrap.querySelector('[data-list="bad"]')?.append(card);
-    bindDiaryNote(card, { menu, box });
-  });
   wrap.querySelectorAll(".overview-compose [data-tone]").forEach((btn) => {
     btn.addEventListener("click", () => {
       overviewTone = btn.dataset.tone === "bad" ? "bad" : "good";
@@ -4515,21 +4543,13 @@ function todayDayView(day) {
       tone: overviewTone === "bad" ? "bad" : "good",
     };
     todayDraftId = null;
+    overviewComposing = false;
     setState({ notes: [...state.notes, note] }, true);
-    box.value = "";
-    syncSave();
     render();
   });
   syncToneUi();
   syncSave();
-  bindAppCalPicker(wrap, "overview-jump", {
-    getIso: () => day,
-    setIso: (iso) => {
-      const next = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : "";
-      if (!next || next === day) return;
-      openDiary(next);
-    },
-  });
+  requestAnimationFrame(() => box?.focus());
   return wrap;
 }
 
@@ -5396,6 +5416,7 @@ function cyclePeriodMonthView(group) {
     periodHistMonth = "";
     cycleEditId = id;
     cycleDraft = draftFromPeriod(item);
+    cycleSymptomsOpen = true;
     render();
     requestAnimationFrame(() =>
       document.querySelector("[data-log]")?.scrollIntoView({ block: "start" })
@@ -5423,6 +5444,7 @@ function cyclePeriodMonthView(group) {
         if (cycleEditId === id) {
           cycleEditId = "";
           cycleDraft = emptyCycleDraft();
+          cycleSymptomsOpen = false;
         }
         writeCycle({ periods: remaining });
       },
@@ -5557,8 +5579,10 @@ function cycleView() {
     if (!item) {
       cycleEditId = "";
       cycleDraft = emptyCycleDraft();
+      cycleSymptomsOpen = false;
     } else if (cycleDraft.id !== item.id) {
       cycleDraft = draftFromPeriod(item);
+      cycleSymptomsOpen = true;
     }
   }
   if (courseEditId) {
@@ -5708,14 +5732,36 @@ function cycleView() {
               )}
             </div>
           </div>
-          <div class="cycle-record-block">
-            <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
-            <div class="cycle-checks" role="group" aria-labelledby="cycle-symptoms-label">
+          <div class="cycle-record-block cycle-symptoms-block">
+            <div class="cycle-symptoms-head">
+              <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
+              ${
+                cycleSymptomsOpen
+                  ? `<button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>`
+                  : `<button type="button" class="cycle-symptoms-toggle" data-symptoms-open>${
+                      (cycleDraft.symptoms || []).length ? "Edit" : "Add"
+                    }</button>`
+              }
+            </div>
+            ${
+              cycleSymptomsOpen
+                ? `<div class="cycle-checks" role="group" aria-labelledby="cycle-symptoms-label">
               ${CYCLE_SYMPTOMS.map(
                 ([id, label]) =>
-                  `<label class="cycle-check"><input type="checkbox" data-sym="${id}"${cycleDraft.symptoms.includes(id) ? " checked" : ""} /><span>${label}</span></label>`
+                  `<label class="cycle-check"><input type="checkbox" data-sym="${id}"${cycleDraft.symptoms.includes(id) ? " checked" : ""} /><span>${escapeHtml(label)}</span></label>`
               ).join("")}
-            </div>
+            </div>`
+                : `<p class="cycle-symptoms-summary">${
+                    (cycleDraft.symptoms || []).length
+                      ? escapeHtml(
+                          cycleDraft.symptoms
+                            .map((id) => CYCLE_SYMPTOMS.find((pair) => pair[0] === id)?.[1] || id)
+                            .filter(Boolean)
+                            .join(" · ")
+                        )
+                      : "None added"
+                  }</p>`
+            }
           </div>
           <div class="cycle-record-block">
             <label class="cycle-record-label" for="cycle-note">Notes</label>
@@ -5894,6 +5940,18 @@ function cycleView() {
       else if (!input.checked) cycleDraft.symptoms = cycleDraft.symptoms.filter((item) => item !== id);
     });
   });
+  wrap.querySelector("[data-symptoms-open]")?.addEventListener("click", () => {
+    readDraftDates();
+    readCourseDraftFrom();
+    cycleSymptomsOpen = true;
+    render();
+  });
+  wrap.querySelector("[data-symptoms-done]")?.addEventListener("click", () => {
+    readDraftDates();
+    readCourseDraftFrom();
+    cycleSymptomsOpen = false;
+    render();
+  });
   wrap.querySelector("[data-save]").addEventListener("click", () => {
     readDraftDates();
     const start = cycleDraft.start;
@@ -5920,12 +5978,14 @@ function cycleView() {
     const others = latest.periods.filter((item) => item.id !== row.id);
     const wasEdit = Boolean(cycleDraft.id);
     cycleEditId = "";
+    cycleSymptomsOpen = false;
     cycleDraft = emptyCycleDraft();
     writeCycle({ who: "ba", periods: [row, ...others] });
     showAppToast(wasEdit ? "Period updated" : "Period saved");
   });
   wrap.querySelector("[data-cancel]")?.addEventListener("click", () => {
     cycleEditId = "";
+    cycleSymptomsOpen = false;
     cycleDraft = emptyCycleDraft();
     render();
   });
