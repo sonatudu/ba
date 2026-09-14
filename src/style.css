@@ -6172,11 +6172,49 @@ button.is-down:not(:disabled):not(.inmap-dot),
   margin: 0;
 }
 
+.cycle-symptoms-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 .cycle-symptoms-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-end;
+  margin-right: auto;
+}
+
+.cycle-symptoms-edit {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.cycle-symptoms-edit svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.cycle-symptoms-edit:active {
+  transform: scale(0.96);
+}
+
+.cycle-symptoms-edit.is-on {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent) 16%, var(--paper));
+  color: var(--ink);
 }
 
 .cycle-symptoms-toggle {

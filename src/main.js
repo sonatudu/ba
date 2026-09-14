@@ -2140,6 +2140,7 @@ let cycleEditId = "";
 let cycleDraft = null;
 let cycleSymptomsAdding = false;
 let cycleSymptomsRemoving = false;
+let cycleSymptomsEditing = false;
 let cycleSymptomDraft = "";
 let courseEditId = "";
 let courseDraft = null;
@@ -2564,6 +2565,7 @@ function goTab(id) {
     cycleSettingsOpen = false;
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
   }
   if (id === "daily") {
@@ -5500,6 +5502,7 @@ function cyclePeriodMonthView(group) {
     cycleDraft = draftFromPeriod(item);
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
     render();
     requestAnimationFrame(() =>
@@ -5530,6 +5533,7 @@ function cyclePeriodMonthView(group) {
           cycleDraft = emptyCycleDraft();
           cycleSymptomsAdding = false;
           cycleSymptomsRemoving = false;
+          cycleSymptomsEditing = false;
           cycleSymptomDraft = "";
         }
         writeCycle({ periods: remaining });
@@ -5667,11 +5671,13 @@ function cycleView() {
       cycleDraft = emptyCycleDraft();
       cycleSymptomsAdding = false;
       cycleSymptomsRemoving = false;
+      cycleSymptomsEditing = false;
       cycleSymptomDraft = "";
     } else if (cycleDraft.id !== item.id) {
       cycleDraft = draftFromPeriod(item);
       cycleSymptomsAdding = false;
       cycleSymptomsRemoving = false;
+      cycleSymptomsEditing = false;
       cycleSymptomDraft = "";
     }
   }
@@ -5822,15 +5828,9 @@ function cycleView() {
               )}
             </div>
           </div>
-          <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsRemoving ? " is-removing" : ""}">
+          <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsRemoving ? " is-removing" : ""}${cycleSymptomsEditing ? " is-editing" : ""}">
             <div class="cycle-symptoms-head">
               <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
-              <div class="cycle-symptoms-actions">
-                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving ? "disabled" : ""}>Add</button>
-                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove>
-                  ${cycleSymptomsRemoving ? "Done" : "Remove"}
-                </button>
-              </div>
             </div>
             ${
               cycleSymptomsAdding
@@ -5850,9 +5850,24 @@ function cycleView() {
                     }${cycleSymptomsRemoving ? " disabled" : ""} /><span>${escapeHtml(row.label)}</span></label>`
                 )
                 .join("")}
-              ${(cycle.symptomList || []).length ? "" : `<p class="cycle-symptoms-summary">No symptoms yet — tap Add.</p>`}
+              ${(cycle.symptomList || []).length ? "" : `<p class="cycle-symptoms-summary">${cycleSymptomsEditing ? "No symptoms yet — tap Add." : "No symptoms yet."}</p>`}
             </div>
             ${cycleSymptomsRemoving ? `<p class="cycle-symptoms-hint">Tap a symptom to remove it from your list.</p>` : ""}
+            <div class="cycle-symptoms-foot">
+              ${
+                cycleSymptomsEditing
+                  ? `<div class="cycle-symptoms-actions">
+                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving ? "disabled" : ""}>Add</button>
+                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove>
+                  ${cycleSymptomsRemoving ? "Done" : "Remove"}
+                </button>
+              </div>`
+                  : ""
+              }
+              <button type="button" class="cycle-symptoms-edit${cycleSymptomsEditing ? " is-on" : ""}" data-symptoms-edit aria-label="${cycleSymptomsEditing ? "Done editing symptoms" : "Edit symptoms"}" aria-pressed="${cycleSymptomsEditing ? "true" : "false"}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+              </button>
+            </div>
           </div>
           <div class="cycle-record-block">
             <label class="cycle-record-label" for="cycle-note">Notes</label>
@@ -6046,10 +6061,22 @@ function cycleView() {
       else if (!input.checked) cycleDraft.symptoms = cycleDraft.symptoms.filter((item) => item !== id);
     });
   });
+  wrap.querySelector("[data-symptoms-edit]")?.addEventListener("click", () => {
+    readDraftDates();
+    readCourseDraftFrom();
+    cycleSymptomsEditing = !cycleSymptomsEditing;
+    if (!cycleSymptomsEditing) {
+      cycleSymptomsAdding = false;
+      cycleSymptomsRemoving = false;
+      cycleSymptomDraft = "";
+    }
+    render();
+  });
   wrap.querySelector("[data-symptoms-add]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
     cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = true;
     cycleSymptomsAdding = true;
     cycleSymptomDraft = "";
     render();
@@ -6057,6 +6084,7 @@ function cycleView() {
   wrap.querySelector("[data-symptoms-remove]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
+    cycleSymptomsEditing = true;
     cycleSymptomsAdding = false;
     cycleSymptomDraft = "";
     cycleSymptomsRemoving = !cycleSymptomsRemoving;
@@ -6089,6 +6117,7 @@ function cycleView() {
     }
     cycleSymptomsAdding = false;
     cycleSymptomDraft = "";
+    cycleSymptomsEditing = true;
     writeCycle({ symptomList: [...(latest.symptomList || []), { id, label }] }, true);
     render();
   });
@@ -6123,6 +6152,7 @@ function cycleView() {
     cycleEditId = "";
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
     cycleDraft = emptyCycleDraft();
     writeCycle({ who: "ba", periods: [row, ...others] });
@@ -6132,6 +6162,7 @@ function cycleView() {
     cycleEditId = "";
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
+    cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
     cycleDraft = emptyCycleDraft();
     render();
