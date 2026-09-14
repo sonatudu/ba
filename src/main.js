@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import { API_BASE, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat } from "./api.js";
+import { API_BASE, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
 import { drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import { routineHtml } from "./routine.js";
@@ -6908,6 +6908,8 @@ function dailyView() {
   return wrap;
 }
 
+const PRIVACY_URL = "https://sonatudu.github.io/ba/privacy.html";
+
 function settingsView() {
   const theme = readTheme();
   const sharing = sharingLoc();
@@ -6937,9 +6939,14 @@ function settingsView() {
         <span>Share location</span>
         <i class="switch ${sharing ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
+      <p class="settings-note">Location is optional. Used only for Where when sharing is on.</p>
+      <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
+      <button class="settings-danger" type="button" data-delete-account>Delete account</button>
+      <p class="err" data-settings-err hidden></p>
     </div>
   `);
+  const err = wrap.querySelector("[data-settings-err]");
   bindAppCalPicker(wrap, "started-on", {
     getIso: () => startDraft,
     setIso: (iso) => {
@@ -6955,6 +6962,32 @@ function settingsView() {
   });
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-out]").addEventListener("click", () => logout());
+  wrap.querySelector("[data-delete-account]").addEventListener("click", async () => {
+    if (err) {
+      err.hidden = true;
+      err.textContent = "";
+    }
+    const code = window.prompt("Enter your room code to delete this account.");
+    if (code == null) return;
+    const cleaned = String(code).replace(/\D/g, "");
+    if (!cleaned) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = "Enter the room code.";
+      }
+      return;
+    }
+    if (!window.confirm("Delete your account? The shared room will close.")) return;
+    try {
+      await deleteAccount(session.token, cleaned);
+      await logout();
+    } catch (error) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = error?.message || "Could not delete account.";
+      }
+    }
+  });
   return wrap;
 }
 

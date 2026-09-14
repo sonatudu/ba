@@ -5784,6 +5784,25 @@ html.theme-day .settings-row .switch.is-on {
   background: var(--rose);
 }
 
+.settings-note {
+  margin: -4px 4px 0;
+  font-size: var(--fs-label);
+  line-height: 1.4;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+
+.settings-link {
+  align-self: center;
+  margin-top: 12px;
+  padding: 10px 16px;
+  color: var(--accent);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  text-decoration: none;
+  text-align: center;
+}
+
 .settings-out {
   align-self: center;
   margin-top: 28px;
@@ -5799,6 +5818,28 @@ html.theme-day .settings-row .switch.is-on {
 
 .settings-out:active {
   opacity: 0.9;
+}
+
+.settings-danger {
+  align-self: center;
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  opacity: 0.7;
+  font: inherit;
+  font-size: var(--fs-body);
+  cursor: pointer;
+  padding: 10px 16px;
+}
+
+.settings-danger:active {
+  opacity: 1;
+}
+
+.settings-page .err {
+  margin: 4px 4px 0;
+  text-align: center;
 }
 
 html.theme-day .chat-kicker,
