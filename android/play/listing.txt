@@ -1,0 +1,40 @@
+Ba — Play Console listing copy
+================================
+
+App name
+  Ba
+
+Short description (≤80 characters)
+  A private room for two — chat, plans, memories, and a shared map.
+
+Full description
+  Ba is a quiet shared space for one couple.
+
+  Open a private room with an invite code, then keep chat, routines, daily notes,
+  to-dos, memories, periods, family notes, and optional location sharing in one
+  place. Shared content is encrypted on your device before it leaves the phone.
+
+  There are no ads and no public profiles. Location is optional and only used
+  when you turn on Share location for Where.
+
+  Privacy policy: https://sonatudu.github.io/ba/privacy.html
+
+Graphics to upload (from android/play/)
+  • App icon:           icon-512.png
+  • Feature graphic:    feature-graphic-1024x500.png
+  • Phone screenshots:  screenshots/01-home.png
+                        screenshots/02-chat.png
+                        screenshots/03-memories.png
+
+Category
+  Lifestyle (or Communication)
+
+Contact email
+  tudus0602@gmail.com
+
+Privacy policy URL
+  https://sonatudu.github.io/ba/privacy.html
+
+Notes
+  Screenshots are on-brand marketing frames of Home, Chat, and Memories.
+  Replace any with real device captures later if you prefer.
