@@ -2661,13 +2661,13 @@ function homeView() {
   const sections = [
     ["chat", "Chat"],
     ["routine", "Routine"],
+    ["daily", "Daily"],
     ["where", "Where"],
+    ["todo", "To Do"],
     ["today", "Overview"],
     ["memories", "Memories"],
-    ["todo", "To Do"],
-    ["daily", "Daily"],
-    ["family", "Family"],
     ["cycle", "Periods"],
+    ["family", "Family"],
   ];
   const page = el(`
     <div class="home">
