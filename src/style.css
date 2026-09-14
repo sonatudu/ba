@@ -3892,7 +3892,7 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 .memories-page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 22px;
   flex: 1;
   min-height: 0;
   background:
@@ -3904,10 +3904,11 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   border-color: color-mix(in srgb, var(--gold) 24%, var(--line));
   --rail: color-mix(in srgb, var(--gold) 55%, transparent);
   box-shadow: var(--elev);
+  padding: 22px 22px 20px;
 }
 
 .memories-kicker {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: var(--fs-micro);
@@ -3921,13 +3922,14 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   font-size: var(--fs-body);
   font-weight: 500;
   letter-spacing: -0.01em;
+  line-height: 1.45;
 }
 
 .memories-counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 10px 0 0;
+  gap: 12px;
+  margin: 14px 0 0;
   font-size: var(--fs-label);
   font-weight: 600;
   color: var(--ink-soft);
@@ -3943,7 +3945,8 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   box-shadow: var(--elev);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  padding: 20px 18px;
 }
 
 .memories-list {
@@ -3952,14 +3955,16 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   box-shadow: var(--elev);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+  padding: 20px 18px;
 }
 
 .memories-section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  margin-bottom: 2px;
 }
 
 .memories-section-head h3 {
@@ -3981,17 +3986,23 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 .memories-group-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .memories-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.memories-group + .memories-group {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
 }
 
 .memories-group-label {
-  margin: 0;
+  margin: 0 0 2px;
   font-size: var(--fs-micro);
   font-weight: 650;
   letter-spacing: 0.06em;
@@ -4003,16 +4014,18 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   margin: 0;
   color: var(--ink-soft);
   font-size: var(--fs-label);
+  line-height: 1.45;
+  padding: 8px 0 4px;
 }
 
 .memories-note {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  gap: 8px;
+  padding: 16px 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -4021,74 +4034,76 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 }
 
 .memories-note.is-yearly {
-  border-color: color-mix(in srgb, var(--gold) 28%, var(--line));
+  border-color: color-mix(in srgb, var(--gold) 24%, var(--line));
 }
 
 .memories-note.is-kept {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
 }
 
 .memories-note-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
 }
 
 .memories-note-when {
   margin: 0;
-  font-size: var(--fs-micro);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-transform: none;
   color: var(--ink-soft);
 }
 
 .memories-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .memories-badge {
-  padding: 2px 6px;
-  border: 1px solid var(--line);
+  padding: 3px 8px;
+  border: 0;
   border-radius: 999px;
-  font-size: 0.62rem;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  font-size: 0.64rem;
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
 .memories-badge.is-kept {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: color-mix(in srgb, var(--accent) 40%, var(--ink));
 }
 
 .memories-badge.is-years {
-  border-color: color-mix(in srgb, var(--gold) 35%, var(--line));
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
   color: color-mix(in srgb, var(--gold) 45%, var(--ink));
 }
 
 .memories-note-date {
-  margin: 0;
-  font-size: var(--fs-label);
-  color: var(--ink-soft);
+  display: none;
 }
 
 .memories-note-title {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: var(--fs-body);
   font-weight: 650;
   letter-spacing: -0.02em;
+  line-height: 1.35;
   color: var(--ink);
 }
 
 .memories-note-story {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: var(--fs-label);
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--ink-soft);
 }
 
