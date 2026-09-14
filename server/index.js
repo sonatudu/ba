@@ -698,7 +698,7 @@ app.post("/api/signal", (req, res) => {
   const other = auth.room.members.find((name) => name !== auth.user.username);
   if (!other) return res.status(400).json({ error: "No partner in this room." });
   const kind = String(req.body?.kind || "");
-  if (!["offer", "answer", "ice", "hangup"].includes(kind)) {
+  if (!["offer", "answer", "ice", "hangup", "poke"].includes(kind)) {
     return res.status(400).json({ error: "Invalid signal." });
   }
   auth.room.signals.push({

@@ -1596,7 +1596,7 @@ function setHomeBadges() {
     const on = HOME_ALERTS.has(id) && (id === "chat" ? chatUnread > 0 : Boolean(sectionUnread[id]));
     button.classList.toggle("has-unread", on);
   });
-  document.querySelector("[data-poke]")?.classList.remove("has-unread");
+  document.querySelector("[data-poke]")?.classList.toggle("has-unread", pokeUnread);
 }
 
 function setChatBadge() {
@@ -2150,6 +2150,7 @@ let session = loadSession();
 let spaceKey = null;
 let saveTimer = 0;
 let tab = "home";
+let pokeUnread = false;
 let todayDraftId = null;
 let overviewTone = "good";
 let overviewComposing = false;
@@ -2753,9 +2754,9 @@ function homeView() {
     </div>
   `);
   page.querySelector("[data-poke]").addEventListener("click", () => {
-    setState({
-      pokes: [{ id: uid(), from: currentName(), at: Date.now() }, ...state.pokes].slice(0, 20),
-    });
+    pokeUnread = false;
+    document.querySelector("[data-poke]")?.classList.remove("has-unread");
+    sendPoke();
   });
   const menu = el(`<div class="chat-action nav-clear" data-clear-chat hidden><button type="button">Clear chat</button></div>`);
   page.append(menu);
@@ -2808,11 +2809,43 @@ function homeView() {
   return page;
 }
 
+function pokeVibrate(strong = false) {
+  try {
+    if (strong) navigator.vibrate?.([36, 50, 36, 50, 70, 40, 90]);
+    else navigator.vibrate?.([18, 30, 18]);
+  } catch {
+    /* ignore */
+  }
+}
+
+function markPokeIncoming() {
+  pokeUnread = true;
+  document.querySelector("[data-poke]")?.classList.add("has-unread");
+}
+
+async function sendPoke() {
+  const at = Date.now();
+  setState({
+    pokes: [{ id: uid(), from: currentName(), at }, ...state.pokes].slice(0, 20),
+  });
+  pokeVibrate(false);
+  if (!session?.token) return;
+  try {
+    await sendSignal(session.token, { kind: "poke", data: { at } });
+  } catch {
+    /* synced poke log still saved in cloud state */
+  }
+}
+
 async function pullSignals() {
   if (!session?.token || !session.roomId) return;
   const payload = await loadSignals(session.token);
   for (const sig of payload.signals || []) {
-    if (sig.kind === "offer" && callState !== "live") {
+    if (sig.kind === "poke") {
+      pokeVibrate(true);
+      markPokeIncoming();
+      if (tab === "home") render();
+    } else if (sig.kind === "offer" && callState !== "live") {
       pendingOffer = sig.data;
       callVideo = Boolean(sig.video);
       callState = "in";
