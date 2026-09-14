@@ -2418,6 +2418,52 @@ body.is-daily-sorting {
   margin-top: 4px;
 }
 
+.setup-card .btn.setup-open {
+  margin-top: 10px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 1px solid color-mix(in srgb, var(--gold) 38%, var(--rose));
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--rose) 42%, var(--gold) 28%),
+      var(--rose-deep)
+    );
+  color: #1a1220;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 8px 20px color-mix(in srgb, var(--rose-deep) 28%, transparent);
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.setup-card .btn.setup-open:hover {
+  filter: brightness(1.04);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 10px 24px color-mix(in srgb, var(--rose-deep) 34%, transparent);
+}
+
+.setup-card .btn.setup-open:active {
+  transform: translateY(1px);
+  filter: brightness(0.96);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.14) inset,
+    0 4px 12px color-mix(in srgb, var(--rose-deep) 22%, transparent);
+}
+
+.setup-card .btn.setup-open:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gold) 55%, var(--accent));
+  outline-offset: 3px;
+}
+
 .lede {
   color: var(--ink-soft);
   font-size: var(--fs-body);

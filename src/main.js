@@ -2478,7 +2478,7 @@ function gateView() {
         </div>`
         }
         <p class="err" data-err></p>
-        <button class="btn rose" type="submit">Open</button>
+        <button class="btn rose setup-open" type="submit">Open</button>
       </form>
     </div>
   `);
