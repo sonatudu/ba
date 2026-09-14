@@ -1,0 +1,18 @@
+# Deploy the Ba API (and built client) on Render.
+# After the first deploy, copy the service URL and add a GitHub secret:
+#   VITE_API_URL=https://YOUR-SERVICE.onrender.com
+# Then re-run the Deploy workflow so GitHub Pages can call this API.
+services:
+  - type: web
+    name: ba
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/build
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: PORT
+        value: "8787"

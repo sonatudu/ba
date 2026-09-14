@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,9 +27,17 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build for GitHub Pages
+        run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::warning::VITE_API_URL secret is empty. https://sonatudu.github.io/ba/ will load the UI but cannot log in until the Ba API is hosted and this secret is set."
+          else
+            echo "Building Pages client against API: $VITE_API_URL"
+          fi
+          npm run build
         env:
           BASE: /ba/
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

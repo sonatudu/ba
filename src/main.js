@@ -2419,7 +2419,11 @@ function gateView() {
       await locating;
       render();
     } catch (error) {
-      err.textContent = error.message;
+      const onPages = /\.github\.io$/i.test(location.hostname);
+      err.textContent =
+        onPages && /Can't reach|not connected/i.test(String(error.message || ""))
+          ? "This GitHub Pages link needs a hosted Ba server. Deploy the API (see render.yaml), set the VITE_API_URL secret, then redeploy Pages."
+          : error.message;
       if (error.needSetup && localStorage.getItem(SETUP_KEY) === "1") {
         try {
           localStorage.removeItem(SETUP_KEY);
