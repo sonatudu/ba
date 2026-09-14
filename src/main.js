@@ -4488,11 +4488,8 @@ function todayDayView(day) {
         </div>
         <div class="overview-add-row">
           <textarea data-new rows="2" placeholder="${escapeHtml(diaryPlaceholder(day, overviewTone))}" maxlength="2000" enterkeyhint="done"></textarea>
-          <button class="overview-save" type="submit" data-save aria-label="Save" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
-          </button>
         </div>
-        <button type="button" class="compose-done-btn" data-overview-done>Done</button>
+        <button type="submit" class="compose-done-btn" data-overview-save>Save</button>
       </form>`
           : `<div class="overview-add-wrap">
         <button type="button" class="overview-add-btn" data-overview-add>Add</button>
@@ -4528,12 +4525,6 @@ function todayDayView(day) {
     });
     return wrap;
   }
-  const saveBtn = wrap.querySelector("[data-save]");
-  const syncSave = () => {
-    const ready = Boolean(box.value.trim());
-    saveBtn.disabled = !ready;
-    saveBtn.classList.toggle("is-ready", ready);
-  };
   const syncToneUi = () => {
     wrap.querySelectorAll(".overview-compose [data-tone]").forEach((btn) => {
       btn.classList.toggle("is-on", btn.dataset.tone === overviewTone);
@@ -4548,31 +4539,25 @@ function todayDayView(day) {
       syncToneUi();
     });
   });
-  box.addEventListener("input", syncSave);
-  wrap.querySelector("[data-overview-done]")?.addEventListener("click", () => {
-    overviewComposing = false;
-    todayDraftId = null;
-    render();
-  });
   wrap.querySelector("form").addEventListener("submit", (event) => {
     event.preventDefault();
     const text = box.value.trim();
-    if (!text) return;
-    const note = {
-      id: uid(),
-      from: currentName(),
-      text,
-      at: noteAtForDay(day),
-      day,
-      tone: overviewTone === "bad" ? "bad" : "good",
-    };
     todayDraftId = null;
     overviewComposing = false;
-    setState({ notes: [...state.notes, note] }, true);
+    if (text) {
+      const note = {
+        id: uid(),
+        from: currentName(),
+        text,
+        at: noteAtForDay(day),
+        day,
+        tone: overviewTone === "bad" ? "bad" : "good",
+      };
+      setState({ notes: [...state.notes, note] }, true);
+    }
     render();
   });
   syncToneUi();
-  syncSave();
   requestAnimationFrame(() => box?.focus());
   return wrap;
 }

@@ -3609,7 +3609,7 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 
 .overview-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: 10px;
 }
