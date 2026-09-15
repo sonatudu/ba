@@ -1,3 +1,6 @@
+import { uploadToOci, syncFromOciToDisk } from "./storage.js";
+import { relative } from "path";
+import { promises as fsPromises } from "fs";
 import cors from "cors";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import express from "express";
@@ -21,6 +24,7 @@ mkdirSync(sessionsDir, { recursive: true });
 mkdirSync(requestsDir, { recursive: true });
 mkdirSync(tileDiskDir, { recursive: true });
 console.log(`[ba] data directory: ${dataDir}`);
+await syncFromOciToDisk(dataDir, fsPromises);
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_MS = 1000 * 60 * 60 * 24 * 30;
@@ -82,7 +86,8 @@ function readJson(file) {
 
 function writeJson(file, value) {
   const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tmp, JSON.stringify(value));
+  const content = JSON.stringify(value);
+  writeFileSync(tmp, content);
   if (existsSync(file)) {
     try {
       const prev = readFileSync(file, "utf8").trim();
@@ -92,6 +97,13 @@ function writeJson(file, value) {
     }
   }
   renameSync(tmp, file);
+
+  try {
+    const key = relative(dataDir, file);
+    uploadToOci(key, content, "application/json");
+  } catch (err) {
+    console.error("[oci] error queueing write:", err.message);
+  }
 }
 
 function readUser(username) {
