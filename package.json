@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "build:app": "vite build && cap sync android",
     "build:android": "vite build && cap sync android",
-    "build:aab": "vite build && cap sync android && cd android && JAVA_HOME=\"${JAVA_HOME_AAB:-$HOME/.jdks/jbr-17.0.14}\" ./gradlew bundleRelease",
+    "build:aab": "vite build && cap sync android && cd android && JAVA_HOME=\"${JAVA_HOME_AAB:-$HOME/.jdks/jbr-17.0.14}\" ./gradlew bundleRelease && mkdir -p app/release && cp -f app/build/outputs/bundle/release/app-release.aab app/release/app-release.aab",
     "open:android": "CAPACITOR_ANDROID_STUDIO_PATH=\"${CAPACITOR_ANDROID_STUDIO_PATH:-$HOME/android-studio/bin/studio.sh}\" cap open android"
   },
   "devDependencies": {
