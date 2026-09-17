@@ -1,5 +1,6 @@
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
@@ -2212,6 +2213,7 @@ let spaceKey = null;
 let saveTimer = 0;
 let tab = "home";
 let pokeUnread = false;
+let pokePulseAt = 0;
 let todayDraftId = null;
 let overviewTone = "good";
 let overviewComposing = false;
@@ -2794,7 +2796,7 @@ function homeView() {
           <p class="home-quote-text">“${escapeHtml(quote.text)}”</p>
         </blockquote>
       </header>
-      <button class="home-tile home-poke" type="button" data-poke aria-label="Poke">
+      <button class="home-tile home-poke${Date.now() - pokePulseAt < 450 ? " is-poking" : ""}" type="button" data-poke aria-label="Poke">
         <span class="home-poke-time">${pokeTime ? escapeHtml(pokeTime) : "—"}</span>
       </button>
       <div class="home-links" role="navigation" aria-label="Sections">
@@ -2884,12 +2886,65 @@ function homeView() {
   return page;
 }
 
-function pokeVibrate(strong = false) {
+let pokeTone = null;
+
+function wakePokeTone() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!pokeTone) pokeTone = new AC();
+  if (pokeTone.state === "suspended") pokeTone.resume().catch(() => {});
+  return pokeTone;
+}
+
+function playPokeTone(strong = false) {
+  const ctx = wakePokeTone();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const chirp = (freq, start, dur, vol) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now + start);
+    gain.gain.setValueAtTime(0.0001, now + start);
+    gain.gain.exponentialRampToValueAtTime(vol, now + start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + start);
+    osc.stop(now + start + dur + 0.02);
+  };
+  if (strong) {
+    chirp(920, 0, 0.08, 0.22);
+    chirp(1380, 0.09, 0.12, 0.2);
+  } else {
+    chirp(1040, 0, 0.07, 0.18);
+    chirp(1480, 0.055, 0.09, 0.16);
+  }
+}
+
+async function pokeVibrate(strong = false) {
+  playPokeTone(strong);
   try {
+    if (Capacitor.isNativePlatform()) {
+      if (strong) {
+        await Haptics.vibrate({ duration: 70 });
+        window.setTimeout(() => Haptics.vibrate({ duration: 110 }), 90);
+        window.setTimeout(() => Haptics.vibrate({ duration: 160 }), 230);
+      } else {
+        await Haptics.impact({ style: ImpactStyle.Heavy });
+        window.setTimeout(() => Haptics.vibrate({ duration: 80 }), 70);
+      }
+      return;
+    }
     if (strong) navigator.vibrate?.([36, 50, 36, 50, 70, 40, 90]);
     else navigator.vibrate?.([18, 30, 18]);
   } catch {
-    /* ignore */
+    try {
+      if (strong) navigator.vibrate?.([36, 50, 36, 50, 70, 40, 90]);
+      else navigator.vibrate?.([18, 30, 18]);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -2900,6 +2955,7 @@ function markPokeIncoming() {
 
 async function sendPoke() {
   const at = Date.now();
+  pokePulseAt = at;
   setState({
     pokes: [{ id: uid(), from: currentName(), at }, ...state.pokes].slice(0, 20),
   });
@@ -8769,6 +8825,7 @@ document.addEventListener(
   (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     setDown(pressableFrom(event.target));
+    wakePokeTone();
   },
   { capture: true, passive: true }
 );
