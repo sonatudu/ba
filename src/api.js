@@ -119,3 +119,7 @@ export function loadPlaces(token) {
 export function sendPlace(token, body) {
   return request("/api/location", { method: "POST", token, body });
 }
+
+export function registerPushToken(token, body) {
+  return request("/api/push-token", { method: "POST", token, body });
+}

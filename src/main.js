@@ -1,8 +1,9 @@
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import { API_BASE, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
+import { API_BASE, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
 import { drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import { routineHtml } from "./routine.js";
@@ -13,6 +14,7 @@ const SETUP_KEY = "ba-setup-v1";
 const WHO_KEY = "ba-who-v1";
 const THEME_KEY = "ba-theme-v1";
 const SHARE_LOC_KEY = "ba-share-loc";
+const PUSH_KEY = "ba-push-v1";
 const LAST_PIN_KEY = "ba-last-pin";
 const MAP_KIND_KEY = "ba-map-kind-v1";
 const KEEP_MS = 24 * 60 * 60 * 1000;
@@ -214,6 +216,56 @@ function deviceId() {
     localStorage.setItem(DEVICE_KEY, id);
   }
   return id;
+}
+
+function pushWanted() {
+  try {
+    return localStorage.getItem(PUSH_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function setPushWanted(on) {
+  try {
+    localStorage.setItem(PUSH_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+let pushReady = false;
+
+async function startPush() {
+  if (!Capacitor.isNativePlatform() || !session?.token || !pushWanted() || pushReady) return;
+  try {
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive === "prompt") perm = await PushNotifications.requestPermissions();
+    if (perm.receive !== "granted") return;
+    PushNotifications.removeAllListeners().catch(() => {});
+    await PushNotifications.addListener("registration", async (event) => {
+      try {
+        await registerPushToken(session.token, { token: event.value, deviceId: deviceId() });
+        pushReady = true;
+      } catch {
+        /* ignore */
+      }
+    });
+    await PushNotifications.addListener("registrationError", () => {});
+    await PushNotifications.register();
+  } catch {
+    /* web / missing plugin */
+  }
+}
+
+async function togglePush() {
+  const next = !pushWanted();
+  setPushWanted(next);
+  if (next) {
+    pushReady = false;
+    await startPush();
+  }
+  render();
 }
 
 function readTheme() {
@@ -2391,6 +2443,7 @@ async function openSession(payload) {
   render();
   startChatLoop();
   startGeoShare();
+  startPush();
   const had = new Set((opened?.dates || []).map((item) => item.id));
   if (KEPT_DATES.some((row) => !had.has(row.id))) persist().catch(() => {});
 }
@@ -2424,6 +2477,7 @@ async function logout() {
   chatEditId = "";
   chatDisappearMs = 0;
   endCall(false);
+  pushReady = false;
   state = defaultState();
   saveSession(null);
   livePlaces = [];
@@ -7021,6 +7075,11 @@ function settingsView() {
         <i class="switch ${sharing ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
       <p class="settings-note">Location is optional. Used only for Where when sharing is on.</p>
+      <button type="button" class="settings-row" data-push aria-pressed="${pushWanted()}">
+        <span>Notifications</span>
+        <i class="switch ${pushWanted() ? "is-on" : ""}" aria-hidden="true"></i>
+      </button>
+      <p class="settings-note">Poke, chat, and calls when the app is in the background.</p>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
       <button class="settings-danger" type="button" data-delete-account>Delete account</button>
@@ -7042,6 +7101,7 @@ function settingsView() {
     });
   });
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
+  wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
   wrap.querySelector("[data-out]").addEventListener("click", () => logout());
   wrap.querySelector("[data-delete-account]").addEventListener("click", async () => {
     if (err) {

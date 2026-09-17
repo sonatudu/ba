@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "329927743224",
+    "project_id": "ba-app-4147a",
+    "storage_bucket": "ba-app-4147a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:329927743224:android:dcb13fa2cfb2aa4d18cd0d",
+        "android_client_info": {
+          "package_name": "com.sonatudu.ba"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_eUx0hP39aw_V-dacRO3IbLgMu5Nv44k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
