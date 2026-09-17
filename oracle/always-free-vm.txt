@@ -1,0 +1,62 @@
+Ba — Oracle Always Free VM (retry checklist)
+=============================================
+Home region: Hyderabad (ap-hyderabad-1) — this tenancy cannot use other regions for free compute.
+Hyderabad has only AD-1. If A1.Flex says out of capacity, retry later; do not rebuild the VCN.
+
+SSH (this Linux machine)
+  Private key (do not share):  /home/sona/.ssh/ba-oracle
+  Public key — paste into Create instance:
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFSPAlEsZNKUwfeFinAH5hctkgeLxrnbY5Or30NQR+7X ba-oracle@sona-Inspiron-15-3530
+
+Already created (do not recreate)
+  Compartment:     sonatudu (root)
+  VCN:             ba-vcn
+  VCN IPv4 CIDR:   10.0.0.0/16
+  Internet GW:     igw
+  Subnet:          public-subnet
+  Subnet CIDR:     10.0.0.0/24   (slice of the VCN; not /16)
+  Subnet access:   Public
+  Route table:     Default Route Table for ba-vcn
+                   rule: 0.0.0.0/0 → Internet Gateway igw
+  Security list:   Default Security List for ba-vcn
+                   ingress TCP 22, 80, 443 from 0.0.0.0/0
+                   egress all to 0.0.0.0/0
+
+Create instance — copy these values
+  Name:            apps-host
+  Placement:       AD-1 (only AD in Hyderabad); leave fault domain unset
+  Image:           Canonical Ubuntu 24.04 Minimal aarch64
+  Shape:           VM.Standard.A1.Flex (Ampere, Always Free)
+  OCPUs / RAM:     1 OCPU, 6 GB RAM  (raise later only within Always Free limits)
+  Shielded / confidential computing: OFF
+  VNIC name:       primary   (or blank)
+  Network:         Select existing VCN
+  VCN compartment: sonatudu (root)
+  VCN:             ba-vcn
+  Subnet:          Select existing → public-subnet
+  Private IPv4:    Automatically assign
+  Public IPv4:     Automatically assign public IPv4 address  (must be ON)
+  IPv6:            OFF
+  SSH keys:        Paste public key  (block at top of this file)
+  Boot volume:     default ~46.6 GB; no custom size; no extra block volume
+  Customer-managed encryption keys: OFF
+
+If A1.Flex is still out of capacity
+  Retry the same form later (same VCN/subnet/key).
+  Optional fallback shape: VM.Standard.E2.1.Micro (Always Free x86)
+    then image must be Canonical Ubuntu 24.04 WITHOUT "aarch64".
+
+After it is Running
+  Copy the public IPv4.
+  From this PC:  ssh -i ~/.ssh/ba-oracle ubuntu@PUBLIC_IP
+  Then run:      scripts/oracle-host-setup.sh  (from the Ba repo, on the VM)
+
+Do not turn off Render until that SSH login works and Ba is running on the VM.
+
+Object Storage (already live with Render — leave as-is)
+  Bucket:    ba-storage
+  Region:    ap-hyderabad-1
+  Namespace: axvxuxsoyh9t
+  Endpoint:  https://axvxuxsoyh9t.compat.objectstorage.ap-hyderabad-1.oraclecloud.com
+  Customer secret key name: ba-s3-key  (values live on Render env, not in this file)
