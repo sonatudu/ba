@@ -235,23 +235,26 @@ function setPushWanted(on) {
 }
 
 let pushReady = false;
+let pushBound = false;
 
 async function startPush() {
-  if (!Capacitor.isNativePlatform() || !session?.token || !pushWanted() || pushReady) return;
+  if (!Capacitor.isNativePlatform() || !session?.token || !pushWanted()) return;
   try {
     let perm = await PushNotifications.checkPermissions();
-    if (perm.receive === "prompt") perm = await PushNotifications.requestPermissions();
+    if (perm.receive !== "granted") perm = await PushNotifications.requestPermissions();
     if (perm.receive !== "granted") return;
-    PushNotifications.removeAllListeners().catch(() => {});
-    await PushNotifications.addListener("registration", async (event) => {
-      try {
-        await registerPushToken(session.token, { token: event.value, deviceId: deviceId() });
-        pushReady = true;
-      } catch {
-        /* ignore */
-      }
-    });
-    await PushNotifications.addListener("registrationError", () => {});
+    if (!pushBound) {
+      pushBound = true;
+      await PushNotifications.addListener("registration", async (event) => {
+        try {
+          await registerPushToken(session.token, { token: event.value, deviceId: deviceId() });
+          pushReady = true;
+        } catch {
+          /* retry on next resume */
+        }
+      });
+      await PushNotifications.addListener("registrationError", () => {});
+    }
     await PushNotifications.register();
   } catch {
     /* web / missing plugin */
@@ -318,6 +321,9 @@ async function initNative() {
     /* web and some emulators skip this */
   }
   try {
+    App.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) startPush();
+    });
     App.addListener("backButton", ({ canGoBack }) => {
       if (session?.token && tab !== "home") {
         goHome();
