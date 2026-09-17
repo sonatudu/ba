@@ -1,4 +1,5 @@
 import { uploadToOci, syncFromOciToDisk } from "./storage.js";
+import { notifyPartner, savePushToken, withPushTokens } from "./push.js";
 import { relative } from "path";
 import { promises as fsPromises } from "fs";
 import cors from "cors";
@@ -445,6 +446,7 @@ function withChat(room) {
   if (!Array.isArray(room.signals)) room.signals = [];
   if (!Array.isArray(room.statuses)) room.statuses = [];
   if (!Number.isFinite(room.disappearMs)) room.disappearMs = 0;
+  withPushTokens(room);
   return room;
 }
 
@@ -516,6 +518,19 @@ app.post("/api/enter", (req, res) => {
   writeRoom(room);
   const token = issueToken(who, room.id, deviceId);
   res.json({ token, username: who, ...publicRoom(room, who) });
+});
+
+app.post("/api/push-token", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  withChat(auth.room);
+  const token = String(req.body?.token || "").trim();
+  const deviceId = String(req.body?.deviceId || auth.session.deviceId || "").slice(0, 80);
+  if (!savePushToken(auth.room, auth.user.username, deviceId, token)) {
+    return res.status(400).json({ error: "Could not save notification token." });
+  }
+  writeRoom(auth.room);
+  res.json({ ok: true });
 });
 
 app.post("/api/identity", (req, res) => {
@@ -618,6 +633,16 @@ app.post("/api/chat", (req, res) => {
   auth.room.typing[auth.user.username] = 0;
   auth.room.updatedAt = Date.now();
   writeRoom(auth.room);
+  const from = auth.user.username;
+  const other = (auth.room.members || []).find((name) => name !== from);
+  const otherSeen = Number(auth.room.presence?.[other] || 0);
+  if (other && Date.now() - otherSeen > 8000) {
+    notifyPartner(auth.room, from, {
+      title: from === "ma" ? "Ma" : "Ba",
+      body: "New message",
+      kind: "chat",
+    }).then(() => writeRoom(auth.room));
+  }
   res.json(publicChat(auth.room, auth.user.username));
 });
 
@@ -724,6 +749,19 @@ app.post("/api/signal", (req, res) => {
   });
   auth.room.signals = auth.room.signals.slice(-40);
   writeRoom(auth.room);
+  if (kind === "poke") {
+    notifyPartner(auth.room, auth.user.username, {
+      title: auth.user.username === "ma" ? "Ma" : "Ba",
+      body: "Poke",
+      kind: "poke",
+    }).then(() => writeRoom(auth.room));
+  } else if (kind === "offer") {
+    notifyPartner(auth.room, auth.user.username, {
+      title: auth.user.username === "ma" ? "Ma" : "Ba",
+      body: req.body?.video ? "Video call" : "Call",
+      kind: "call",
+    }).then(() => writeRoom(auth.room));
+  }
   res.json({ ok: true });
 });
 
