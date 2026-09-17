@@ -1,13 +1,23 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import { existsSync, readFileSync } from "fs";
 
 let messaging = null;
 let initAttempted = false;
 
-function parseServiceAccount() {
-  const raw = String(process.env.FIREBASE_SERVICE_ACCOUNT || "").trim();
-  if (raw) {
-    const stripped = raw
+function repairJson(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return null;
+  const candidates = [text];
+  if (/^[A-Za-z0-9+/=\s]+$/.test(text) && text.length > 80 && !text.startsWith("{")) {
+    try {
+      candidates.push(Buffer.from(text.replace(/\s+/g, ""), "base64").toString("utf8"));
+    } catch {
+      /* not base64 */
+    }
+  }
+  for (const candidate of candidates) {
+    const stripped = candidate
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/i, "")
       .replace(/^['"]/, "")
@@ -15,13 +25,71 @@ function parseServiceAccount() {
     try {
       return JSON.parse(stripped);
     } catch {
-      try {
-        return JSON.parse(stripped.replace(/\r?\n/g, "\\n"));
-      } catch {
-        /* fall through to split env vars */
+      /* try escaped newlines inside strings */
+    }
+    let out = "";
+    let inStr = false;
+    let esc = false;
+    for (const ch of stripped) {
+      if (inStr) {
+        if (esc) {
+          out += ch;
+          esc = false;
+          continue;
+        }
+        if (ch === "\\") {
+          out += ch;
+          esc = true;
+          continue;
+        }
+        if (ch === '"') {
+          inStr = false;
+          out += ch;
+          continue;
+        }
+        if (ch === "\n") {
+          out += "\\n";
+          continue;
+        }
+        if (ch === "\r") continue;
+        out += ch;
+        continue;
       }
+      if (ch === '"') inStr = true;
+      out += ch;
+    }
+    try {
+      return JSON.parse(out);
+    } catch {
+      /* next candidate */
     }
   }
+  return null;
+}
+
+function readSecretFile() {
+  const paths = [
+    String(process.env.FIREBASE_SERVICE_ACCOUNT_FILE || "").trim(),
+    "/etc/secrets/firebase.json",
+    "/etc/secrets/FIREBASE_SERVICE_ACCOUNT",
+  ].filter(Boolean);
+  for (const file of paths) {
+    if (!existsSync(file)) continue;
+    try {
+      const parsed = repairJson(readFileSync(file, "utf8"));
+      if (parsed) return parsed;
+    } catch {
+      /* next path */
+    }
+  }
+  return null;
+}
+
+function parseServiceAccount() {
+  const fromEnv = repairJson(process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64 || "");
+  if (fromEnv) return fromEnv;
+  const fromFile = readSecretFile();
+  if (fromFile) return fromFile;
   const clientEmail = String(process.env.FIREBASE_CLIENT_EMAIL || "").trim();
   const privateKey = String(process.env.FIREBASE_PRIVATE_KEY || "")
     .replace(/\\n/g, "\n")
@@ -43,7 +111,7 @@ function initFirebase() {
   initAttempted = true;
   const cred = parseServiceAccount();
   if (!cred) {
-    console.log("[push] Firebase credentials missing; set FIREBASE_SERVICE_ACCOUNT on the server");
+    console.log("[push] Firebase credentials missing; set FIREBASE_SERVICE_ACCOUNT or secret file firebase.json");
     return null;
   }
   try {
