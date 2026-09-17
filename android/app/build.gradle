@@ -13,8 +13,8 @@ android {
         applicationId "com.sonatudu.ba"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
-        versionName "1.2.2"
+        versionCode 18
+        versionName "1.2.3"
         multiDexEnabled true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
