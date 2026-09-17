@@ -3087,13 +3087,14 @@ body.is-hold-menu {
   box-shadow: var(--elev);
 }
 
-.home-poke-time {
-  color: var(--ink);
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+.home-tile.home-poke.is-poking {
+  animation: poke-pop 0.38s ease;
+}
+
+@keyframes poke-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.96); }
+  100% { transform: scale(1); }
 }
 
 .home-tile,
