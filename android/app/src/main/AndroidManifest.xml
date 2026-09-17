@@ -42,6 +42,10 @@
             android:value="ba_push" />
 
         <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+
+        <service
             android:name=".MyFirebaseMessagingService"
             android:exported="false">
             <intent-filter>

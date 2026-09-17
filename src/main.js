@@ -254,6 +254,9 @@ async function startPush() {
         }
       });
       await PushNotifications.addListener("registrationError", () => {});
+      await PushNotifications.addListener("pushNotificationReceived", (event) => {
+        if (event?.data?.kind === "poke") pokeVibrate(true);
+      });
     }
     await PushNotifications.register();
   } catch {

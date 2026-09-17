@@ -17,7 +17,10 @@ public class MainActivity extends BridgeActivity {
                 NotificationManager.IMPORTANCE_HIGH
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) manager.createNotificationChannel(channel);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+                MyFirebaseMessagingService.ensurePokeChannel(manager);
+            }
         }
     }
 }
