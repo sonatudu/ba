@@ -1,5 +1,5 @@
 import { uploadToOci, syncFromOciToDisk } from "./storage.js";
-import { notifyPartner, savePushToken, withPushTokens } from "./push.js";
+import { notifyPartner, savePushToken, tokenCount, withPushTokens, pushConfigured } from "./push.js";
 import { relative } from "path";
 import { promises as fsPromises } from "fs";
 import cors from "cors";
@@ -553,6 +553,7 @@ app.get("/api/me", (req, res) => {
   if (!auth) return;
   res.json({
     username: auth.user.username,
+    pushRegistered: tokenCount(auth.room, auth.user.username) > 0,
     ...publicRoom(auth.room, auth.user.username),
   });
 });
@@ -633,16 +634,11 @@ app.post("/api/chat", (req, res) => {
   auth.room.typing[auth.user.username] = 0;
   auth.room.updatedAt = Date.now();
   writeRoom(auth.room);
-  const from = auth.user.username;
-  const other = (auth.room.members || []).find((name) => name !== from);
-  const otherSeen = Number(auth.room.presence?.[other] || 0);
-  if (other && Date.now() - otherSeen > 8000) {
-    notifyPartner(auth.room, from, {
-      title: from === "ma" ? "Ma" : "Ba",
-      body: "New message",
-      kind: "chat",
-    }).then(() => writeRoom(auth.room));
-  }
+  notifyPartner(auth.room, auth.user.username, {
+    title: auth.user.username === "ma" ? "Ma" : "Ba",
+    body: "New message",
+    kind: "chat",
+  }).then(() => writeRoom(auth.room));
   res.json(publicChat(auth.room, auth.user.username));
 });
 
@@ -2014,7 +2010,7 @@ function clientBuildId() {
 
 app.get("/api/build", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ v: clientBuildId() });
+  res.json({ v: clientBuildId(), push: pushConfigured() });
 });
 
 if (existsSync(dist)) {

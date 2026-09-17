@@ -2,16 +2,51 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 
 let messaging = null;
+let initAttempted = false;
+
+function parseServiceAccount() {
+  const raw = String(process.env.FIREBASE_SERVICE_ACCOUNT || "").trim();
+  if (raw) {
+    const stripped = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .replace(/^['"]/, "")
+      .replace(/['"]$/, "");
+    try {
+      return JSON.parse(stripped);
+    } catch {
+      try {
+        return JSON.parse(stripped.replace(/\r?\n/g, "\\n"));
+      } catch {
+        /* fall through to split env vars */
+      }
+    }
+  }
+  const clientEmail = String(process.env.FIREBASE_CLIENT_EMAIL || "").trim();
+  const privateKey = String(process.env.FIREBASE_PRIVATE_KEY || "")
+    .replace(/\\n/g, "\n")
+    .trim();
+  const projectId = String(process.env.FIREBASE_PROJECT_ID || "ba-app-4147a").trim();
+  if (clientEmail && privateKey.includes("BEGIN PRIVATE KEY")) {
+    return { project_id: projectId, client_email: clientEmail, private_key: privateKey };
+  }
+  return null;
+}
+
+export function pushConfigured() {
+  return Boolean(parseServiceAccount());
+}
 
 function initFirebase() {
   if (messaging) return messaging;
-  const raw = String(process.env.FIREBASE_SERVICE_ACCOUNT || "").trim();
-  if (!raw) {
-    console.log("[push] FIREBASE_SERVICE_ACCOUNT is not set; push send is off");
+  if (initAttempted) return null;
+  initAttempted = true;
+  const cred = parseServiceAccount();
+  if (!cred) {
+    console.log("[push] Firebase credentials missing; set FIREBASE_SERVICE_ACCOUNT on the server");
     return null;
   }
   try {
-    const cred = JSON.parse(raw);
     if (!getApps().length) initializeApp({ credential: cert(cred) });
     messaging = getMessaging();
     console.log("[push] Firebase messaging ready");
@@ -39,6 +74,11 @@ export function savePushToken(room, who, deviceId, token) {
   return true;
 }
 
+export function tokenCount(room, who) {
+  withPushTokens(room);
+  return Object.values(room.pushTokens[who] || {}).filter(Boolean).length;
+}
+
 function tokensFor(room, who) {
   withPushTokens(room);
   return [...new Set(Object.values(room.pushTokens[who] || {}).filter(Boolean))];
@@ -55,7 +95,10 @@ function dropToken(room, who, token) {
 export async function notifyPartner(room, fromWho, { title, body, kind }) {
   const to = fromWho === "ba" ? "ma" : "ba";
   const tokens = tokensFor(room, to);
-  if (!tokens.length) return;
+  if (!tokens.length) {
+    console.log(`[push] no tokens for ${to}`);
+    return;
+  }
   const msg = initFirebase();
   if (!msg) return;
   try {
@@ -69,11 +112,16 @@ export async function notifyPartner(room, fromWho, { title, body, kind }) {
       },
       android: {
         priority: "high",
-        notification: { channelId: "ba_push" },
+        notification: {
+          channelId: "ba_push",
+          sound: "default",
+        },
       },
     });
+    console.log(`[push] sent ${kind} to ${to}: ${result.successCount}/${tokens.length}`);
     result.responses.forEach((row, i) => {
       if (row.success) return;
+      console.error("[push] token failed:", row.error?.code, row.error?.message);
       const code = String(row.error?.code || "");
       if (code.includes("registration-token-not-registered") || code.includes("invalid-registration-token")) {
         dropToken(room, to, tokens[i]);
