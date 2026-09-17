@@ -2,6 +2,7 @@ package com.sonatudu.ba;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import android.app.ActivityManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -10,14 +11,26 @@ import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import androidx.core.app.NotificationCompat;
 import android.util.Log;
+import java.util.Map;
 
 public class MyFirebaseMessagingService extends FirebaseMessagingService {
     private static final String CHANNEL_ID = "ba_push";
+    private static final long[] POKE_PATTERN = {0, 36, 50, 36, 50, 70, 40, 90};
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
+        Map<String, String> data = remoteMessage.getData();
+        String kind = data != null ? data.get("kind") : null;
+        if ("poke".equals(kind)) {
+            if (!isAppInForeground()) vibratePoke();
+            return;
+        }
+
         String title = "Ba";
         String body = "Something new in your room.";
         if (remoteMessage.getNotification() != null) {
@@ -28,9 +41,9 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 body = remoteMessage.getNotification().getBody();
             }
         }
-        if (remoteMessage.getData() != null) {
-            if (remoteMessage.getData().get("title") != null) title = remoteMessage.getData().get("title");
-            if (remoteMessage.getData().get("body") != null) body = remoteMessage.getData().get("body");
+        if (data != null) {
+            if (data.get("title") != null) title = data.get("title");
+            if (data.get("body") != null) body = data.get("body");
         }
         showNotification(title, body);
     }
@@ -38,6 +51,28 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     @Override
     public void onNewToken(String token) {
         Log.d("FCM", "Refreshed token: " + token);
+    }
+
+    private boolean isAppInForeground() {
+        ActivityManager.RunningAppProcessInfo info = new ActivityManager.RunningAppProcessInfo();
+        ActivityManager.getMyMemoryState(info);
+        return info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+    }
+
+    private void vibratePoke() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager manager = getSystemService(VibratorManager.class);
+            if (manager == null) return;
+            manager.getDefaultVibrator().vibrate(VibrationEffect.createWaveform(POKE_PATTERN, -1));
+            return;
+        }
+        Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vibrator == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(POKE_PATTERN, -1));
+        } else {
+            vibrator.vibrate(POKE_PATTERN, -1);
+        }
     }
 
     private void showNotification(String title, String messageBody) {

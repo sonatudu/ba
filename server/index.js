@@ -750,6 +750,7 @@ app.post("/api/signal", (req, res) => {
       title: auth.user.username === "ma" ? "Ma" : "Ba",
       body: "Poke",
       kind: "poke",
+      silent: true,
     }).then(() => writeRoom(auth.room));
   } else if (kind === "offer") {
     notifyPartner(auth.room, auth.user.username, {

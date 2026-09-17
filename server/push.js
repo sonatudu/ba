@@ -160,7 +160,7 @@ function dropToken(room, who, token) {
   }
 }
 
-export async function notifyPartner(room, fromWho, { title, body, kind }) {
+export async function notifyPartner(room, fromWho, { title, body, kind, silent }) {
   const to = fromWho === "ba" ? "ma" : "ba";
   const tokens = tokensFor(room, to);
   if (!tokens.length) {
@@ -169,23 +169,28 @@ export async function notifyPartner(room, fromWho, { title, body, kind }) {
   }
   const msg = initFirebase();
   if (!msg) return;
+  const type = String(kind || "chat");
+  const hideBanner = Boolean(silent) || type === "poke";
   try {
-    const result = await msg.sendEachForMulticast({
+    const message = {
       tokens,
-      notification: { title, body },
       data: {
-        title,
-        body,
-        kind: String(kind || "chat"),
+        title: String(title || "Ba"),
+        body: String(body || ""),
+        kind: type,
       },
       android: {
         priority: "high",
-        notification: {
-          channelId: "ba_push",
-          sound: "default",
-        },
       },
-    });
+    };
+    if (!hideBanner) {
+      message.notification = { title, body };
+      message.android.notification = {
+        channelId: "ba_push",
+        sound: "default",
+      };
+    }
+    const result = await msg.sendEachForMulticast(message);
     console.log(`[push] sent ${kind} to ${to}: ${result.successCount}/${tokens.length}`);
     result.responses.forEach((row, i) => {
       if (row.success) return;
