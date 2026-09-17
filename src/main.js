@@ -7085,7 +7085,7 @@ function settingsView() {
         <span>Notifications</span>
         <i class="switch ${pushWanted() ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
-      <p class="settings-note">Poke, chat, and calls when the app is in the background.</p>
+      <p class="settings-note">Chat and calls show a banner. Poke only vibrates.</p>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
       <button class="settings-danger" type="button" data-delete-account>Delete account</button>
