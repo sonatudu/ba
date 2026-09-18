@@ -5548,6 +5548,8 @@ html.theme-day .map-tools button.is-on {
   position: absolute;
   left: 0;
   top: 0;
+  width: 100%;
+  height: 100%;
   touch-action: none;
   pointer-events: auto;
 }
