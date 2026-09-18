@@ -5121,16 +5121,18 @@ function datesView() {
       <article class="card memories-head">
         <div class="memories-head-copy">
           <p class="memories-kicker">Memories</p>
-          <p class="memories-counts" aria-label="Memory count">
-            <span>${rows.length} saved</span>
-            ${upcoming.length ? `<span class="is-soon">${upcoming.length} coming up</span>` : ""}
-          </p>
+          <div class="memories-counts-row">
+            <p class="memories-counts" aria-label="Memory count">
+              <span>${rows.length} saved</span>
+              ${upcoming.length ? `<span class="is-soon">${upcoming.length} coming up</span>` : ""}
+            </p>
+            ${
+              memoriesComposing
+                ? ""
+                : `<button type="button" class="memories-add-btn" data-memories-add aria-label="Add">+</button>`
+            }
+          </div>
         </div>
-        ${
-          memoriesComposing
-            ? ""
-            : `<button type="button" class="memories-add-btn" data-memories-add>Add</button>`
-        }
       </article>
       ${composeHtml}
       ${
