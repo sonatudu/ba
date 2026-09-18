@@ -902,6 +902,28 @@ function dailySlotLabel(slot) {
   return DAILY_SLOTS.find(([id]) => id === dailySlotOf(slot))?.[1] || "Morning";
 }
 
+function dailyWhoOf(value) {
+  const who = String(value || "").trim().toLowerCase();
+  if (who === "ba" || who === "ma") return who;
+  return "both";
+}
+
+function dailyWhoLabel(who) {
+  const id = dailyWhoOf(who);
+  if (id === "ba") return "Ba";
+  if (id === "ma") return "Ma";
+  return "Both";
+}
+
+function dailyHabitForWho(habit, who) {
+  const owner = dailyWhoOf(habit?.who);
+  return owner === "both" || owner === who;
+}
+
+function dailyHabitsFor(habits, who) {
+  return (Array.isArray(habits) ? habits : []).filter((habit) => dailyHabitForWho(habit, who));
+}
+
 function reorderDailyHabitsInSlot(habits, slot, orderedIds) {
   const want = dailySlotOf(slot);
   const list = Array.isArray(habits) ? habits : [];
@@ -927,17 +949,22 @@ function dailyTickOf(value) {
 }
 
 function dailyProgressRow(habits, ticks) {
-  const total = Array.isArray(habits) ? habits.length : 0;
+  const list = Array.isArray(habits) ? habits : [];
+  const baTotal = dailyHabitsFor(list, "ba").length;
+  const maTotal = dailyHabitsFor(list, "ma").length;
   return {
-    ba: dailyCountFor(habits, ticks, "ba"),
-    ma: dailyCountFor(habits, ticks, "ma"),
-    total,
+    ba: dailyCountFor(list, ticks, "ba"),
+    ma: dailyCountFor(list, ticks, "ma"),
+    baTotal,
+    maTotal,
+    total: list.length,
   };
 }
 
 function dailyProgressPct(row, who) {
-  const total = Math.max(0, Number(row?.total) || 0);
-  if (!total) return 0;
+  const totalKey = who === "ma" ? "maTotal" : "baTotal";
+  const total = Math.max(0, Number(row?.[totalKey] ?? row?.total) || 0);
+  if (!total) return null;
   const done = Math.max(0, Number(row?.[who]) || 0);
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
@@ -950,10 +977,14 @@ function normalizeDailyProgress(raw, habits, days) {
     const row = source[day];
     if (!row || typeof row !== "object") return;
     const total = Math.max(0, Math.round(Number(row.total) || 0));
+    const baTotal = Math.max(0, Math.round(Number(row.baTotal ?? total) || 0));
+    const maTotal = Math.max(0, Math.round(Number(row.maTotal ?? total) || 0));
     progress[day] = {
       ba: Math.max(0, Math.round(Number(row.ba) || 0)),
       ma: Math.max(0, Math.round(Number(row.ma) || 0)),
-      total,
+      baTotal,
+      maTotal,
+      total: Math.max(total, baTotal, maTotal),
     };
   });
   Object.keys(days || {}).forEach((day) => {
@@ -1036,7 +1067,7 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
   else if (want === "year") from = shiftIsoDay(end, -364);
   else {
     const earliest = Object.keys(progress)
-      .filter((day) => Number(progress[day]?.total) > 0)
+      .filter((day) => Number(progress[day]?.baTotal || progress[day]?.maTotal || progress[day]?.total) > 0)
       .sort()[0];
     const dayKeys = Object.keys(daily?.days || {}).sort()[0];
     from = earliest || dayKeys || floor;
@@ -1050,23 +1081,30 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
     const buckets = new Map();
     days.forEach((day) => {
       const key = day.slice(0, 7);
-      if (!buckets.has(key)) buckets.set(key, { ba: 0, ma: 0, n: 0 });
+      if (!buckets.has(key)) buckets.set(key, { ba: 0, ma: 0, baN: 0, maN: 0 });
       if (day < floor) return;
       const row = progress[day] || dailyProgressRow(daily?.habits || [], (daily?.days || {})[day] || {});
       const cur = buckets.get(key);
-      cur.ba += dailyProgressPct(row, "ba");
-      cur.ma += dailyProgressPct(row, "ma");
-      cur.n += 1;
+      const baPct = dailyProgressPct(row, "ba");
+      const maPct = dailyProgressPct(row, "ma");
+      if (baPct != null) {
+        cur.ba += baPct;
+        cur.baN += 1;
+      }
+      if (maPct != null) {
+        cur.ma += maPct;
+        cur.maN += 1;
+      }
     });
     return [...buckets.keys()].sort().map((key) => {
       const cur = buckets.get(key);
       const stamp = new Date(`${key}-01T12:00:00`);
-      const has = cur.n > 0;
+      const has = cur.baN > 0 || cur.maN > 0;
       return {
         day: `${key}-01`,
         label: stamp.toLocaleDateString(undefined, { month: "short" }),
-        ba: has ? Math.round(cur.ba / cur.n) : null,
-        ma: has ? Math.round(cur.ma / cur.n) : null,
+        ba: cur.baN ? Math.round(cur.ba / cur.baN) : null,
+        ma: cur.maN ? Math.round(cur.ma / cur.maN) : null,
         plot: has,
       };
     });
@@ -1099,14 +1137,16 @@ function dailyGraphSvg(points) {
   }
   if (rows.length === 1) {
     const row = plotted[0];
-    return `<div class="daily-graph-bars" role="img" aria-label="Ba ${row.ba} percent, Ma ${row.ma} percent">
+    const baLabel = row.ba == null ? "—" : `${row.ba}%`;
+    const maLabel = row.ma == null ? "—" : `${row.ma}%`;
+    return `<div class="daily-graph-bars" role="img" aria-label="Ba ${baLabel}, Ma ${maLabel}">
       <div class="daily-graph-bar is-ba">
-        <div class="daily-graph-bar-track"><i style="height:${row.ba}%"></i></div>
-        <span>Ba</span><strong>${row.ba}%</strong>
+        <div class="daily-graph-bar-track"><i style="height:${row.ba || 0}%"></i></div>
+        <span>Ba</span><strong>${baLabel}</strong>
       </div>
       <div class="daily-graph-bar is-ma">
-        <div class="daily-graph-bar-track"><i style="height:${row.ma}%"></i></div>
-        <span>Ma</span><strong>${row.ma}%</strong>
+        <div class="daily-graph-bar-track"><i style="height:${row.ma || 0}%"></i></div>
+        <span>Ma</span><strong>${maLabel}</strong>
       </div>
     </div>`;
   }
@@ -1193,7 +1233,7 @@ function normalizeDaily(value) {
       const id = String(row.id || "").trim();
       const label = String(row.label || "").trim();
       if (!id || !label) return null;
-      return { id, label, slot: dailySlotOf(row.slot) };
+      return { id, label, slot: dailySlotOf(row.slot), who: dailyWhoOf(row.who) };
     })
     .filter(Boolean);
   const days = {};
@@ -1417,20 +1457,21 @@ function bindDailyStrip(scroller, viewDay, { recenter = false } = {}) {
 }
 
 function dailyCountFor(habits, ticks, who) {
-  return habits.filter((habit) => Boolean((ticks || {})[habit.id]?.[who])).length;
+  return dailyHabitsFor(habits, who).filter((habit) => Boolean((ticks || {})[habit.id]?.[who])).length;
 }
 
 function dailyStreakFor(daily, who) {
   const habits = daily.habits || [];
-  if (!habits.length) return 0;
+  const mine = dailyHabitsFor(habits, who);
+  if (!mine.length) return 0;
   const cursor = new Date();
   cursor.setHours(12, 0, 0, 0);
   const todayKey = dayKey(cursor.getTime());
-  if (dailyCountFor(habits, daily.days[todayKey] || {}, who) < habits.length) {
+  if (dailyCountFor(habits, daily.days[todayKey] || {}, who) < mine.length) {
     cursor.setDate(cursor.getDate() - 1);
   }
   let streak = 0;
-  while (dailyCountFor(habits, daily.days[dayKey(cursor.getTime())] || {}, who) >= habits.length) {
+  while (dailyCountFor(habits, daily.days[dayKey(cursor.getTime())] || {}, who) >= mine.length) {
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -2334,6 +2375,7 @@ let todosComposing = false;
 let todoEditing = false;
 let dailyViewDay = "";
 let dailyDraftSlot = "morning";
+let dailyDraftWho = "both";
 let dailyEditing = false;
 let dailyGraphRange = "week";
 let dailyStripScrollLeft = null;
@@ -6854,7 +6896,7 @@ function saveDailyEdits(root, { silent = false } = {}) {
   const composer = (root || document).querySelector("[data-new]");
   const added = String(composer?.value || "").trim();
   if (added && habits.length < DAILY_HABIT_LIMIT) {
-    habits = [...habits, { id: uid(), label: added, slot: dailySlotOf(dailyDraftSlot) }];
+    habits = [...habits, { id: uid(), label: added, slot: dailySlotOf(dailyDraftSlot), who: dailyWhoOf(dailyDraftWho) }];
     if (composer) composer.value = "";
   }
   writeDaily({ habits }, silent);
@@ -6868,7 +6910,8 @@ function dailyView() {
   dailyViewDay = viewDay;
   const ticks = daily.days[viewDay] || {};
   const habits = daily.habits;
-  const total = habits.length;
+  const baTotal = dailyHabitsFor(habits, "ba").length;
+  const maTotal = dailyHabitsFor(habits, "ma").length;
   const baDone = dailyCountFor(habits, ticks, "ba");
   const maDone = dailyCountFor(habits, ticks, "ma");
   const viewStamp = new Date(`${viewDay}T12:00:00`);
@@ -6896,6 +6939,10 @@ function dailyView() {
   const graphPoints = dailyGraphPoints(daily, graphRange, today);
   const graphBaAvg = dailyGraphAvg(graphPoints, "ba");
   const graphMaAvg = dailyGraphAvg(graphPoints, "ma");
+  const graphFromDay = dailyFirstInputDay(daily);
+  const graphFromLabel = graphFromDay
+    ? `From ${new Date(`${graphFromDay}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`
+    : "";
   const wrap = el(`
     <div class="daily-page${dailyEditing ? " is-editing" : ""}">
       <article class="card daily-card daily-overview">
@@ -6906,10 +6953,10 @@ function dailyView() {
               <strong class="daily-daynum${viewIsSunday ? " is-sunday" : ""}">${escapeHtml(dateShort)}</strong>
             </p>
             ${
-              total
+              baTotal || maTotal
                 ? `<div class="daily-stats" aria-label="Progress">
-              <div class="daily-stat is-ba"><span>Ba</span><strong>${baDone}/${total}</strong></div>
-              <div class="daily-stat is-ma"><span>Ma</span><strong>${maDone}/${total}</strong></div>
+              <div class="daily-stat is-ba"><span>Ba</span><strong>${baDone}/${baTotal}</strong></div>
+              <div class="daily-stat is-ma"><span>Ma</span><strong>${maDone}/${maTotal}</strong></div>
             </div>`
                 : ""
             }
@@ -6943,7 +6990,7 @@ function dailyView() {
         <div class="daily-graph-head">
           <div>
             <h3 class="daily-graph-title">Completion</h3>
-            <p class="daily-graph-from">From 13 Sep 2026</p>
+            ${graphFromLabel ? `<p class="daily-graph-from">${escapeHtml(graphFromLabel)}</p>` : ""}
           </div>
           <p class="daily-graph-avg" aria-label="Average completion">
             <span class="is-ba">Ba ${graphBaAvg}%</span>
@@ -6984,8 +7031,14 @@ function dailyView() {
                   ${rows
                     .map((habit) => {
                       const done = dailyTickOf(ticks[habit.id]);
-                      const both = done.ba && done.ma;
-                      return `<tr class="daily-item${both ? " is-both" : ""}" data-id="${escapeHtml(habit.id)}">
+                      const baMine = dailyHabitForWho(habit, "ba");
+                      const maMine = dailyHabitForWho(habit, "ma");
+                      const complete = (!baMine || done.ba) && (!maMine || done.ma);
+                      const tickCell = (who, mine) =>
+                        mine
+                          ? `<td class="daily-tick-cell"><button type="button" data-tick="${who}" class="is-${who}${done[who] ? " is-on" : ""}" aria-label="${who === "ma" ? "Ma" : "Ba"}, ${escapeHtml(habit.label)}${done[who] ? ", done" : ""}"></button></td>`
+                          : `<td class="daily-tick-cell is-na"><span class="daily-tick-na" aria-hidden="true"></span></td>`;
+                      return `<tr class="daily-item${complete ? " is-both" : ""}" data-id="${escapeHtml(habit.id)}">
                     <td class="daily-task-cell">
                       <div class="daily-body">
                         ${
@@ -6995,18 +7048,17 @@ function dailyView() {
                         </button>
                         <div class="daily-edit-copy">
                           <input data-label maxlength="40" value="${escapeHtml(habit.label)}" aria-label="Task name" />
-                          <button type="button" data-slot class="daily-slot">${escapeHtml(dailySlotLabel(habit.slot))}</button>
+                          <div class="daily-edit-meta">
+                            <button type="button" data-slot class="daily-slot">${escapeHtml(dailySlotLabel(habit.slot))}</button>
+                            <button type="button" data-who class="daily-slot">${escapeHtml(dailyWhoLabel(habit.who))}</button>
+                          </div>
                         </div>`
                             : `<p class="daily-label">${escapeHtml(habit.label)}</p>`
                         }
                       </div>
                     </td>
-                    <td class="daily-tick-cell">
-                      <button type="button" data-tick="ba" class="is-ba${done.ba ? " is-on" : ""}" aria-label="Ba, ${escapeHtml(habit.label)}${done.ba ? ", done" : ""}"></button>
-                    </td>
-                    <td class="daily-tick-cell">
-                      <button type="button" data-tick="ma" class="is-ma${done.ma ? " is-on" : ""}" aria-label="Ma, ${escapeHtml(habit.label)}${done.ma ? ", done" : ""}"></button>
-                    </td>
+                    ${tickCell("ba", baMine)}
+                    ${tickCell("ma", maMine)}
                   </tr>`;
                     })
                     .join("")}
@@ -7031,6 +7083,18 @@ function dailyView() {
               ([id, label]) =>
                 `<button type="button" data-new-slot="${id}" class="${dailyDraftSlot === id ? "is-on" : ""}">${label}</button>`
             ).join("")}
+          </div>
+          <div class="daily-add-slots" role="group" aria-label="Whose task">
+            ${[
+              ["both", "Both"],
+              ["ba", "Ba"],
+              ["ma", "Ma"],
+            ]
+              .map(
+                ([id, label]) =>
+                  `<button type="button" data-new-who="${id}" class="${dailyDraftWho === id ? "is-on" : ""}">${label}</button>`
+              )
+              .join("")}
           </div>
         </form>`
             : ""
@@ -7083,6 +7147,8 @@ function dailyView() {
       button.addEventListener("click", () => {
         const who = button.dataset.tick === "ma" ? "ma" : "ba";
         const nextDaily = normalizeDaily(state.daily);
+        const habit = (nextDaily.habits || []).find((item) => item.id === id);
+        if (!dailyHabitForWho(habit, who)) return;
         const dayTicks = { ...(nextDaily.days[viewDay] || {}) };
         const cur = dailyTickOf(dayTicks[id]);
         dayTicks[id] = { ...cur, [who]: !cur[who] };
@@ -7115,6 +7181,14 @@ function dailyView() {
         habits: (normalizeDaily(state.daily).habits || []).map((habit) => (habit.id === id ? { ...habit, slot: next } : habit)),
       });
     });
+    row.querySelector("[data-who]").addEventListener("click", () => {
+      const order = ["both", "ba", "ma"];
+      const cur = dailyWhoOf((normalizeDaily(state.daily).habits.find((habit) => habit.id === id) || {}).who);
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      writeDaily({
+        habits: (normalizeDaily(state.daily).habits || []).map((habit) => (habit.id === id ? { ...habit, who: next } : habit)),
+      });
+    });
     bindHoldOpen(row, {
       menu,
       onDelete: () => {
@@ -7131,6 +7205,12 @@ function dailyView() {
       button.addEventListener("click", () => {
         dailyDraftSlot = dailySlotOf(button.dataset.newSlot);
         wrap.querySelectorAll("[data-new-slot]").forEach((item) => item.classList.toggle("is-on", item === button));
+      });
+    });
+    wrap.querySelectorAll("[data-new-who]").forEach((button) => {
+      button.addEventListener("click", () => {
+        dailyDraftWho = dailyWhoOf(button.dataset.newWho);
+        wrap.querySelectorAll("[data-new-who]").forEach((item) => item.classList.toggle("is-on", item === button));
       });
     });
     composer.addEventListener("keydown", (event) => {
