@@ -5122,7 +5122,6 @@ function datesView() {
       <article class="card memories-head">
         <div class="memories-head-copy">
           <p class="memories-kicker">Memories</p>
-          <p class="memories-lead">Dates and stories you want to keep.</p>
           <p class="memories-counts" aria-label="Memory count">
             <span>${rows.length} saved</span>
             ${upcoming.length ? `<span class="is-soon">${upcoming.length} coming up</span>` : ""}
