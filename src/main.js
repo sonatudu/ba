@@ -3213,7 +3213,7 @@ function chatView() {
         </div>
         <form class="wa-compose">
           <textarea data-chat-input rows="1" placeholder="Message" maxlength="2000" enterkeyhint="send"></textarea>
-          <button class="wa-send" type="submit" data-send aria-label="Send">
+          <button class="wa-send" type="submit" data-send tabindex="-1" aria-label="Send">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.4 20.6 21 12 3.4 3.4 3.5 10l11 2-11 2z"/></svg>
           </button>
         </form>
@@ -3284,7 +3284,12 @@ function chatView() {
     const text = input.value.trim();
     input.value = "";
     fitChatInput();
+    input.focus({ preventScroll: true });
     await sendChatContent({ text });
+    input.focus({ preventScroll: true });
+  });
+  wrap.querySelector("[data-send]").addEventListener("pointerdown", (event) => {
+    event.preventDefault();
   });
   // Desktop: Enter sends, Shift+Enter newline. Touch/native: Enter inserts newline; send via button.
   input.addEventListener("keydown", (event) => {
