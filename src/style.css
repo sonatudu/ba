@@ -2515,6 +2515,16 @@ body.is-daily-sorting {
     0 4px 12px color-mix(in srgb, var(--rose-deep) 22%, transparent);
 }
 
+.setup-manual {
+  display: block;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+}
+
 .setup-card .btn.setup-open:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--gold) 55%, var(--accent));
   outline-offset: 3px;
@@ -5898,13 +5908,17 @@ html.theme-day .settings-row .switch.is-on {
 
 .settings-link {
   align-self: center;
-  margin-top: 12px;
+  margin-top: 8px;
   padding: 10px 16px;
   color: var(--accent);
   font-size: var(--fs-body);
   font-weight: 650;
   text-decoration: none;
   text-align: center;
+}
+
+.settings-link + .settings-link {
+  margin-top: 0;
 }
 
 .settings-out {
