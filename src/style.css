@@ -4119,7 +4119,7 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin: 14px 0 0;
+  margin: 6px 0 0;
   font-size: var(--fs-label);
   font-weight: 600;
   color: var(--ink-soft);
