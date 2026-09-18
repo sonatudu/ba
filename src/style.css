@@ -1888,6 +1888,25 @@ body.on-family .shell {
   gap: 2px;
 }
 
+.daily-edit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+
+.daily-tick-cell.is-na {
+  pointer-events: none;
+}
+
+.daily-tick-na {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+  opacity: 0.45;
+}
+
 .daily-drag {
   flex: 0 0 auto;
   width: 28px;
