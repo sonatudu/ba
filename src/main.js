@@ -495,18 +495,54 @@ function cycleSymptomsOf(list) {
   ].slice(0, 40);
 }
 
+const COURSE_STATUS_ON = "on";
+const COURSE_STATUS_ENDED = "ended";
+const COURSE_INTAKE_TAKEN = "taken";
+const COURSE_INTAKE_NOT = "not";
+const COURSE_TAKEN_NOTE = "Medicine taken successfully.";
+
+function courseStatusOf(value, fallback = COURSE_STATUS_ON) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === COURSE_STATUS_ENDED || raw === "end" || raw === "0") return COURSE_STATUS_ENDED;
+  if (raw === COURSE_STATUS_ON || raw === "still on" || raw === "ongoing" || raw === "1") return COURSE_STATUS_ON;
+  return fallback;
+}
+
+function courseIntakeOf(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === COURSE_INTAKE_TAKEN || raw === "yes") return COURSE_INTAKE_TAKEN;
+  if (raw === COURSE_INTAKE_NOT || raw === "skipped" || raw === "missed" || raw === "not taken") return COURSE_INTAKE_NOT;
+  return "";
+}
+
 function normalizeCyclePeriod(item) {
   const start = String(item?.start || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
-  const end = String(item?.end || "").slice(0, 10);
+  const endRaw = String(item?.end || "").slice(0, 10);
+  const hasRange = /^\d{4}-\d{2}-\d{2}$/.test(endRaw) && endRaw > start;
   const at = Number(item?.at) || 0;
+  const legacy = item.status == null;
+  const status = hasRange
+    ? COURSE_STATUS_ENDED
+    : legacy
+      ? /^\d{4}-\d{2}-\d{2}$/.test(endRaw)
+        ? COURSE_STATUS_ENDED
+        : COURSE_STATUS_ON
+      : courseStatusOf(item.status);
+  const end = hasRange
+    ? endRaw
+    : status === COURSE_STATUS_ENDED
+      ? start
+      : "";
   return {
     id: String(item?.id || `c-${start}-${at}`),
     start,
-    end: /^\d{4}-\d{2}-\d{2}$/.test(end) && end >= start ? end : "",
+    end,
+    status,
     flow: cycleFlowOf(item?.flow),
     symptoms: cycleSymptomsOf(item?.symptoms),
     note: String(item?.note || "").slice(0, 400),
+    summary: String(item?.summary || "").slice(0, 1200),
     at,
     who: cycleWhoOf(item?.who),
   };
@@ -530,26 +566,6 @@ function normalizeCycleMed(item) {
     name,
     dose: String(item.dose || "").trim().slice(0, 40),
   };
-}
-
-const COURSE_STATUS_ON = "on";
-const COURSE_STATUS_ENDED = "ended";
-const COURSE_INTAKE_TAKEN = "taken";
-const COURSE_INTAKE_NOT = "not";
-const COURSE_TAKEN_NOTE = "Medicine taken successfully.";
-
-function courseStatusOf(value, fallback = COURSE_STATUS_ON) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (raw === COURSE_STATUS_ENDED || raw === "end" || raw === "0") return COURSE_STATUS_ENDED;
-  if (raw === COURSE_STATUS_ON || raw === "still on" || raw === "ongoing" || raw === "1") return COURSE_STATUS_ON;
-  return fallback;
-}
-
-function courseIntakeOf(value) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (raw === COURSE_INTAKE_TAKEN || raw === "yes") return COURSE_INTAKE_TAKEN;
-  if (raw === COURSE_INTAKE_NOT || raw === "skipped" || raw === "missed" || raw === "not taken") return COURSE_INTAKE_NOT;
-  return "";
 }
 
 function normalizeCycleCourse(item) {
@@ -5256,6 +5272,7 @@ function emptyCycleDraft() {
     id: "",
     start: isoToday(),
     end: "",
+    status: COURSE_STATUS_ON,
     ongoing: true,
     flow: "",
     symptoms: [],
@@ -5271,7 +5288,8 @@ function draftFromPeriod(item) {
     id: row.id,
     start: row.start,
     end: row.end,
-    ongoing: !row.end,
+    status: row.status || COURSE_STATUS_ON,
+    ongoing: row.status !== COURSE_STATUS_ENDED,
     flow: row.flow,
     symptoms: [...row.symptoms],
     note: row.note,
@@ -5333,9 +5351,88 @@ function ensureCycle() {
 /** Gap(m): days from Meprate end to the immediate next period start. */
 function nextPeriodAfterMedEnd(periods, medEnd) {
   if (!medEnd || !/^\d{4}-\d{2}-\d{2}$/.test(medEnd)) return null;
-  return [...(periods || [])]
+  return periodEpisodes(periods)
     .filter((row) => row?.start && /^\d{4}-\d{2}-\d{2}$/.test(row.start) && row.start > medEnd)
     .sort((a, b) => a.start.localeCompare(b.start))[0] || null;
+}
+
+function periodDayEnded(row) {
+  if (!row) return false;
+  if (row.end && row.end > row.start) return true;
+  return courseStatusOf(row.status, row.end ? COURSE_STATUS_ENDED : COURSE_STATUS_ON) === COURSE_STATUS_ENDED;
+}
+
+function collapsePeriodDays(days) {
+  const list = Array.isArray(days) ? days.filter(Boolean) : [];
+  if (!list.length) return null;
+  const first = list[0];
+  const last = list[list.length - 1];
+  const rangeRow = list.find((row) => row.end && row.end > row.start);
+  if (rangeRow) {
+    return {
+      id: rangeRow.id,
+      start: rangeRow.start,
+      end: rangeRow.end,
+      lastLog: rangeRow.end,
+      flow: rangeRow.flow,
+      symptoms: rangeRow.symptoms || [],
+      note: rangeRow.note || "",
+      at: rangeRow.at,
+      who: rangeRow.who,
+      rows: list,
+    };
+  }
+  const endRow = [...list].reverse().find(periodDayEnded);
+  return {
+    id: first.id,
+    start: first.start,
+    end: endRow ? endRow.end || endRow.start : "",
+    lastLog: last.start,
+    flow: last.flow,
+    symptoms: last.symptoms || [],
+    note: last.note || "",
+    at: last.at,
+    who: first.who,
+    rows: list,
+  };
+}
+
+function periodEpisodes(list) {
+  const rows = [...(list || [])]
+    .filter((row) => row?.start && /^\d{4}-\d{2}-\d{2}$/.test(row.start))
+    .sort((a, b) => a.start.localeCompare(b.start) || Number(a.at || 0) - Number(b.at || 0));
+  const episodes = [];
+  let cur = [];
+  const flush = () => {
+    if (!cur.length) return;
+    const episode = collapsePeriodDays(cur);
+    if (episode) episodes.push(episode);
+    cur = [];
+  };
+  for (const row of rows) {
+    if (row.end && row.end > row.start) {
+      flush();
+      episodes.push(collapsePeriodDays([row]));
+      continue;
+    }
+    if (!cur.length) {
+      cur = [row];
+      continue;
+    }
+    const prev = cur[cur.length - 1];
+    const gap = isoDiffDays(prev.start, row.start);
+    if (gap === 0) {
+      cur[cur.length - 1] = row;
+      continue;
+    }
+    if (gap === 1 && !periodDayEnded(prev)) cur.push(row);
+    else {
+      flush();
+      cur = [row];
+    }
+  }
+  flush();
+  return episodes;
 }
 
 function courseGapDays(course, periods) {
@@ -5451,7 +5548,7 @@ function courseMonthDetail(rows) {
 
 function cycleStats(cycle) {
   const data = normalizeCycle(cycle);
-  const chronological = [...data.periods].sort((a, b) => a.start.localeCompare(b.start));
+  const chronological = periodEpisodes(data.periods);
   const gaps = [];
   for (let i = 1; i < chronological.length; i += 1) {
     const span = isoDiffDays(chronological[i - 1].start, chronological[i].start);
@@ -5463,7 +5560,6 @@ function cycleStats(cycle) {
     .filter((span) => span >= 1 && span <= 14);
   const avgCycle = gaps.length ? Math.round(gaps.reduce((sum, n) => sum + n, 0) / gaps.length) : 0;
   const avgPeriod = bleeds.length ? Math.round(bleeds.reduce((sum, n) => sum + n, 0) / bleeds.length) : 0;
-  // Prefer logged averages; Period settings are the fallback when logs are few.
   const cycleLen = avgCycle || data.cycleLen || 28;
   const periodLen = avgPeriod || data.periodLen || 5;
   const last = chronological[chronological.length - 1] || null;
@@ -5513,7 +5609,7 @@ function cycleDayMarks(cycle) {
   const predicted = new Set();
   const fertile = new Set();
   stats.chronological.forEach((row) => {
-    const end = row.end || isoAddDays(row.start, stats.periodLen - 1);
+    const end = row.end || row.lastLog || row.start;
     eachIsoDay(row.start, end, (iso) => period.add(iso));
   });
   if (stats.last) {
@@ -5535,13 +5631,57 @@ function cycleDayMarks(cycle) {
   return { period, predicted, fertile };
 }
 
-function cycleHistoryMeta(row, nextStart, periodLen) {
-  const cycleDays = nextStart ? isoDiffDays(row.start, nextStart) : 0;
-  const bleed = row.end ? isoDiffDays(row.start, row.end) + 1 : 0;
+function buildPeriodMonthSummary(rows) {
+  const list = [...(rows || [])]
+    .filter((row) => row?.start && /^\d{4}-\d{2}-\d{2}$/.test(row.start))
+    .sort((a, b) => a.start.localeCompare(b.start) || Number(a.at || 0) - Number(b.at || 0));
+  if (!list.length) return "";
+  const from = list[0].start;
+  const to = list[list.length - 1].start;
+  const range = from === to ? `On ${fmt(from)}` : `From ${fmt(from)} to ${fmt(to)}`;
+  const days = list.length;
+  const flow = CYCLE_FLOWS.find(([id]) => list.some((row) => row.flow === id))?.[1] || "";
+  const lastFlow = CYCLE_FLOWS.find(([id]) => id === list[list.length - 1].flow)?.[1] || flow;
+  const bits = [`${days} day${days === 1 ? "" : "s"}`];
+  if (lastFlow) bits.push(lastFlow);
+  return `${range} · ${bits.join(" · ")}.`;
+}
+
+function periodMonthDetail(rows) {
+  const list = [...(rows || [])]
+    .filter((row) => row?.start && /^\d{4}-\d{2}-\d{2}$/.test(row.start))
+    .sort((a, b) => a.start.localeCompare(b.start) || Number(a.at || 0) - Number(b.at || 0));
+  if (!list.length) return { ended: false, items: [] };
+  const endedRow = [...list].reverse().find((row) => periodDayEnded(row)) || null;
+  if (endedRow) {
+    const summary = String(endedRow.summary || "").trim() || buildPeriodMonthSummary(list);
+    return {
+      ended: true,
+      items: [
+        {
+          kind: "summary",
+          id: endedRow.id,
+          ids: list.map((row) => row.id),
+          from: list[0].start,
+          to: endedRow.end && endedRow.end > endedRow.start ? endedRow.end : endedRow.end || endedRow.start,
+          summary,
+        },
+      ],
+    };
+  }
   return {
-    cycleDays,
-    periodDays: bleed || periodLen,
-    ongoing: !row.end,
+    ended: false,
+    items: list.map((row) => ({
+      kind: "day",
+      id: row.id,
+      ids: [row.id],
+      start: row.start,
+      at: row.at,
+      status: row.status,
+      flow: row.flow,
+      symptoms: row.symptoms,
+      note: row.note,
+    })),
   };
 }
 
@@ -5564,48 +5704,36 @@ function periodsGroupedByMonth(list) {
   return groups;
 }
 
-function periodHistorySummaryHtml(row, nextStart, periodLen) {
-  const meta = cycleHistoryMeta(row, nextStart, periodLen);
-  const flowLabel = CYCLE_FLOWS.find(([id]) => id === row.flow)?.[1] || "";
-  const symptoms = (row.symptoms || [])
-    .map((id) => symptomLabelOf(id, ensureCycle().symptomList))
-    .filter(Boolean)
-    .join(" · ");
-  const range = row.end
-    ? row.end === row.start
-      ? fmt(row.start)
-      : `${fmt(row.start)} – ${fmt(row.end)}`
-    : `${fmt(row.start)} – Still on`;
-  const length = meta.ongoing ? "Open" : `${meta.periodDays} days`;
-  const cycle = meta.cycleDays ? `${meta.cycleDays}-day cycle` : "Latest";
-  const bits = [length, cycle];
-  if (flowLabel) bits.push(flowLabel);
-  if (symptoms) bits.push(symptoms);
-  return `<article class="cycle-course${cycleEditId === row.id ? " is-on" : ""}" data-period="${escapeHtml(row.id)}">
-    <p class="cycle-course-line">${escapeHtml(range)}</p>
-    <p class="cycle-course-summary">${escapeHtml(bits.join(" · "))}</p>
-    ${row.note ? `<p class="cycle-hist-note">${escapeHtml(row.note)}</p>` : ""}
-  </article>`;
-}
-
 /** Dedicated Period History month screen (topbar back + month title). */
 function cyclePeriodMonthView(group) {
   const cycle = ensureCycle();
-  const stats = cycleStats(cycle);
-  const chrono = stats.chronological;
-  const nextStartOf = (row) => {
-    const idx = chrono.findIndex((item) => item.id === row.id);
-    return idx >= 0 && idx < chrono.length - 1 ? chrono[idx + 1].start : "";
-  };
-  const rows = [...group.rows].reverse();
+  const detail = periodMonthDetail(group.rows);
   const wrap = el(`
     <div class="cycle-page cycle-course-month-page">
       <article class="card cycle-card">
         <div class="cycle-course-list">
           ${
-            rows.length
-              ? rows
-                  .map((row) => periodHistorySummaryHtml(row, nextStartOf(row), stats.periodLen))
+            detail.items.length
+              ? detail.items
+                  .map((item) => {
+                    if (item.kind === "summary") {
+                      return `<article class="cycle-course${cycleEditId === item.id ? " is-on" : ""}" data-period="${escapeHtml(item.id)}" data-period-ids="${escapeHtml(item.ids.join(","))}">
+                        <p class="cycle-course-summary">${escapeHtml(item.summary)}</p>
+                      </article>`;
+                    }
+                    const flowLabel = CYCLE_FLOWS.find(([id]) => id === item.flow)?.[1] || "";
+                    const statusLabel = periodDayEnded(item) ? "Ended" : "Still on";
+                    const time = item.at ? fmtClock(item.at) : "";
+                    const symptoms = (item.symptoms || [])
+                      .map((id) => symptomLabelOf(id, cycle.symptomList))
+                      .filter(Boolean)
+                      .join(" · ");
+                    return `<article class="cycle-course${cycleEditId === item.id ? " is-on" : ""}" data-period="${escapeHtml(item.id)}" data-period-ids="${escapeHtml(item.id)}">
+                      <p class="cycle-course-line">${escapeHtml(fmt(item.start))} · ${escapeHtml(statusLabel)}${flowLabel ? ` · ${escapeHtml(flowLabel)}` : ""}${time ? ` · ${escapeHtml(time)}` : ""}</p>
+                      ${symptoms ? `<p class="cycle-course-summary">${escapeHtml(symptoms)}</p>` : ""}
+                      ${item.note ? `<p class="cycle-hist-note">${escapeHtml(item.note)}</p>` : ""}
+                    </article>`;
+                  })
                   .join("")
               : `<p class="muted">No periods logged yet.</p>`
           }
@@ -5631,24 +5759,32 @@ function cyclePeriodMonthView(group) {
   };
   wrap.querySelectorAll("[data-period]").forEach((card) => {
     const id = card.dataset.period;
+    const ids = String(card.dataset.periodIds || id)
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
     const item = cycle.periods.find((row) => row.id === id);
     bindHoldOpen(card, {
       menu,
       onEdit: () => openPeriod(id),
-      onLastDay: item && !item.end
-        ? () => {
-            writeCycle({
-              periods: cycle.periods.map((row) =>
-                row.id === id ? { ...row, end: isoToday(), at: Date.now() } : row
-              ),
-            });
-          }
-        : null,
+      onLastDay:
+        item && !periodDayEnded(item)
+          ? () => {
+              writeCycle({
+                periods: cycle.periods.map((row) =>
+                  row.id === id
+                    ? { ...row, status: COURSE_STATUS_ENDED, end: row.start, at: Date.now() }
+                    : row
+                ),
+              });
+            }
+          : null,
       onDelete: () => {
-        const remaining = cycle.periods.filter((row) => row.id !== id);
+        const drop = new Set(ids);
+        const remaining = cycle.periods.filter((row) => !drop.has(row.id));
         const left = periodsGroupedByMonth(remaining).some((row) => row.key === group.key);
         if (!left) periodHistMonth = "";
-        if (cycleEditId === id) {
+        if (cycleEditId && drop.has(cycleEditId)) {
           cycleEditId = "";
           cycleDraft = emptyCycleDraft();
           cycleSymptomsAdding = false;
@@ -5931,12 +6067,21 @@ function cycleView() {
         <h3>${cycleDraft.id ? "Edit period" : "Record period"}</h3>
         <div class="cycle-record">
           <div class="cycle-record-row">
-            <span class="cycle-record-label">Period start</span>
+            <span class="cycle-record-label">Date</span>
             <div class="cycle-record-control">${appCalPickerHtml("cycle-start", cycleDraft.start || "")}</div>
           </div>
           <div class="cycle-record-row">
-            <span class="cycle-record-label">End date</span>
-            <div class="cycle-record-control">${appCalPickerHtml("cycle-end", cycleDraft.end || "", { clearable: true })}</div>
+            <span class="cycle-record-label">Status</span>
+            <div class="cycle-record-control">
+              ${courseSegHtml(
+                "cycle-status",
+                [
+                  [COURSE_STATUS_ON, "Still on"],
+                  [COURSE_STATUS_ENDED, "Ended"],
+                ],
+                cycleDraft.status || COURSE_STATUS_ON
+              )}
+            </div>
           </div>
           <div class="cycle-record-row">
             <span class="cycle-record-label">Menstrual flow</span>
@@ -6082,8 +6227,9 @@ function cycleView() {
   const err = wrap.querySelector("[data-cycle-err]");
   const courseErr = wrap.querySelector("[data-course-err]");
   const readDraftDates = () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(cycleDraft.end || "")) cycleDraft.end = "";
-    cycleDraft.ongoing = !cycleDraft.end;
+    cycleDraft.status = courseStatusOf(cycleDraft.status);
+    cycleDraft.end = cycleDraft.status === COURSE_STATUS_ENDED ? cycleDraft.start : "";
+    cycleDraft.ongoing = cycleDraft.status !== COURSE_STATUS_ENDED;
     cycleDraft.flow = cycleFlowOf(cycleDraft.flow);
     cycleDraft.symptoms = cycleSymptomsOf(
       [...wrap.querySelectorAll("[data-sym]:checked")].map((input) => input.dataset.sym)
@@ -6119,15 +6265,7 @@ function cycleView() {
     setIso: (iso) => {
       if (!cycleDraft) return;
       cycleDraft.start = iso;
-      if (cycleDraft.end && cycleDraft.end < iso) cycleDraft.end = iso;
-    },
-  });
-  bindAppCalPicker(wrap, "cycle-end", {
-    getIso: () => cycleDraft?.end || "",
-    setIso: (iso) => {
-      if (!cycleDraft) return;
-      cycleDraft.end = /^\d{4}-\d{2}-\d{2}$/.test(iso || "") ? iso : "";
-      cycleDraft.ongoing = !cycleDraft.end;
+      if (cycleDraft.status === COURSE_STATUS_ENDED) cycleDraft.end = iso;
     },
   });
   bindAppCalPicker(wrap, "course-date", {
@@ -6139,6 +6277,11 @@ function cycleView() {
   });
   bindCourseSeg(wrap, "cycle-flow", (value) => {
     cycleDraft.flow = cycleFlowOf(value);
+  });
+  bindCourseSeg(wrap, "cycle-status", (value) => {
+    cycleDraft.status = courseStatusOf(value);
+    cycleDraft.end = cycleDraft.status === COURSE_STATUS_ENDED ? cycleDraft.start : "";
+    cycleDraft.ongoing = cycleDraft.status !== COURSE_STATUS_ENDED;
   });
   bindCourseSeg(wrap, "course-status", (value) => {
     courseDraft.status = courseStatusOf(value);
@@ -6155,7 +6298,7 @@ function cycleView() {
       readDraftDates();
       readCourseDraftFrom();
       cycleDraft.start = button.dataset.day;
-      if (cycleDraft.end && cycleDraft.end < cycleDraft.start) cycleDraft.end = cycleDraft.start;
+      if (cycleDraft.status === COURSE_STATUS_ENDED) cycleDraft.end = cycleDraft.start;
       render();
     });
   });
@@ -6255,34 +6398,60 @@ function cycleView() {
     readDraftDates();
     const start = cycleDraft.start;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) {
-      if (err) err.textContent = "Choose a period start date.";
+      if (err) err.textContent = "Choose a date.";
       return;
     }
-    const end = /^\d{4}-\d{2}-\d{2}$/.test(cycleDraft.end || "") ? cycleDraft.end : "";
-    if (end && end < start) {
-      if (err) err.textContent = "End date cannot be before period start.";
+    const status = courseStatusOf(cycleDraft.status);
+    const next = normalizeCycle(state.cycle);
+    const sameDay = (next.periods || []).find((item) => item.start === start && item.id !== cycleDraft.id);
+    const editId = cycleDraft.id || sameDay?.id || "";
+    const monthKeyForPeriod = start.slice(0, 7);
+    if (!editId && (next.periods || []).length >= 200) {
+      if (err) err.textContent = "Too many entries.";
       return;
     }
     const row = {
-      id: cycleDraft.id || uid(),
+      id: editId || uid(),
       start,
-      end,
+      end: status === COURSE_STATUS_ENDED ? start : "",
+      status,
       flow: cycleFlowOf(cycleDraft.flow),
       symptoms: cycleSymptomsOf(cycleDraft.symptoms),
       note: cycleDraft.note,
+      summary: "",
       at: Date.now(),
       who: "ba",
     };
-    const latest = normalizeCycle(state.cycle);
-    const others = latest.periods.filter((item) => item.id !== row.id);
-    const wasEdit = Boolean(cycleDraft.id);
+    let list = (next.periods || []).filter((item) => item.id !== row.id);
+    list = [row, ...list];
+    if (status === COURSE_STATUS_ENDED) {
+      list = list.map((item) => {
+        if (item.id === row.id) return item;
+        if (String(item.start || "").slice(0, 7) !== monthKeyForPeriod) return item;
+        if (item.end && item.end > item.start) return item;
+        if (item.status !== COURSE_STATUS_ENDED && !item.end && !item.summary) return item;
+        return { ...item, end: "", status: COURSE_STATUS_ON, summary: "" };
+      });
+      const monthRows = list.filter((item) => String(item.start || "").slice(0, 7) === monthKeyForPeriod);
+      const summary = buildPeriodMonthSummary(monthRows);
+      list = list.map((item) =>
+        item.id === row.id
+          ? { ...item, summary, end: start, status: COURSE_STATUS_ENDED }
+          : item
+      );
+    } else {
+      list = list.map((item) =>
+        item.id === row.id ? { ...item, summary: "", end: "", status: COURSE_STATUS_ON } : item
+      );
+    }
+    const wasEdit = Boolean(editId);
     cycleEditId = "";
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
     cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
     cycleDraft = emptyCycleDraft();
-    writeCycle({ who: "ba", periods: [row, ...others] });
+    writeCycle({ who: "ba", periods: list });
     showAppToast(wasEdit ? "Period updated" : "Period saved");
   });
   wrap.querySelector("[data-cancel]")?.addEventListener("click", () => {
