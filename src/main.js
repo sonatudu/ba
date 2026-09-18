@@ -7934,7 +7934,7 @@ function prefetchDetailTiles() {
   detailPrefetchAt = now;
   const z = Math.min(MAP_Z_MAX, Math.max(12, Math.floor(whereMap.getZoom())));
   const kind = whereMapKind === "political" ? "political" : "sat";
-  const ver = kind === "political" ? "v=7" : "v=3";
+  const ver = kind === "political" ? "v=8" : "v=3";
   const bounds = whereMap.getBounds();
   const zooms = z >= 18 ? [z] : [z, Math.min(MAP_Z_MAX, z + 1)];
   const urls = [];
@@ -7958,13 +7958,12 @@ function prefetchDetailTiles() {
 
 function mapTileTemplate() {
   const theme = readTheme() === "day" ? "day" : "dark";
-  return `${API_BASE || ""}/api/map/{z}/{x}/{y}?v=9&t=${theme}`;
+  return `${API_BASE || ""}/api/map/{z}/{x}/{y}?v=10&t=${theme}`;
 }
 
 function mapStyleUrl() {
   const theme = readTheme() === "day" ? "day" : "dark";
-  const kind = whereMapKind === "political" ? "&k=political" : "";
-  return `${API_BASE || ""}/api/map/style?v=17&t=${theme}${kind}`;
+  return `${API_BASE || ""}/api/map/style?v=18&t=${theme}`;
 }
 
 function mapSatTemplate() {
@@ -7973,19 +7972,21 @@ function mapSatTemplate() {
 
 function rewriteMapRequest(url) {
   if (typeof url !== "string") return { url };
-  // Styles from the API use root-relative /api/map paths. MapLibre resolves those
-  // against the page origin (GitHub Pages / Capacitor localhost), not the API host.
+  // Styles and TileJSON use /api/map paths. MapLibre may resolve those against
+  // GitHub Pages or Capacitor localhost instead of the API host.
   try {
     const base = typeof location !== "undefined" ? location.href : "https://localhost/";
     const parsed = new URL(url, base);
-    if (parsed.pathname.startsWith("/api/map")) {
-      return { url: `${API_BASE || ""}${parsed.pathname}${parsed.search}` };
+    const idx = parsed.pathname.indexOf("/api/map");
+    if (idx >= 0) {
+      return { url: `${API_BASE || ""}${parsed.pathname.slice(idx)}${parsed.search}` };
     }
   } catch {
     /* fall through */
   }
-  if (url.startsWith("/api/map")) {
-    return { url: `${API_BASE || ""}${url}` };
+  if (url.includes("/api/map")) {
+    const idx = url.indexOf("/api/map");
+    return { url: `${API_BASE || ""}${url.slice(idx)}` };
   }
   if (/tiles\.openfreemap\.org/i.test(url)) {
     return { url: url.replace(/https?:\/\/tiles\.openfreemap\.org/i, `${API_BASE || ""}/api/map/ofm`) };
@@ -8008,7 +8009,16 @@ function absolutizeMapStyle(style) {
   return fix(style);
 }
 
+function rasterPaint() {
+  return {
+    "raster-fade-duration": 0,
+    "raster-resampling": "linear",
+    "raster-opacity": 1,
+  };
+}
+
 function rasterStyle() {
+  const political = whereMapKind === "political";
   return {
     version: 8,
     glyphs: `${API_BASE || ""}/api/map/ofm/fonts/{fontstack}/{range}.pbf`,
@@ -8028,26 +8038,35 @@ function rasterStyle() {
         maxzoom: MAP_TILE_MAXZOOM,
         attribution: "Esri",
       },
+      baPolitical: {
+        type: "raster",
+        tiles: [`${API_BASE || ""}/api/map/political/{z}/{x}/{y}?v=8`],
+        tileSize: 256,
+        maxzoom: MAP_TILE_MAXZOOM,
+        attribution: "OpenStreetMap",
+      },
     },
     layers: [
       {
         id: "ba-raster",
         type: "raster",
         source: "baRaster",
-        paint: {
-          "raster-fade-duration": 0,
-          "raster-resampling": "linear",
-        },
+        layout: { visibility: "visible" },
+        paint: rasterPaint(),
       },
       {
         id: "ba-sat",
         type: "raster",
         source: "baSat",
-        paint: {
-          "raster-opacity": 1,
-          "raster-fade-duration": 0,
-          "raster-resampling": "linear",
-        },
+        layout: { visibility: political ? "none" : "visible" },
+        paint: rasterPaint(),
+      },
+      {
+        id: "ba-political",
+        type: "raster",
+        source: "baPolitical",
+        layout: { visibility: political ? "visible" : "none" },
+        paint: rasterPaint(),
       },
     ],
   };
@@ -8071,56 +8090,48 @@ function mergeOfmNameLayersOntoRaster(base, ofm) {
   return next;
 }
 
-function styleHasStreetFills(style) {
-  return (style.layers || []).some((layer) => layer && layer.type !== "raster" && layer.type !== "symbol");
-}
-
-function politicalRasterStyle() {
-  return {
-    version: 8,
-    sources: {
-      baPolitical: {
-        type: "raster",
-        tiles: [`${API_BASE || ""}/api/map/political/{z}/{x}/{y}?v=7`],
-        tileSize: 256,
-        maxzoom: MAP_TILE_MAXZOOM,
-        attribution: "OpenStreetMap",
-      },
-    },
-    layers: [
-      {
-        id: "ba-political",
-        type: "raster",
-        source: "baPolitical",
-        paint: {
-          "raster-opacity": 1,
-          "raster-fade-duration": 0,
-          "raster-resampling": "linear",
-        },
-      },
-    ],
-  };
-}
-
 function quickMapStyle() {
-  return whereMapKind === "political" ? politicalRasterStyle() : rasterStyle();
+  return rasterStyle();
 }
 
-function styleHasOverlayLayers(style) {
-  return (style?.layers || []).some((layer) => layer && layer.type !== "raster");
+function applyWhereMapKindLayers() {
+  if (!whereMap) return;
+  const political = whereMapKind === "political";
+  const setVis = (id, on) => {
+    try {
+      if (whereMap.getLayer(id)) whereMap.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+    } catch {
+      /* style not ready */
+    }
+  };
+  setVis("ba-raster", true);
+  setVis("ba-sat", !political);
+  setVis("ba-political", political);
+  whereMap.getContainer()?.classList.toggle("is-raster", !political);
+  whereMap.getContainer()?.classList.toggle("is-political", political);
+}
+
+function attachWhereOverlays(style) {
+  if (!whereMap || !style) return;
+  const src = style.sources?.openmaptiles;
+  if (src && !whereMap.getSource("openmaptiles")) {
+    try {
+      whereMap.addSource("openmaptiles", src);
+    } catch {
+      /* already present */
+    }
+  }
+  applyWhereMapKindLayers();
+  polishWhereMapStyle();
 }
 
 async function loadMapStyle() {
   const base = quickMapStyle();
-  if (whereMapKind === "political") return { style: absolutizeMapStyle(base), vector: false };
   try {
     const res = await fetch(mapStyleUrl());
     if (!res.ok) throw new Error("style");
     const ofm = absolutizeMapStyle(await res.json());
     const hasNames = (ofm.layers || []).some(isWhereNameLayer);
-    if (!styleHasStreetFills(ofm) && ofm.sources?.baSat && hasNames) {
-      return { style: ofm, vector: true };
-    }
     return { style: absolutizeMapStyle(mergeOfmNameLayersOntoRaster(base, ofm)), vector: hasNames };
   } catch {
     return { style: absolutizeMapStyle(base), vector: false };
@@ -8444,20 +8455,8 @@ function teardownWhereMap() {
 
 async function applyWhereMapStyle() {
   if (!whereMap) return;
-  const want = mapStyleUrl();
-  if (whereStyleUrl === want) return;
-  whereStyleUrl = want;
-  whereMapReady = false;
-  whereMapVector = false;
-  whereLabelSig = "";
-  whereMap.getContainer()?.classList.toggle("is-raster", whereMapKind !== "political");
-  whereMap.getContainer()?.classList.toggle("is-political", whereMapKind === "political");
-  whereMap.setStyle(quickMapStyle(), { diff: false });
-  requestAnimationFrame(() => whereMap?.resize());
-  const loaded = await loadMapStyle();
-  if (!whereMap || whereStyleUrl !== want) return;
-  whereMapVector = loaded.vector;
-  if (styleHasOverlayLayers(loaded.style)) whereMap.setStyle(loaded.style, { diff: true });
+  applyWhereMapKindLayers();
+  polishWhereMapStyle();
   requestAnimationFrame(() => whereMap?.resize());
 }
 
@@ -8754,8 +8753,30 @@ function bindWhereMapEvents() {
     syncWhereMarkers();
     paintCompass();
   });
-  whereMap.on("error", () => {});
+  whereMap.on("error", (event) => {
+    const msg = String(event?.error?.message || event?.error || "");
+    if (/webgl/i.test(msg)) {
+      geoNote = "This phone can’t draw the map.";
+      const note = document.querySelector("[data-geo-note]");
+      if (note) note.textContent = geoNote;
+    }
+  });
   paintCompass();
+}
+
+async function waitForMapStage(stage) {
+  for (let i = 0; i < 24; i += 1) {
+    if (stage.clientWidth >= 24 && stage.clientHeight >= 24) return true;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return stage.clientWidth >= 8 && stage.clientHeight >= 8;
+}
+
+function resizeWhereMap() {
+  if (!whereMap) return;
+  const box = whereMap.getContainer();
+  if (!box || box.clientWidth < 8 || box.clientHeight < 8) return;
+  whereMap.resize();
 }
 
 async function initWhereMap(stage) {
@@ -8764,6 +8785,8 @@ async function initWhereMap(stage) {
   const gen = ++whereMapGen;
   try {
     await ensureMapLibre();
+    if (gen !== whereMapGen || !stage.isConnected || whereMap) return;
+    await waitForMapStage(stage);
     if (gen !== whereMapGen || !stage.isConnected || whereMap) return;
     const startZoom = INDIA_ZOOM;
     mapZoom = startZoom;
@@ -8795,8 +8818,8 @@ async function initWhereMap(stage) {
       fadeDuration: 0,
       attributionControl: false,
       maplibreLogo: false,
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 3),
-      canvasContextAttributes: { antialias: true, powerPreference: "high-performance" },
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      canvasContextAttributes: { antialias: false, powerPreference: "high-performance" },
       refreshExpiredTiles: false,
       collectResourceTiming: false,
       maxParallelImageRequests: 32,
@@ -8813,15 +8836,20 @@ async function initWhereMap(stage) {
     whereMap.touchZoomRotate.enableRotation();
     whereMap.scrollZoom.setWheelZoomRate(1 / 180);
     bindWhereMapEvents();
-    requestAnimationFrame(() => whereMap?.resize());
+    requestAnimationFrame(() => resizeWhereMap());
+    window.setTimeout(() => resizeWhereMap(), 120);
+    window.setTimeout(() => resizeWhereMap(), 400);
     loadMapStyle().then((loaded) => {
       if (gen !== whereMapGen || !whereMap) return;
       whereMapVector = loaded.vector;
-      if (styleHasOverlayLayers(loaded.style)) whereMap.setStyle(loaded.style, { diff: true });
-      requestAnimationFrame(() => whereMap?.resize());
+      attachWhereOverlays(loaded.style);
+      requestAnimationFrame(() => resizeWhereMap());
     });
   } catch (error) {
     console.warn("Where map failed", error);
+    geoNote = "The map couldn’t start. Try opening Where again.";
+    const note = document.querySelector("[data-geo-note]");
+    if (note) note.textContent = geoNote;
     whereMap = null;
   } finally {
     if (gen === whereMapGen) whereMapBooting = false;
@@ -8854,7 +8882,7 @@ function drawWhereMap(force = false) {
     initWhereMap(stage);
     return;
   }
-  if (force) whereMap.resize();
+  if (force) resizeWhereMap();
   if (!force && sig === whereSig) {
     syncWhereMarkers(pins);
     return;
@@ -8923,10 +8951,10 @@ function setWhereMapKind(kind) {
   paintMapKindBtns();
   if (!whereMap) return;
   rememberMapView();
-  whereMapReady = false;
-  whereLabelSig = "";
-  whereStyleUrl = "";
-  applyWhereMapStyle();
+  applyWhereMapKindLayers();
+  if (!whereMap.getSource("openmaptiles")) {
+    loadMapStyle().then((loaded) => attachWhereOverlays(loaded.style));
+  }
 }
 
 function toggleMapFull() {
@@ -8942,7 +8970,7 @@ function toggleMapFull() {
   whereSig = "";
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
-      if (whereMap) whereMap.resize();
+      if (whereMap) resizeWhereMap();
       else drawWhereMap(true);
     })
   );

@@ -1276,7 +1276,7 @@ function enhanceMapStyle(style, _dark, extraStyle) {
   next.sources = {
     baRaster: {
       type: "raster",
-      tiles: ["/api/map/{z}/{x}/{y}?v=9"],
+        tiles: ["/api/map/{z}/{x}/{y}?v=10"],
       tileSize: 256,
       maxzoom: 19,
       attribution: "© OpenStreetMap",
@@ -1339,7 +1339,7 @@ function politicalMapStyle(ofm) {
     sources: {
       baPolitical: {
         type: "raster",
-        tiles: ["/api/map/political/{z}/{x}/{y}?v=7"],
+        tiles: ["/api/map/political/{z}/{x}/{y}?v=8"],
         tileSize: 256,
         maxzoom: 19,
         attribution: "© OpenStreetMap",
@@ -1538,7 +1538,9 @@ function osmTileUrls(z, x, y) {
     `https://basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`,
     `https://tile.openstreetmap.fr/hot/${z}/${x}/${y}.png`,
     `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
+    `https://a.tile.openstreetmap.org/${z}/${x}/${y}.png`,
     `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+    esriStreetUrl(z, x, y),
   ];
 }
 
@@ -1719,6 +1721,21 @@ async function fetchOsmTileOnce(z, x, y) {
 async function fetchOsmTile(z, x, y) {
   const first = await fetchOsmTileOnce(z, x, y);
   if (first.tile) return first.tile;
+  for (const az of politicalParentZooms(z)) {
+    const a = ancestorOf(z, x, y, z - az);
+    const parentKey = `pol:${a.az}:${a.ax}:${a.ay}`;
+    let parent = tileCacheGet(parentKey);
+    if (!parent) {
+      const got = await fetchOsmTileOnce(a.az, a.ax, a.ay);
+      if (got.tile) {
+        tileCacheSet(parentKey, got.tile.buf, got.tile.type, got.tile.maxAge || 3600);
+        parent = got.tile;
+      }
+    }
+    if (!parent || isUnavailableOsm(parent.buf)) continue;
+    const cropped = await cropFromParent(parent.buf, a.dz, a.fx, a.fy, { allowSmall: true });
+    if (cropped) return cropped;
+  }
   return null;
 }
 
@@ -1924,7 +1941,7 @@ app.get("/api/map/ofm/*", async (req, res) => {
     const buf = Buffer.from(await upstream.arrayBuffer());
     if (type.includes("json") || sub === "planet" || sub.endsWith(".json")) {
       try {
-        const parsed = rewriteOfmUrls(JSON.parse(buf.toString("utf8")));
+        const parsed = withAbsoluteApiPaths(rewriteOfmUrls(JSON.parse(buf.toString("utf8"))), publicApiBase(req));
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Cache-Control", "public, max-age=3600");
         return res.json(parsed);
@@ -1947,11 +1964,7 @@ app.get("/api/map/:z/:x/:y", async (req, res) => {
   if (![z, x, y].every((n) => Number.isInteger(n) && n >= 0) || z > 19) {
     return res.status(400).end();
   }
-  const urls = [
-    `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
-    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`,
-  ];
-  await proxyImage(res, urls);
+  return replyCachedOrResolved(req, res, `pol:${z}:${x}:${y}`, () => resolvePoliticalTile(z, x, y));
 });
 
 app.delete("/api/account", (req, res) => {
