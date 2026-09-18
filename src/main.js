@@ -3150,23 +3150,41 @@ function renderCallUi() {
 
 function fitChatViewport() {
   const app = document.querySelector(".wa-app");
-  if (!app) return;
-  const vv = window.visualViewport;
-  if (!vv) {
-    app.style.height = "";
-    app.style.top = "";
+  if (!app) {
+    document.body.classList.remove("kb-open");
     return;
   }
-  app.style.height = `${Math.round(vv.height)}px`;
-  app.style.top = `${Math.round(vv.offsetTop)}px`;
+  const vv = window.visualViewport;
+  if (!vv) {
+    app.style.removeProperty("height");
+    app.style.removeProperty("top");
+    app.style.removeProperty("left");
+    app.style.removeProperty("width");
+    app.style.removeProperty("bottom");
+    app.style.removeProperty("right");
+    document.body.classList.remove("kb-open");
+    return;
+  }
+  const keyboard = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  document.body.classList.toggle("kb-open", keyboard > 80);
+  app.style.top = `${Math.max(0, Math.round(vv.offsetTop))}px`;
+  app.style.left = `${Math.max(0, Math.round(vv.offsetLeft))}px`;
+  app.style.width = `${Math.round(vv.width)}px`;
+  app.style.height = `${Math.max(120, Math.round(vv.height))}px`;
+  app.style.bottom = "auto";
+  app.style.right = "auto";
 }
 
 let chatViewportBound = false;
 function ensureChatViewport() {
-  if (chatViewportBound || !window.visualViewport) return;
+  if (chatViewportBound) return;
   chatViewportBound = true;
-  window.visualViewport.addEventListener("resize", fitChatViewport, { passive: true });
-  window.visualViewport.addEventListener("scroll", fitChatViewport, { passive: true });
+  const onFit = () => fitChatViewport();
+  window.addEventListener("resize", onFit, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", onFit, { passive: true });
+    window.visualViewport.addEventListener("scroll", onFit, { passive: true });
+  }
 }
 
 function enterChat() {
@@ -3325,6 +3343,20 @@ function chatView() {
     fitChatViewport();
     pinChatToLatest(thread);
   });
+  const liftForKeyboard = () => {
+    const run = () => {
+      fitChatViewport();
+      wrap.querySelector(".wa-dock")?.scrollIntoView({ block: "end", inline: "nearest" });
+      if (chatStickBottom) pinChatToLatest(thread);
+    };
+    run();
+    requestAnimationFrame(run);
+    window.setTimeout(run, 80);
+    window.setTimeout(run, 280);
+    window.setTimeout(run, 480);
+  };
+  input.addEventListener("focus", liftForKeyboard);
+  input.addEventListener("click", liftForKeyboard);
   readChat(session.token).catch(() => {});
   wrap.querySelector("[data-clear-reply]").addEventListener("click", () => {
     chatReply = null;

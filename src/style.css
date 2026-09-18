@@ -502,6 +502,14 @@ body.wa-open {
   box-shadow: var(--elev);
 }
 
+body.kb-open .wa-dock {
+  margin-bottom: 8px;
+}
+
+body.kb-open .wa-app {
+  bottom: auto;
+}
+
 .chat-reply {
   display: flex;
   align-items: center;
