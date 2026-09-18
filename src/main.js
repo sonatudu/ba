@@ -7419,7 +7419,7 @@ function settingsView() {
         </button>
       </div>
       <div class="settings-start">
-        <span class="settings-start-label">Start date</span>
+        <span class="settings-start-label">Relationship start date</span>
         <div class="settings-start-control">${appCalPickerHtml("started-on", startDraft)}</div>
       </div>
       <button type="button" class="settings-row" data-share-loc aria-pressed="${sharing}">
