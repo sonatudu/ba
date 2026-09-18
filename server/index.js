@@ -138,26 +138,22 @@ function deleteSessionsFor(username) {
   }
 }
 
-function wipeAccount(user) {
-  for (const item of allRequests()) {
-    if (item.from === user.username || item.to === user.username) deleteRequest(item.id);
-  }
-  if (user.roomId) {
-    const room = readRoom(user.roomId);
-    if (room?.members) {
-      for (const member of room.members) {
-        if (member === user.username) continue;
-        const partner = readUser(member);
-        if (partner) {
-          partner.roomId = null;
-          writeUser(partner);
-        }
-      }
+function deleteSessionsForRoom(roomId) {
+  const id = String(roomId || "") || COUPLE_ROOM_ID;
+  for (const name of readdirSync(sessionsDir)) {
+    try {
+      const session = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
+      if (sessionRoomId(session) === id) unlinkSync(join(sessionsDir, name));
+    } catch {
+      /* ignore */
     }
-    deleteRoomFile(user.roomId);
   }
-  deleteSessionsFor(user.username);
-  deleteUserFile(user.username);
+}
+
+function wipeAccount(user) {
+  const roomId = user.roomId || COUPLE_ROOM_ID;
+  deleteRoomFile(roomId);
+  deleteSessionsForRoom(roomId);
 }
 
 function readRoom(roomId) {
@@ -338,15 +334,21 @@ function sessionDeviceId(session) {
   return id.length >= 8 ? id : "";
 }
 
-function liveLogins() {
+function sessionRoomId(session) {
+  return String(session?.roomId || "") || COUPLE_ROOM_ID;
+}
+
+function liveLogins(room) {
   pruneSessions();
   const now = Date.now();
+  const roomId = room?.id || COUPLE_ROOM_ID;
   const byWho = { ba: null, ma: null };
   const ids = new Set();
   for (const name of readdirSync(sessionsDir)) {
     try {
       const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
       if (!COUPLE_MEMBERS.includes(sess.username)) continue;
+      if (sessionRoomId(sess) !== roomId) continue;
       if (!Number.isFinite(Number(sess.expiresAt)) || Number(sess.expiresAt) < now) continue;
       const deviceId = sessionDeviceId(sess);
       if (!deviceId) continue;
@@ -399,37 +401,76 @@ function publicRoom(room, username) {
   };
 }
 
+function digitsCode(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 function pairCodeOk(value) {
-  const code = String(value || "").replace(/\D/g, "");
+  const code = digitsCode(value);
   if (!code) return false;
   return safeEqual(hashHex(code), hashHex(PAIR_CODE));
+}
+
+function parseRoomId(value) {
+  const raw = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (!raw) return "";
+  if (raw === COUPLE_ROOM_ID) return COUPLE_ROOM_ID;
+  const compact = raw.replace(/[^A-Z0-9]/g, "");
+  if (compact.length === 10) {
+    return `${compact.slice(0, 4)}-${compact.slice(4, 8)}-${compact.slice(8)}`;
+  }
+  return raw;
+}
+
+function roomCodeOk(room, value) {
+  const code = digitsCode(value);
+  if (!code) return false;
+  if (room?.id === COUPLE_ROOM_ID || !room?.codeHash) return pairCodeOk(code);
+  return safeEqual(hashHex(code), String(room.codeHash));
+}
+
+function emptyRoom(id, extra = {}) {
+  return {
+    id,
+    members: [...COUPLE_MEMBERS],
+    startedOn: "",
+    kdfSalt: randomBytes(16).toString("hex"),
+    blob: "",
+    iv: "",
+    chat: [],
+    readAt: {},
+    deliveredAt: {},
+    typing: {},
+    presence: {},
+    locations: {},
+    signals: [],
+    statuses: [],
+    disappearMs: 0,
+    devices: {},
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...extra,
+  };
 }
 
 function ensureCoupleRoom() {
   let room = readRoom(COUPLE_ROOM_ID);
   if (!room) {
-    room = {
-      id: COUPLE_ROOM_ID,
-      members: [...COUPLE_MEMBERS],
-      startedOn: "",
-      kdfSalt: randomBytes(16).toString("hex"),
-      blob: "",
-      iv: "",
-      chat: [],
-      readAt: {},
-      deliveredAt: {},
-      typing: {},
-      presence: {},
-      locations: {},
-      signals: [],
-      statuses: [],
-      disappearMs: 0,
-      devices: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    room = emptyRoom(COUPLE_ROOM_ID);
     writeRoom(room);
   }
+  room.members = [...COUPLE_MEMBERS];
+  if (!room.devices || typeof room.devices !== "object") room.devices = {};
+  return withChat(room);
+}
+
+function loadAuthRoom(session) {
+  const roomId = sessionRoomId(session);
+  if (roomId === COUPLE_ROOM_ID) return ensureCoupleRoom();
+  const room = readRoom(roomId);
+  if (!room) return null;
   room.members = [...COUPLE_MEMBERS];
   if (!room.devices || typeof room.devices !== "object") room.devices = {};
   return withChat(room);
@@ -447,8 +488,12 @@ function requireAuth(req, res) {
     res.status(401).json({ error: "Please enter the private code." });
     return null;
   }
+  const room = loadAuthRoom(session);
+  if (!room) {
+    res.status(401).json({ error: "Please enter the private code." });
+    return null;
+  }
   touchSession(session);
-  const room = ensureCoupleRoom();
   return { session, user: { username: session.username }, room };
 }
 
@@ -504,22 +549,64 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "3mb" }));
 
-app.post("/api/enter", (req, res) => {
-  const code = String(req.body?.code || "").replace(/\D/g, "");
+app.post("/api/rooms", (req, res) => {
+  const ip = req.ip || "local";
+  if (!rateLimit(`create:${ip}`, 12, 24 * 60 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many rooms from here. Wait a bit." });
+  }
+  const code = digitsCode(req.body?.code);
   const deviceId = String(req.body?.deviceId || "").slice(0, 80);
-  if (!pairCodeOk(code)) {
-    return res.status(401).json({ error: "That code is wrong." });
+  const who = String(req.body?.who || "").trim().toLowerCase();
+  if (code.length < 6 || code.length > 12) {
+    return res.status(400).json({ error: "Choose a 6-digit room code." });
   }
   if (deviceId.length < 8) {
     return res.status(400).json({ error: "Could not open this phone." });
   }
-  const room = ensureCoupleRoom();
+  if (!COUPLE_MEMBERS.includes(who)) {
+    return res.status(400).json({ error: "Pick Ba or Ma." });
+  }
+  let id;
+  try {
+    id = uniqueRoomId();
+  } catch {
+    return res.status(500).json({ error: "Could not create a room." });
+  }
+  const room = emptyRoom(id, { codeHash: hashHex(code) });
+  room.devices[deviceId] = who;
+  writeRoom(room);
+  const token = issueToken(who, room.id, deviceId);
+  res.json({ token, username: who, ...publicRoom(room, who) });
+});
+
+app.post("/api/enter", (req, res) => {
+  const code = digitsCode(req.body?.code);
+  const deviceId = String(req.body?.deviceId || "").slice(0, 80);
+  const roomId = parseRoomId(req.body?.roomId);
+  if (deviceId.length < 8) {
+    return res.status(400).json({ error: "Could not open this phone." });
+  }
+  let room = null;
+  let needGate = false;
+  if (roomId) {
+    room = roomId === COUPLE_ROOM_ID ? ensureCoupleRoom() : readRoom(roomId);
+    if (!room || !roomCodeOk(room, code)) {
+      return res.status(401).json({ error: "That room or code is wrong." });
+    }
+    needGate = room.id === COUPLE_ROOM_ID;
+  } else if (pairCodeOk(code)) {
+    room = ensureCoupleRoom();
+    needGate = true;
+  } else {
+    return res.status(401).json({ error: "Enter the room id and code." });
+  }
+  room = room.id === COUPLE_ROOM_ID ? ensureCoupleRoom() : withChat(room);
   const requested = String(req.body?.who || "").trim().toLowerCase();
   const locked = COUPLE_MEMBERS.includes(room.devices?.[deviceId]) ? room.devices[deviceId] : "";
   if (!locked && !COUPLE_MEMBERS.includes(requested)) {
     return res.status(400).json({ error: "Pick Ba or Ma." });
   }
-  if (!locked) {
+  if (needGate && !locked) {
     const su = lettersOf(req.body?.su);
     const rin = lettersOf(req.body?.rin);
     if (su.length !== 2 || rin.length !== 2) {
@@ -853,7 +940,7 @@ function pruneOrphanLocations(room, liveIds) {
 
 function locationPins(room) {
   withChat(room);
-  const { byWho, ids } = liveLogins();
+  const { byWho, ids } = liveLogins(room);
   if (pruneOrphanLocations(room, ids)) writeRoom(room);
   const locs = room.locations || {};
   const pins = [];
@@ -1975,41 +2062,33 @@ app.delete("/api/account", (req, res) => {
     return res.status(429).json({ error: "Too many tries. Wait a bit." });
   }
   const code = String(req.body?.code ?? req.body?.pin ?? "");
-  if (!pairCodeOk(code)) {
+  if (!roomCodeOk(auth.room, code)) {
     return res.status(401).json({ error: "That code is wrong." });
   }
+  const roomId = auth.room.id;
   wipeAccount({
     username: auth.user.username,
-    roomId: auth.session.roomId || auth.room?.id || COUPLE_ROOM_ID,
+    roomId,
   });
-  const room = ensureCoupleRoom();
-  if (!room.devices || typeof room.devices !== "object") room.devices = {};
-  for (const name of readdirSync(sessionsDir)) {
-    try {
-      const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
-      if (COUPLE_MEMBERS.includes(sess.username) && sess.deviceId) {
-        room.devices[sess.deviceId] = sess.username;
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  writeRoom(room);
+  if (roomId === COUPLE_ROOM_ID) ensureCoupleRoom();
   res.json({ ok: true });
 });
 
-function forgetDevice(deviceId) {
+function forgetDevice(deviceId, room) {
   const id = String(deviceId || "").slice(0, 80);
   if (id.length < 8) return;
-  const room = ensureCoupleRoom();
-  if (!room.devices || typeof room.devices !== "object") room.devices = {};
-  delete room.devices[id];
-  if (room.locations && typeof room.locations === "object") delete room.locations[id];
-  writeRoom(room);
+  if (room) {
+    if (!room.devices || typeof room.devices !== "object") room.devices = {};
+    delete room.devices[id];
+    if (room.locations && typeof room.locations === "object") delete room.locations[id];
+    writeRoom(room);
+  }
   for (const name of readdirSync(sessionsDir)) {
     try {
       const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
-      if (sess.deviceId === id) unlinkSync(join(sessionsDir, name));
+      if (sess.deviceId === id && (!room || sessionRoomId(sess) === room.id)) {
+        unlinkSync(join(sessionsDir, name));
+      }
     } catch {
       /* ignore */
     }
@@ -2020,14 +2099,16 @@ app.post("/api/logout", (req, res) => {
   const header = String(req.headers.authorization || "");
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   let deviceId = "";
+  let room = null;
   if (token) {
     const session = readSession(hashHex(token));
     if (session?.deviceId) deviceId = String(session.deviceId).slice(0, 80);
+    if (session) room = loadAuthRoom(session);
     const file = join(sessionsDir, `${hashHex(token)}.json`);
     if (existsSync(file)) unlinkSync(file);
   }
   if (deviceId.length < 8) deviceId = String(req.body?.deviceId || "").slice(0, 80);
-  forgetDevice(deviceId);
+  forgetDevice(deviceId, room);
   res.json({ ok: true });
 });
 

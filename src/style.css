@@ -2583,6 +2583,38 @@ body.is-daily-sorting {
   min-height: 1.2em;
 }
 
+.setup-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.setup-choice .btn.ghost {
+  min-height: 48px;
+}
+
+.setup-back {
+  display: block;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--fs-label);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.setup-card .lede {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  line-height: 1.45;
+}
+
 .who-pick {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5664,7 +5696,8 @@ html.theme-day .map-tools button.is-on {
 
 .setup-card #su,
 .setup-card #rin,
-.setup-card #code {
+.setup-card #code,
+.setup-card #room-id {
   font-size: 16px;
 }
 
@@ -5950,6 +5983,46 @@ html.theme-day .map-tools button.is-on {
   width: fit-content;
   max-width: 100%;
   overflow: visible;
+}
+
+.settings-room {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--tile);
+  box-shadow: var(--elev);
+}
+
+.settings-room-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-room-row code {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+
+.settings-copy {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--chrome);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .settings-row {

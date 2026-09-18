@@ -32,6 +32,10 @@ async function request(path, { method = "GET", token, body } = {}) {
   return data;
 }
 
+export function createRoom(body) {
+  return request("/api/rooms", { method: "POST", body });
+}
+
 export function enterRoom(body) {
   return request("/api/enter", { method: "POST", body });
 }

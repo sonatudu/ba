@@ -4,7 +4,7 @@ import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import { API_BASE, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
+import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
 import { drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import { routineHtml } from "./routine.js";
@@ -2342,6 +2342,7 @@ let cycleScrollY = 0;
 let pendingScrollY = null;
 let todayScrollY = 0;
 let gate = "home";
+let welcomeStep = "choose";
 /** Keeps a verified room code when setup answers are still needed (avoids typing the code twice). */
 let pendingLogin = null;
 let createdInvite = "";
@@ -2608,55 +2609,84 @@ async function logout() {
   await logoutCloud(token, id);
   tab = "home";
   gate = "home";
+  welcomeStep = "choose";
   render();
 }
 
 function gateView() {
-  const setup = localStorage.getItem(SETUP_KEY) !== "1";
   const savedWho = readSavedWho() || coupleId(pendingLogin?.who);
   let pickedWho = savedWho;
-  const codeReady = Boolean(pendingLogin?.code) && setup;
+  const joining = welcomeStep === "join";
+  const creating = welcomeStep === "create";
+  const choosing = !joining && !creating;
+  const needSetup = joining && Boolean(pendingLogin?.needSetup);
   const card = el(`
     <div class="setup">
       <form class="setup-card">
-        <p class="kicker">Welcome</p>
+        <p class="kicker">${creating ? "New room" : joining ? "Join" : "Welcome"}</p>
         <h1 class="wordmark">Ba</h1>
+        <p class="lede">${
+          creating
+            ? "Pick who you are and a 6-digit code. Share the room id from Settings with one other person."
+            : joining
+              ? "Enter the room id and code your person shared. Room id can be left blank if you already share a private code."
+              : "A private room for two. Create a new room, or join with a room id and code."
+        }</p>
         <p class="cannot-see">
           <strong>We cannot see any user's data.</strong>
           The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a room. That content is encrypted on the device.
         </p>
-        ${setup ? `
-        <div class="field">
+        ${
+          choosing
+            ? `<div class="setup-choice">
+          <button class="btn rose setup-open" type="button" data-welcome="create">Create a room</button>
+          <button class="btn ghost" type="button" data-welcome="join">Join a room</button>
+        </div>`
+            : `${
+                needSetup
+                  ? `<div class="field">
           <label for="su">su _ _ toka</label>
           <input id="su" name="su" maxlength="2" autocomplete="off" autocapitalize="off" spellcheck="false" required />
         </div>
         <div class="field">
           <label for="rin">rin _ _ toki</label>
           <input id="rin" name="rin" maxlength="2" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-        </div>
-        ` : ""}
-        ${savedWho ? "" : `
+        </div>`
+                  : ""
+              }
         <div class="field">
           <div class="who-pick" role="group" aria-label="Ba or Ma">
-            <button class="who-option" type="button" data-who="ba"><span>Ba</span></button>
-            <button class="who-option" type="button" data-who="ma"><span>Ma</span></button>
+            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span>Ba</span></button>
+            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span>Ma</span></button>
           </div>
         </div>
-        `}
         ${
-          codeReady
-            ? ""
-            : `<div class="field">
-          <label for="code">Code</label>
-          <input id="code" name="code" inputmode="numeric" autocomplete="off" required maxlength="12" value="${escapeHtml(pendingLogin?.code || "")}" />
+          joining
+            ? `<div class="field">
+          <label for="room-id">Room id</label>
+          <input id="room-id" name="roomId" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" value="${escapeHtml(pendingLogin?.roomId || "")}" placeholder="XXXX-XXXX-XX" />
         </div>`
+            : ""
         }
+        <div class="field">
+          <label for="code">${creating ? "Choose a code" : "Code"}</label>
+          <input id="code" name="code" inputmode="numeric" autocomplete="off" required maxlength="12" value="${escapeHtml(pendingLogin?.code || "")}" />
+        </div>
         <p class="err" data-err></p>
-        <button class="btn rose setup-open" type="submit">Open</button>
+        <button class="btn rose setup-open" type="submit">${creating ? "Create" : "Open"}</button>
+        <button class="setup-back" type="button" data-welcome="choose">Back</button>`
+        }
         <a class="setup-manual" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       </form>
     </div>
   `);
+  card.querySelectorAll("[data-welcome]").forEach((button) => {
+    button.addEventListener("click", () => {
+      welcomeStep = button.dataset.welcome === "create" ? "create" : button.dataset.welcome === "join" ? "join" : "choose";
+      pendingLogin = null;
+      render();
+    });
+  });
   card.querySelectorAll("[data-who]").forEach((button) => {
     button.addEventListener("click", () => {
       pickedWho = button.dataset.who === "ma" ? "ma" : "ba";
@@ -2665,12 +2695,16 @@ function gateView() {
   });
   card.querySelector("form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (choosing) return;
     const err = card.querySelector("[data-err]");
     err.textContent = "";
-    const codeInput = card.querySelector("#code");
-    const code = (codeInput?.value || pendingLogin?.code || "").replace(/\D/g, "");
+    const code = String(card.querySelector("#code")?.value || pendingLogin?.code || "").replace(/\D/g, "");
     if (!code) {
       err.textContent = "Enter the code.";
+      return;
+    }
+    if (creating && code.length < 6) {
+      err.textContent = "Use at least 6 digits.";
       return;
     }
     try {
@@ -2680,18 +2714,21 @@ function gateView() {
         return;
       }
       const locating = requestLocation();
+      const roomId = joining ? String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").trim() : "";
       const body = { code, deviceId: deviceId() };
       if (who === "ba" || who === "ma") body.who = who;
-      if (setup) {
-        body.su = card.querySelector("#su").value;
-        body.rin = card.querySelector("#rin").value;
+      if (roomId) body.roomId = roomId;
+      if (needSetup) {
+        body.su = card.querySelector("#su")?.value || "";
+        body.rin = card.querySelector("#rin")?.value || "";
       }
-      const entered = await enterRoom(body);
+      const entered = creating ? await createRoom(body) : await enterRoom(body);
       pendingLogin = null;
-      localStorage.setItem(SETUP_KEY, "1");
+      if (needSetup) localStorage.setItem(SETUP_KEY, "1");
       saveWho(coupleId(entered.username) || who);
       await openSession(entered);
       await locating;
+      welcomeStep = "choose";
       render();
     } catch (error) {
       const onPages = /\.github\.io$/i.test(location.hostname);
@@ -2701,12 +2738,14 @@ function gateView() {
           : error.message;
       if (error.needSetup) {
         const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
-        pendingLogin = { code, who: who || "" };
+        const roomId = String(card.querySelector("#room-id")?.value || "").trim();
+        pendingLogin = { code, who: who || "", roomId, needSetup: true };
         try {
           localStorage.removeItem(SETUP_KEY);
         } catch {
           /* ignore */
         }
+        welcomeStep = "join";
         render();
       }
     }
@@ -7606,6 +7645,18 @@ function settingsView() {
         <span class="settings-start-label">Relationship start date</span>
         <div class="settings-start-control">${appCalPickerHtml("started-on", startDraft)}</div>
       </div>
+      ${
+        session?.roomId
+          ? `<div class="settings-room">
+        <span class="settings-start-label">Room id</span>
+        <div class="settings-room-row">
+          <code data-room-id>${escapeHtml(session.roomId)}</code>
+          <button type="button" class="settings-copy" data-copy-room>Copy</button>
+        </div>
+        <p class="settings-note">Share this id and your room code with one other person so they can Join.</p>
+      </div>`
+          : ""
+      }
       <button type="button" class="settings-row" data-share-loc aria-pressed="${sharing}">
         <span>Share location</span>
         <i class="switch ${sharing ? "is-on" : ""}" aria-hidden="true"></i>
@@ -7653,6 +7704,16 @@ function settingsView() {
       setTheme(button.dataset.theme);
       render();
     });
+  });
+  wrap.querySelector("[data-copy-room]")?.addEventListener("click", async () => {
+    const id = session?.roomId || "";
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(id);
+      showAppToast("Room id copied");
+    } catch {
+      showAppToast(id);
+    }
   });
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
