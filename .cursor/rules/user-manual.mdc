@@ -1,0 +1,19 @@
+---
+description: Keep the Ba user manual in sync with every feature and button change
+alwaysApply: true
+---
+
+# Update the user manual with the app
+
+Ba ships a public user manual at `public/manual.html` (live: `https://sonatudu.github.io/ba/manual.html`). New users read it to learn screens, buttons, and gestures.
+
+Whenever you add, remove, rename, or change behavior of a user-visible control or feature:
+
+1. Update `public/manual.html` in the same change.
+2. Document the **button or control name as shown in the UI** and what it does.
+3. Cover every affected screen (Home, Chat, Routine, Daily, Where, To Do, Overview, Memories, Periods, Family, Settings, welcome/login).
+4. Add a dated bullet under **Recent updates** (newest first) and set **Last updated**.
+5. If you add a new top-level screen, add it to the table of contents and a full section.
+6. Do not document secrets (room code digits, setup answer keys).
+
+Skip the manual only for purely internal refactors with no UI or behavior change.

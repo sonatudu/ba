@@ -2647,6 +2647,7 @@ function gateView() {
         }
         <p class="err" data-err></p>
         <button class="btn rose setup-open" type="submit">Open</button>
+        <a class="setup-manual" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       </form>
     </div>
   `);
@@ -7396,6 +7397,7 @@ function dailyView() {
 }
 
 const PRIVACY_URL = "https://sonatudu.github.io/ba/privacy.html";
+const MANUAL_URL = "https://sonatudu.github.io/ba/manual.html";
 
 function settingsView() {
   const theme = readTheme();
@@ -7432,6 +7434,7 @@ function settingsView() {
         <i class="switch ${pushWanted() ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
       <p class="settings-note">Chat and calls show a banner. Poke only vibrates.</p>
+      <a class="settings-link" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
       <button class="settings-danger" type="button" data-delete-account>Delete account</button>
