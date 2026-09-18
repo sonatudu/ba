@@ -1820,7 +1820,8 @@ async function syncChat() {
     const thread = document.querySelector("[data-chat-thread]");
     if (thread) {
       if (before !== after) delete thread.dataset.sig;
-      paintChatThread(thread, after !== before && newFromThem.length > 0, before !== after);
+      paintChatThread(thread, chatStickBottom || (after !== before && newFromThem.length > 0), before !== after);
+      if (chatStickBottom) pinChatToLatest(thread);
     }
     refreshChatChrome();
     fitChatViewport();
@@ -1838,6 +1839,41 @@ function threadSig() {
 
 function threadAtEnd(thread) {
   return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 28;
+}
+
+function scrollChatToLatest(thread) {
+  if (!thread) return;
+  chatStickBottom = true;
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function pinChatToLatest(thread) {
+  if (!thread) return;
+  chatPinning = true;
+  const run = () => scrollChatToLatest(thread);
+  run();
+  requestAnimationFrame(() => {
+    run();
+    requestAnimationFrame(() => {
+      run();
+      window.setTimeout(() => {
+        run();
+        chatPinning = false;
+      }, 40);
+    });
+  });
+  window.setTimeout(run, 120);
+  window.setTimeout(run, 280);
+  thread.querySelectorAll("img").forEach((img) => {
+    if (img.complete) return;
+    img.addEventListener(
+      "load",
+      () => {
+        if (chatStickBottom) scrollChatToLatest(thread);
+      },
+      { once: true }
+    );
+  });
 }
 
 function paintChatThread(thread, stickToBottom, force = false) {
@@ -2269,6 +2305,7 @@ let chatSelected = new Set();
 let chatSelectMode = false;
 let chatDragging = false;
 let chatStickBottom = true;
+let chatPinning = false;
 let chatQuery = "";
 let chatMenuId = "";
 let chatPartnerOnline = false;
@@ -3065,6 +3102,7 @@ function ensureChatViewport() {
 function enterChat() {
   markChatSeen(Date.now());
   chatUnread = 0;
+  chatStickBottom = true;
   tab = "chat";
   if (history.state?.ba !== "chat") history.pushState({ ba: "chat" }, "");
   render();
@@ -3207,7 +3245,10 @@ function chatView() {
   input.setAttribute("enterkeyhint", chatEnterSends() ? "send" : "enter");
   paintChatThread(thread, true);
   ensureChatViewport();
-  requestAnimationFrame(fitChatViewport);
+  requestAnimationFrame(() => {
+    fitChatViewport();
+    pinChatToLatest(thread);
+  });
   readChat(session.token).catch(() => {});
   wrap.querySelector("[data-clear-reply]").addEventListener("click", () => {
     chatReply = null;
@@ -3219,6 +3260,7 @@ function chatView() {
     refreshChatChrome();
   });
   thread.addEventListener("scroll", () => {
+    if (chatPinning) return;
     chatStickBottom = threadAtEnd(thread);
     refreshChatChrome();
   }, { passive: true });
@@ -8711,6 +8753,7 @@ function render() {
   if (tab !== "where") teardownWhereMap();
   root.replaceChildren(appView());
   applyPendingScroll();
+  if (tab === "chat") pinChatToLatest(document.querySelector("[data-chat-thread]"));
 }
 
 async function boot() {
