@@ -4058,6 +4058,9 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   --rail: color-mix(in srgb, var(--gold) 55%, transparent);
   box-shadow: var(--elev);
   padding: 22px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .memories-kicker {
@@ -4260,12 +4263,44 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   color: var(--ink-soft);
 }
 
+.memories-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.memories-note-actions button {
+  margin: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 90%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.memories-note-actions button:active {
+  transform: scale(0.97);
+}
+
+.memories-note-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .memories-compose {
-  margin-top: auto;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  padding: 12px 14px 14px;
   border: 1px solid color-mix(in srgb, var(--gold) 22%, var(--line));
   border-radius: var(--r-xl);
   background: var(--card);
@@ -4274,10 +4309,12 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 }
 
 .memories-add-wrap {
-  margin-top: auto;
-  display: flex;
-  justify-content: center;
-  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+  display: none;
+}
+
+.memories-head .memories-add-btn {
+  width: 100%;
+  min-width: 0;
 }
 
 .memories-add-btn {
@@ -4414,6 +4451,27 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   width: 18px;
   height: 18px;
   display: block;
+}
+
+.memories-edit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.memories-edit-delete {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--paper));
+  color: var(--danger);
+  font: inherit;
+  font-size: var(--fs-label);
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .memories-page .today-body {

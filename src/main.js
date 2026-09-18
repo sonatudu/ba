@@ -4968,9 +4968,41 @@ function memoryUpcomingRows(within = 45) {
   return rows;
 }
 
+function memoryPlainText(item) {
+  const title = item.text || item.title || "";
+  const when = memoryDay(item);
+  const yearly = item.noYear ? "Repeats yearly" : "";
+  const story = String(item.story || "").trim();
+  return [title, when, yearly, story].filter(Boolean).join("\n");
+}
+
+async function copyMemory(item) {
+  const text = memoryPlainText(item);
+  try {
+    await navigator.clipboard.writeText(text);
+    showAppToast("Copied");
+  } catch {
+    showAppToast("Could not copy");
+  }
+}
+
+function duplicateMemory(item) {
+  const copy = {
+    id: uid(),
+    date: memoryIso(item) || isoToday(),
+    text: item.text || item.title || "",
+    story: item.story || "",
+    noYear: Boolean(item.noYear),
+    at: Date.now(),
+  };
+  setState({ dates: [copy, ...state.dates] }, true);
+  return copy;
+}
+
 function memoryCardHtml(item, { upcoming = null } = {}) {
   const text = item.text || item.title || "";
   const story = String(item.story || "").trim();
+  const kept = isKeptMemory(item.id);
   const when = upcoming
     ? upcoming.diff === 0
       ? "Today"
@@ -4983,19 +5015,24 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
   const meta = [when, dateLine].filter(Boolean).join(" · ");
   const badges = [
     item.noYear ? `<span class="memories-badge">Yearly</span>` : "",
-    isKeptMemory(item.id) ? `<span class="memories-badge is-kept">Kept</span>` : "",
+    kept ? `<span class="memories-badge is-kept">Kept</span>` : "",
     years > 0 ? `<span class="memories-badge is-years">${years}y</span>` : "",
   ]
     .filter(Boolean)
     .join("");
   return `
-    <article class="memories-note${item.noYear ? " is-yearly" : ""}${isKeptMemory(item.id) ? " is-kept" : ""}" data-memory="${escapeHtml(item.id)}" role="button" tabindex="0">
+    <article class="memories-note${item.noYear ? " is-yearly" : ""}${kept ? " is-kept" : ""}" data-memory="${escapeHtml(item.id)}" tabindex="0">
       <div class="memories-note-top">
         <p class="memories-note-when">${escapeHtml(meta)}</p>
         ${badges ? `<div class="memories-badges">${badges}</div>` : ""}
       </div>
       <h3 class="memories-note-title">${escapeHtml(text)}</h3>
       ${story ? `<p class="memories-note-story">${escapeHtml(story.length > 90 ? `${story.slice(0, 90)}…` : story)}</p>` : ""}
+      <div class="memories-note-actions">
+        <button type="button" data-memory-edit>Edit</button>
+        <button type="button" data-memory-del ${kept ? "disabled" : ""}>${kept ? "Kept" : "Delete"}</button>
+        <button type="button" data-memory-more>More</button>
+      </div>
     </article>
   `;
 }
@@ -5027,6 +5064,26 @@ function datesView() {
     if (b === "Other") return -1;
     return b.localeCompare(a);
   });
+  const composeHtml = memoriesComposing
+    ? `<form class="memories-compose card">
+        <div class="memories-compose-date">
+          <span class="memories-compose-label">Date</span>
+          ${appCalPickerHtml("memory-new-date", memoryDraftDate)}
+        </div>
+        <label class="memories-yearly">
+          <input type="checkbox" data-yearly />
+          <span>Repeat yearly</span>
+        </label>
+        <div class="memories-add-row">
+          <input data-title type="text" maxlength="180" placeholder="Title" enterkeyhint="done" />
+          <button class="memories-save" type="submit" data-save aria-label="Save" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
+          </button>
+        </div>
+        <textarea data-story rows="2" maxlength="4000" placeholder="Story (optional)"></textarea>
+        <button type="button" class="compose-done-btn" data-memories-done>Done</button>
+      </form>`
+    : "";
   const wrap = el(`
     <div class="memories-page">
       <article class="card memories-head">
@@ -5038,7 +5095,13 @@ function datesView() {
             ${upcoming.length ? `<span class="is-soon">${upcoming.length} coming up</span>` : ""}
           </p>
         </div>
+        ${
+          memoriesComposing
+            ? ""
+            : `<button type="button" class="memories-add-btn" data-memories-add>Add</button>`
+        }
       </article>
+      ${composeHtml}
       ${
         upcoming.length
           ? `<article class="card memories-upcoming">
@@ -5072,47 +5135,121 @@ function datesView() {
             : `<p class="memories-empty">No memories yet.</p>`
         }
       </article>
-      ${
-        memoriesComposing
-          ? `<form class="memories-compose card">
-        <div class="memories-compose-date">
-          <span class="memories-compose-label">Date</span>
-          ${appCalPickerHtml("memory-new-date", memoryDraftDate)}
+      <div class="hold-menu" data-memory-sheet hidden>
+        <button type="button" class="hold-menu-scrim" data-memory-sheet-scrim aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true" aria-labelledby="memory-sheet-title">
+          <p class="hold-menu-kicker">Memory</p>
+          <h2 class="hold-menu-title" id="memory-sheet-title" data-sheet-title></h2>
+          <div class="hold-menu-extra">
+            <button type="button" data-act="edit">Edit</button>
+            <button type="button" data-act="duplicate">Duplicate</button>
+            <button type="button" data-act="yearly"></button>
+            <button type="button" data-act="copy">Copy</button>
+            <button type="button" data-act="delete">Delete</button>
+          </div>
+          <div class="hold-menu-row">
+            <button type="button" class="hold-menu-btn" data-act="cancel">Close</button>
+          </div>
         </div>
-        <label class="memories-yearly">
-          <input type="checkbox" data-yearly />
-          <span>Repeat yearly</span>
-        </label>
-        <div class="memories-add-row">
-          <input data-title type="text" maxlength="180" placeholder="Title" enterkeyhint="done" />
-          <button class="memories-save" type="submit" data-save aria-label="Save" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
-          </button>
-        </div>
-        <textarea data-story rows="2" maxlength="4000" placeholder="Story (optional)"></textarea>
-        <button type="button" class="compose-done-btn" data-memories-done>Done</button>
-      </form>`
-          : `<div class="memories-add-wrap">
-        <button type="button" class="memories-add-btn" data-memories-add>Add</button>
-      </div>`
-      }
+      </div>
     </div>
   `);
   const menu = storyDeleteMenu(wrap);
+  const sheet = wrap.querySelector("[data-memory-sheet]");
+  let sheetItem = null;
+  const closeSheet = () => {
+    sheetItem = null;
+    sheet.hidden = true;
+    document.body.classList.remove("is-hold-menu");
+  };
+  const openSheet = (item) => {
+    sheetItem = item;
+    sheet.querySelector("[data-sheet-title]").textContent = item.text || item.title || "Memory";
+    const yearlyBtn = sheet.querySelector('[data-act="yearly"]');
+    yearlyBtn.textContent = item.noYear ? "Stop yearly repeat" : "Repeat yearly";
+    const delBtn = sheet.querySelector('[data-act="delete"]');
+    delBtn.hidden = isKeptMemory(item.id);
+    sheet.hidden = false;
+    document.body.classList.add("is-hold-menu");
+  };
+  const deleteMemory = (item) => {
+    if (isKeptMemory(item.id)) {
+      showAppToast("Kept memories stay.");
+      return;
+    }
+    setState({ dates: state.dates.filter((row) => row.id !== item.id) }, true);
+    if (openMemoryId === item.id) openMemoryId = null;
+    render();
+  };
+  const openMemory = (item) => {
+    openMemoryId = item.id;
+    memoriesComposing = false;
+    render();
+  };
+  sheet.querySelector("[data-memory-sheet-scrim]")?.addEventListener("click", closeSheet);
+  sheet.addEventListener("click", (event) => {
+    const act = event.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    const item = sheetItem;
+    closeSheet();
+    if (!item) return;
+    if (act === "edit") openMemory(item);
+    else if (act === "duplicate") {
+      duplicateMemory(item);
+      showAppToast("Duplicated");
+      render();
+    } else if (act === "yearly") {
+      setState({
+        dates: state.dates.map((row) =>
+          row.id === item.id ? { ...row, noYear: !row.noYear, at: Date.now() } : row
+        ),
+      }, true);
+      render();
+    } else if (act === "copy") copyMemory(item);
+    else if (act === "delete") {
+      if (isKeptMemory(item.id)) {
+        showAppToast("Kept memories stay.");
+        return;
+      }
+      menu.open(null, {
+        label: item.text || item.title || "Memory",
+        onDelete: () => deleteMemory(item),
+      });
+    }
+  });
   const bindCard = (node) => {
     const id = node.dataset.memory;
     const item = state.dates.find((row) => row.id === id);
     if (!item) return;
-    if (isKeptMemory(item.id)) {
-      bindOpenCard(node, () => {
-        openMemoryId = item.id;
-        render();
+    const actions = node.querySelector(".memories-note-actions");
+    actions?.addEventListener("pointerdown", (event) => event.stopPropagation());
+    actions?.addEventListener("click", (event) => event.stopPropagation());
+    node.querySelector("[data-memory-edit]")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openMemory(item);
+    });
+    node.querySelector("[data-memory-del]")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (isKeptMemory(item.id)) {
+        showAppToast("Kept memories stay.");
+        return;
+      }
+      menu.open(node, {
+        label: item.text || item.title || "Memory",
+        onDelete: () => deleteMemory(item),
       });
+    });
+    node.querySelector("[data-memory-more]")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openSheet(item);
+    });
+    if (isKeptMemory(item.id)) {
+      bindOpenCard(node, () => openMemory(item));
       let hold = 0;
       node.addEventListener("pointerdown", () => {
         hold = window.setTimeout(() => {
           navigator.vibrate?.(10);
-          showAppToast("Kept memories stay.");
+          openSheet(item);
         }, 480);
       });
       const cancel = () => window.clearTimeout(hold);
@@ -5124,14 +5261,9 @@ function datesView() {
     bindHoldOpen(node, {
       menu,
       label: item.text || item.title || "Memory",
-      onOpen: () => {
-        openMemoryId = item.id;
-        render();
-      },
-      onDelete: () => {
-        setState({ dates: state.dates.filter((row) => row.id !== item.id) }, true);
-        render();
-      },
+      onOpen: () => openMemory(item),
+      onEdit: () => openMemory(item),
+      onDelete: () => deleteMemory(item),
     });
   };
   wrap.querySelectorAll("[data-memory]").forEach(bindCard);
@@ -5212,6 +5344,10 @@ function memoryEditorView(item) {
         </label>
         <input id="memory-title" data-title type="text" maxlength="180" placeholder="Title" value="${escapeHtml(item.text || item.title || "")}" />
         <textarea id="memory-story" data-story rows="10" maxlength="8000" placeholder="Story">${escapeHtml(item.story || "")}</textarea>
+        <div class="memories-edit-actions">
+          <button type="button" class="compose-done-btn" data-memory-done>Done</button>
+          ${kept ? "" : `<button type="button" class="memories-edit-delete" data-memory-del>Delete</button>`}
+        </div>
       </form>
     </div>
   `);
@@ -5245,6 +5381,22 @@ function memoryEditorView(item) {
     wait = window.setTimeout(save, 400);
   });
   yearlyBox.addEventListener("change", save);
+  wrap.querySelector("[data-memory-done]")?.addEventListener("click", () => {
+    save();
+    openMemoryId = null;
+    render();
+  });
+  wrap.querySelector("[data-memory-del]")?.addEventListener("click", () => {
+    const menu = storyDeleteMenu(wrap);
+    menu.open(wrap, {
+      label: item.text || item.title || "Memory",
+      onDelete: () => {
+        setState({ dates: state.dates.filter((row) => row.id !== item.id) }, true);
+        openMemoryId = null;
+        render();
+      },
+    });
+  });
   return wrap;
 }
 
