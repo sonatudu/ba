@@ -2331,6 +2331,7 @@ let todoDraftDue = "";
 let todoDraftTime = "";
 let todoWhenOpen = false;
 let todosComposing = false;
+let todoEditing = false;
 let dailyViewDay = "";
 let dailyDraftSlot = "morning";
 let dailyEditing = false;
@@ -2711,6 +2712,7 @@ function goTab(id) {
   if (id !== "todo") {
     todosComposing = false;
     todoWhenOpen = false;
+    todoEditing = false;
   }
   if (id !== "cycle") {
     courseHistMonth = "";
@@ -6590,7 +6592,7 @@ function todoView() {
   });
   const dueChip = todoDueLabel({ due: todoDraftDue, time: todoDraftTime });
   const wrap = el(`
-    <div class="todo-page">
+    <div class="todo-page${todoEditing ? " is-editing" : ""}">
       <article class="card todo-card todo-tasks">
         <div class="todo-bar">
           <div class="todo-filters" role="tablist" aria-label="Task filter">
@@ -6645,6 +6647,7 @@ function todoView() {
         </button>
       </div>`
       }
+      <button class="daily-edit" type="button" data-todo-edit aria-pressed="${todoEditing}">${todoEditing ? "Done" : "Edit"}</button>
     </div>
   `);
   const list = wrap.querySelector("[data-list]");
@@ -6659,13 +6662,23 @@ function todoView() {
       <article class="todo-item ${item.done ? "is-done" : ""} is-${pri} ${overdue ? "is-late" : ""}" data-id="${escapeHtml(item.id)}">
         <button type="button" data-done aria-label="${item.done ? "Not done" : "Done"}"></button>
         <div class="todo-body">
-          <input data-text value="${escapeHtml(item.text || "")}" />
+          ${
+            todoEditing
+              ? `<input data-text value="${escapeHtml(item.text || "")}" maxlength="200" aria-label="Task name" />`
+              : `<p class="todo-label">${escapeHtml(item.text || "")}</p>`
+          }
           ${dueText || who !== "us" ? `<p class="todo-meta">
             ${dueText ? `<span class="todo-due${overdue ? " is-late" : ""}">${overdue ? "Overdue · " : ""}${escapeHtml(dueText)}</span>` : ""}
             ${who !== "us" ? `<span class="todo-owner">${whoLabel}</span>` : ""}
           </p>` : ""}
         </div>
-        <span class="todo-flag" title="${todoPriLabel(pri)}" aria-hidden="true"></span>
+        ${
+          todoEditing
+            ? `<button type="button" class="todo-remove" data-remove aria-label="Delete task">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>`
+            : `<span class="todo-flag" title="${todoPriLabel(pri)}" aria-hidden="true"></span>`
+        }
       </article>
     `);
     let wait = 0;
@@ -6678,7 +6691,7 @@ function todoView() {
         ),
       });
     });
-    row.querySelector("[data-text]").addEventListener("input", (event) => {
+    row.querySelector("[data-text]")?.addEventListener("input", (event) => {
       window.clearTimeout(wait);
       wait = window.setTimeout(() => {
         const text = event.target.value.trim();
@@ -6691,12 +6704,17 @@ function todoView() {
         }, true);
       }, 350);
     });
-    bindHoldOpen(row, {
-      menu,
-      onDelete: () => {
-        setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
-      },
+    row.querySelector("[data-remove]")?.addEventListener("click", () => {
+      setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
     });
+    if (todoEditing) {
+      bindHoldOpen(row, {
+        menu,
+        onDelete: () => {
+          setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
+        },
+      });
+    }
     return row;
   };
   shown.forEach((item) => list.append(addRow(item)));
@@ -6705,6 +6723,10 @@ function todoView() {
       todoFilter = button.dataset.filter;
       render();
     });
+  });
+  wrap.querySelector("[data-todo-edit]").addEventListener("click", () => {
+    todoEditing = !todoEditing;
+    render();
   });
   if (!todosComposing) {
     wrap.querySelector("[data-todo-add]")?.addEventListener("click", () => {
