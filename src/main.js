@@ -5062,7 +5062,6 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
       <h3 class="memories-note-title">${escapeHtml(text)}</h3>
       ${story ? `<p class="memories-note-story">${escapeHtml(story.length > 90 ? `${story.slice(0, 90)}…` : story)}</p>` : ""}
       <div class="memories-note-actions">
-        <button type="button" data-memory-edit>Edit</button>
         <button type="button" data-memory-del ${kept ? "disabled" : ""}>${kept ? "Kept" : "Delete"}</button>
         <button type="button" data-memory-more>More</button>
       </div>
@@ -5256,10 +5255,6 @@ function datesView() {
     const actions = node.querySelector(".memories-note-actions");
     actions?.addEventListener("pointerdown", (event) => event.stopPropagation());
     actions?.addEventListener("click", (event) => event.stopPropagation());
-    node.querySelector("[data-memory-edit]")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openMemory(item);
-    });
     node.querySelector("[data-memory-del]")?.addEventListener("click", (event) => {
       event.stopPropagation();
       if (isKeptMemory(item.id)) {
@@ -5275,28 +5270,18 @@ function datesView() {
       event.stopPropagation();
       openSheet(item);
     });
-    if (isKeptMemory(item.id)) {
-      bindOpenCard(node, () => openMemory(item));
-      let hold = 0;
-      node.addEventListener("pointerdown", () => {
-        hold = window.setTimeout(() => {
-          navigator.vibrate?.(10);
-          openSheet(item);
-        }, 480);
-      });
-      const cancel = () => window.clearTimeout(hold);
-      node.addEventListener("pointerup", cancel);
-      node.addEventListener("pointercancel", cancel);
-      node.addEventListener("contextmenu", (event) => event.preventDefault());
-      return;
-    }
-    bindHoldOpen(node, {
-      menu,
-      label: item.text || item.title || "Memory",
-      onOpen: () => openMemory(item),
-      onEdit: () => openMemory(item),
-      onDelete: () => deleteMemory(item),
+    let hold = 0;
+    node.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".memories-note-actions")) return;
+      hold = window.setTimeout(() => {
+        navigator.vibrate?.(10);
+        openSheet(item);
+      }, 480);
     });
+    const cancel = () => window.clearTimeout(hold);
+    node.addEventListener("pointerup", cancel);
+    node.addEventListener("pointercancel", cancel);
+    node.addEventListener("contextmenu", (event) => event.preventDefault());
   };
   wrap.querySelectorAll("[data-memory]").forEach(bindCard);
   if (!memoriesComposing) {
