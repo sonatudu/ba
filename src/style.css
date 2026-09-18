@@ -2043,10 +2043,7 @@ body.is-daily-sorting {
 }
 
 .daily-add-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 10px;
+  display: block;
 }
 
 .daily-compose [data-new] {

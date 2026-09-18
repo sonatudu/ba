@@ -6842,6 +6842,24 @@ function todoView() {
   return wrap;
 }
 
+function saveDailyEdits(root, { silent = false } = {}) {
+  let habits = [...(normalizeDaily(state.daily).habits || [])];
+  (root || document).querySelectorAll(".daily-item").forEach((row) => {
+    const input = row.querySelector("[data-label]");
+    if (!input) return;
+    const label = input.value.trim();
+    if (!label) return;
+    habits = habits.map((habit) => (habit.id === row.dataset.id ? { ...habit, label } : habit));
+  });
+  const composer = (root || document).querySelector("[data-new]");
+  const added = String(composer?.value || "").trim();
+  if (added && habits.length < DAILY_HABIT_LIMIT) {
+    habits = [...habits, { id: uid(), label: added, slot: dailySlotOf(dailyDraftSlot) }];
+    if (composer) composer.value = "";
+  }
+  writeDaily({ habits }, silent);
+}
+
 function dailyView() {
   const daily = ensureDaily();
   const today = isoToday();
@@ -7007,9 +7025,6 @@ function dailyView() {
             ? `<form class="daily-compose card">
           <div class="daily-add-row">
             <input data-new maxlength="40" placeholder="Add a daily task" autocomplete="off" />
-            <button class="todo-save" type="submit" aria-label="Add daily task">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8.6-8.6 1.4 1.4z"/></svg>
-            </button>
           </div>
           <div class="daily-add-slots" role="group" aria-label="Time of day">
             ${DAILY_SLOTS.map(
@@ -7025,6 +7040,7 @@ function dailyView() {
     </div>
   `);
   wrap.querySelector("[data-daily-edit]").addEventListener("click", () => {
+    if (dailyEditing) saveDailyEdits(wrap, { silent: true });
     dailyEditing = !dailyEditing;
     render();
   });
@@ -7110,39 +7126,22 @@ function dailyView() {
     wrap.querySelectorAll(".daily-group").forEach((tbody) => bindDailyHabitReorder(tbody));
   }
   const composer = wrap.querySelector("[data-new]");
-  const saveBtn = wrap.querySelector(".todo-save");
-  if (composer && saveBtn) {
+  if (composer) {
     wrap.querySelectorAll("[data-new-slot]").forEach((button) => {
       button.addEventListener("click", () => {
         dailyDraftSlot = dailySlotOf(button.dataset.newSlot);
         wrap.querySelectorAll("[data-new-slot]").forEach((item) => item.classList.toggle("is-on", item === button));
       });
     });
-    const addHabit = () => {
-      const label = composer.value.trim();
-      if (!label) return;
-      const next = normalizeDaily(state.daily);
-      if (next.habits.length >= DAILY_HABIT_LIMIT) return;
-      composer.value = "";
-      writeDaily({
-        habits: [...next.habits, { id: uid(), label, slot: dailySlotOf(dailyDraftSlot) }],
-      });
-    };
-    const paintSave = () => {
-      saveBtn.classList.toggle("is-ready", Boolean(composer.value.trim()));
-    };
-    composer.addEventListener("input", paintSave);
     composer.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        addHabit();
-      }
-    });
-    wrap.querySelector("form").addEventListener("submit", (event) => {
+      if (event.key !== "Enter") return;
       event.preventDefault();
-      addHabit();
+      saveDailyEdits(wrap);
     });
-    paintSave();
+    wrap.querySelector("form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveDailyEdits(wrap);
+    });
   }
   return wrap;
 }
