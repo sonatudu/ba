@@ -17,3 +17,8 @@ Whenever you add, remove, rename, or change behavior of a user-visible control o
 6. Do not document secrets (room code digits, setup answer keys).
 
 Skip the manual only for purely internal refactors with no UI or behavior change.
+
+# Privacy policy
+
+Also update `public/privacy.html` (and `public/delete-account.html` if deletion steps change) when you change **what data is collected, stored, shared, or how it is deleted** — for example location, notifications/push tokens, encryption vs server-side operational data, room login, account deletion, maps, calls, or health-related logs. Set **Last updated**. Do not put secrets (room code, setup answers) in the policy.
+

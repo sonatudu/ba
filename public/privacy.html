@@ -34,11 +34,13 @@
   </head>
   <body>
     <h1>Ba privacy policy</h1>
-    <p class="meta">Last updated: 15 September 2026 · App: Ba (<code>com.sonatudu.ba</code>)</p>
+    <p class="meta">Last updated: 18 September 2026 · App: Ba (<code>com.sonatudu.ba</code>)</p>
 
     <p>
-      Ba is a private room for two people. There are no ads, no public profiles, and no sale of
-      personal data.
+      Ba is a private room for two people (Ba and Ma). There are no ads, no public profiles, and no
+      sale of personal data. A
+      <a href="./manual.html">user manual</a>
+      describes the screens in the app.
     </p>
 
     <h2>Who we are</h2>
@@ -47,51 +49,92 @@
       <a href="mailto:tudus0602@gmail.com">tudus0602@gmail.com</a>.
     </p>
 
+    <h2>How you enter</h2>
+    <p>
+      You enter with a shared room code and choose Ba or Ma on the device. That identity is stored
+      on the phone so you are not asked every time. Do not share the room code publicly. Anyone with
+      the code can enter the room as one of the two people.
+    </p>
+
     <h2>What Ba stores</h2>
     <p>
-      When you open a room, Ba may store account checks (such as usernames and password hashes),
-      session tokens, and encrypted room content (chat, notes, memories, to-dos, periods, routines,
-      and similar shared data). Shared content is encrypted on your device before it is sent to the
-      server. The server keeps scrambled ciphertext and login checks; we cannot read your memories
-      or chat plaintext.
+      <strong>On your device (encrypted before upload):</strong> shared room content such as chat,
+      overview notes, memories, to-dos, daily habits, periods (including Meprate logs), family tree,
+      routines, and similar journal data. This is encrypted on the device. The server keeps
+      ciphertext and cannot read that plaintext.
     </p>
     <p>
-      Anyone with your invite and one of the two passwords can enter the room. Do not share the
-      invite publicly.
+      <strong>On the server (needed to run the room):</strong> session tokens, a device id, who is
+      signed in (Ba or Ma), optional live location pins when sharing is on, optional push
+      notification tokens, presence/typing for chat, and short-lived call signaling. These are not
+      part of the encrypted journal blob.
+    </p>
+    <p>
+      Local settings on the phone can include theme, location-sharing choice, notification choice,
+      and a last map pin used to draw Where quickly.
     </p>
 
     <h2>Location</h2>
     <p>
-      Location is <strong>optional</strong>. Ba only uses location when you turn on
-      <strong>Share location</strong> (or use Where features that need it). Then the app may collect
-      approximate or precise location from your device so you and your partner can see shared pins
-      on the map.
+      Location is <strong>optional</strong>. Ba only uses it when you turn on
+      <strong>Share location</strong> in Settings (Where needs it to show your pin). Then the app
+      may collect approximate or precise location so you and your partner can each see one pin.
     </p>
     <p>
-      Location is not required to install or use the rest of Ba. You can deny permission or turn
-      sharing off at any time in Settings. The app does not need continuous background location to
-      work for non-map features.
+      If the same person is signed in on more than one device, Ba shows the pin from the
+      <strong>latest active</strong> device (last used or last location sent), not merely the last
+      login. Location is not required to install or use the rest of Ba. You can deny permission or
+      turn sharing off at any time. The rest of the app does not need background location.
+    </p>
+
+    <h2>Notifications</h2>
+    <p>
+      Notifications are <strong>optional</strong> (Settings → Notifications). If you turn them on,
+      the phone may register a Firebase Cloud Messaging token with the Ba server so the partner can
+      be alerted. Chat and calls may show a banner. Poke only vibrates; it does not show a
+      notification. Tokens are stored per device and are not used for advertising.
+    </p>
+
+    <h2>Calls, maps, and vibration</h2>
+    <p>
+      Voice or video call setup uses short-lived signaling through the Ba server and the device
+      microphone/camera only while a call is in progress.
+    </p>
+    <p>
+      Where map tiles are fetched through the Ba server from map providers (for example street and
+      satellite tile sources). The app may send tile coordinates needed to draw the map. This is
+      not used to build an advertising profile.
+    </p>
+    <p>Poke uses the device vibrator (haptics). No poke sound or banner is sent.</p>
+
+    <h2>Health-related notes</h2>
+    <p>
+      Periods and Meprate logs are part of the encrypted shared journal. They are only for the
+      couple’s own tracking. They are not medical advice and are not sent to health platforms.
     </p>
 
     <h2>Device identifiers</h2>
     <p>
-      Ba may keep a local device id so each phone in the room can be told apart for presence and
-      location sharing. This is not used for advertising.
+      Ba keeps a local device id so phones in the room can be told apart for sessions, the active
+      Where pin, and optional notifications. This is not used for advertising.
     </p>
 
     <h2>How long data is kept</h2>
     <p>
-      Room data stays while the shared room exists. Sessions expire after inactivity. If the hosting
-      service is reset without durable storage, server-side data may be lost; keep local backups of
+      Encrypted room content stays while the shared room exists. Sessions expire after inactivity.
+      Location pins for a device are dropped when that session ends or sharing is turned off. If the
+      hosting service is reset without durable storage, server-side data may be lost; keep copies of
       anything important outside the app if you need them.
     </p>
 
     <h2>Account deletion</h2>
     <p>
-      You can delete your account in the app under Settings → Delete account. That removes your
-      username, login, and pending requests for your side. If you are in the shared room, that room
-      is closed for the couple. Your partner’s separate account record may remain until they delete
-      theirs. You can also use the
+      In the app: Settings → Delete account, then enter the <strong>room code</strong> in the
+      verification field and tap Delete. The server checks that code before closing the room. That
+      removes your login for this side and closes the shared room for the couple.
+    </p>
+    <p>
+      You can also use the
       <a href="./delete-account.html">delete account request page</a>
       or email
       <a href="mailto:tudus0602@gmail.com">tudus0602@gmail.com</a>.
