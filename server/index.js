@@ -283,6 +283,19 @@ function writeSession(session) {
   writeJson(join(sessionsDir, `${session.tokenHash}.json`), session);
 }
 
+function sessionActivity(session) {
+  return Math.max(Number(session?.activeAt || 0) || 0, Number(session?.issuedAt || 0) || 0);
+}
+
+function touchSession(session) {
+  if (!session) return session;
+  const now = Date.now();
+  if (now - sessionActivity(session) < 2500) return session;
+  session.activeAt = now;
+  writeSession(session);
+  return session;
+}
+
 function pruneSessions() {
   for (const name of readdirSync(sessionsDir)) {
     try {
@@ -314,6 +327,7 @@ function issueToken(username, roomId, deviceId) {
     deviceId: deviceId || "",
     roomId: roomId || null,
     issuedAt: now,
+    activeAt: now,
     expiresAt: now + SESSION_MS,
   });
   return token;
@@ -338,9 +352,10 @@ function liveLogins() {
       if (!deviceId) continue;
       ids.add(deviceId);
       const issued = Number(sess.issuedAt || 0) || Number(sess.expiresAt) || 0;
+      const active = Math.max(sessionActivity(sess), issued);
       const prev = byWho[sess.username];
-      if (!prev || issued >= prev.issued) {
-        byWho[sess.username] = { deviceId, issued };
+      if (!prev || active >= prev.active) {
+        byWho[sess.username] = { deviceId, issued, active };
       }
     } catch {
       /* ignore */
@@ -432,6 +447,7 @@ function requireAuth(req, res) {
     res.status(401).json({ error: "Please enter the private code." });
     return null;
   }
+  touchSession(session);
   const room = ensureCoupleRoom();
   return { session, user: { username: session.username }, room };
 }
@@ -845,23 +861,29 @@ function locationPins(room) {
     const live = byWho[who];
     if (!live) continue;
     let raw = locs[live.deviceId];
+    let pinId = live.deviceId;
     if (!publicPin(raw)) {
       let newest = null;
-      for (const row of Object.values(locs)) {
+      let newestId = "";
+      for (const [id, row] of Object.entries(locs)) {
         if (!row || row.who !== who) continue;
-        if (!newest || Number(row.at || 0) >= Number(newest.at || 0)) newest = row;
+        if (!newest || Number(row.at || 0) >= Number(newest.at || 0)) {
+          newest = row;
+          newestId = id;
+        }
       }
       raw = newest;
+      pinId = newestId || live.deviceId;
     }
     const pub = publicPin(raw);
     if (!pub) continue;
-    pins.push({ ...pub, id: live.deviceId, who });
+    pins.push({ ...pub, id: pinId, who });
   }
   return {
     pins,
     present: {
-      ba: byWho.ba?.deviceId || null,
-      ma: byWho.ma?.deviceId || null,
+      ba: pins.find((pin) => pin.who === "ba")?.id || byWho.ba?.deviceId || null,
+      ma: pins.find((pin) => pin.who === "ma")?.id || byWho.ma?.deviceId || null,
     },
   };
 }
@@ -905,11 +927,6 @@ app.post("/api/location", (req, res) => {
   }
   delete auth.room.locations[who];
   const heading = Number(req.body?.heading);
-  for (const key of Object.keys(auth.room.locations || {})) {
-    if (auth.room.locations[key]?.who === who && key !== deviceId) {
-      delete auth.room.locations[key];
-    }
-  }
   auth.room.locations[deviceId] = {
     lat: Math.round(lat * 1e7) / 1e7,
     lng: Math.round(lng * 1e7) / 1e7,
