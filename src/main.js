@@ -7945,15 +7945,6 @@ function presentDevice(who) {
 function pickWhoPin(rows, who) {
   const same = rows.filter((pin) => coupleId(pin.who) === who);
   if (!same.length) return null;
-  const presentId = presentDevice(who);
-  if (presentId) {
-    const live = same.find((pin) => String(pin.id) === presentId);
-    if (live) return live;
-  }
-  if (selfId() === who) {
-    const mine = same.find((pin) => String(pin.id) === String(deviceId()));
-    if (mine) return mine;
-  }
   return same.slice().sort((a, b) => Number(b.at || 0) - Number(a.at || 0))[0];
 }
 
