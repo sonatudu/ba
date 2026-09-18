@@ -5798,9 +5798,11 @@ html.theme-day .map-tools button.is-on {
 }
 
 .settings-start-label {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--fs-body);
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .settings-start-control {
