@@ -302,6 +302,7 @@ body.wa-open {
   gap: 6px;
   touch-action: pan-y;
   overscroll-behavior: contain;
+  overflow-anchor: none;
   -webkit-overflow-scrolling: touch;
 }
 
