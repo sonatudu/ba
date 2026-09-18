@@ -1,5 +1,5 @@
 import { App } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
@@ -19,6 +19,7 @@ const PUSH_KEY = "ba-push-v1";
 const LAST_PIN_KEY = "ba-last-pin";
 const MAP_KIND_KEY = "ba-map-kind-v1";
 const KEEP_MS = 24 * 60 * 60 * 1000;
+const SystemBars = registerPlugin("SystemBars");
 
 function readSavedWho() {
   try {
@@ -298,6 +299,7 @@ function applyTheme(theme) {
   try {
     StatusBar.setStyle({ style: next === "day" ? Style.Dark : Style.Light }).catch(() => {});
     StatusBar.setBackgroundColor({ color: next === "day" ? "#f4f0ea" : "#090b16" }).catch(() => {});
+    SystemBars.setTheme({ day: next === "day" }).catch(() => {});
   } catch {
     /* plugin may be missing */
   }
@@ -320,6 +322,7 @@ async function initNative() {
   if (!Capacitor.isNativePlatform()) return;
   try {
     applyTheme(readTheme());
+    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
     await Promise.race([SplashScreen.hide(), new Promise((resolve) => window.setTimeout(resolve, 700))]);
   } catch {
     /* web and some emulators skip this */
