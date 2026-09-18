@@ -2520,6 +2520,36 @@ body.is-daily-sorting {
     0 4px 12px color-mix(in srgb, var(--rose-deep) 22%, transparent);
 }
 
+.html-cannot-see,
+.cannot-see {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  color: color-mix(in srgb, var(--gold) 35%, var(--ink));
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+}
+
+.html-cannot-see strong,
+.cannot-see strong {
+  display: block;
+  margin-bottom: 4px;
+  color: color-mix(in srgb, var(--gold) 20%, var(--ink));
+  font-size: var(--fs-body);
+}
+
+#app:not(:empty) + .html-cannot-see {
+  display: none;
+}
+
+.setup-card .cannot-see {
+  text-align: left;
+}
+
 .setup-manual {
   display: block;
   margin-top: 14px;
@@ -6071,6 +6101,11 @@ html.theme-day .settings-row .switch.is-on {
   line-height: 1.4;
   color: var(--ink-soft);
   opacity: 0.85;
+}
+
+.settings-cannot-see {
+  align-self: stretch;
+  margin: 8px 0 4px;
 }
 
 .settings-link {
