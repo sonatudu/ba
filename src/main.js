@@ -394,6 +394,67 @@ function statusNote(value) {
   return { text: String(value || ""), who: "", at: 0 };
 }
 
+const HOME_MOODS = [
+  ["calm", "Calm"],
+  ["happy", "Happy"],
+  ["tired", "Tired"],
+  ["low", "Low"],
+  ["busy", "Busy"],
+  ["miss", "Missing you"],
+  ["loved", "Loved"],
+];
+
+function emptyMood() {
+  return { key: "", text: "", at: 0 };
+}
+
+function moodEntry(value) {
+  if (!value || typeof value !== "object") return emptyMood();
+  const key = String(value.key || "").trim().slice(0, 24);
+  const text = String(value.text || "").trim().slice(0, 80);
+  return {
+    key: HOME_MOODS.some(([id]) => id === key) ? key : "",
+    text,
+    at: Number(value.at || 0) || 0,
+  };
+}
+
+function moodLabel(entry) {
+  const row = moodEntry(entry);
+  const preset = HOME_MOODS.find(([id]) => id === row.key);
+  if (preset) return preset[1];
+  return row.text;
+}
+
+function normalizeMoods(source) {
+  const next = { ba: emptyMood(), ma: emptyMood() };
+  const map = source?.moods;
+  if (map && !Array.isArray(map) && typeof map === "object") {
+    next.ba = moodEntry(map.ba);
+    next.ma = moodEntry(map.ma);
+  }
+  if (Array.isArray(source?.moods)) {
+    source.moods.forEach((row) => {
+      const who = coupleId(row?.who || row?.from);
+      if (!who) return;
+      const item = moodEntry(row);
+      if (item.at >= next[who].at) next[who] = item;
+    });
+  }
+  const legacy = statusNote(source?.mood);
+  const who = coupleId(legacy.who);
+  if (who && legacy.text) {
+    const item = { key: "", text: legacy.text.slice(0, 80), at: legacy.at };
+    if (item.at >= next[who].at) next[who] = moodEntry(item);
+  }
+  return next;
+}
+
+function moodOf(who) {
+  const id = coupleId(who);
+  return id ? moodEntry(state.moods?.[id]) : emptyMood();
+}
+
 const CYCLE_SYMPTOMS = [
   ["cramps", "Cramps"],
   ["headache", "Headache"],
@@ -700,7 +761,7 @@ const defaultState = () => ({
   nextDate: "",
   notes: [],
   dates: [],
-  moods: [],
+  moods: { ba: { key: "", text: "", at: 0 }, ma: { key: "", text: "", at: 0 } },
   water: { text: "", who: "", at: 0 },
   mood: { text: "", who: "", at: 0 },
   memories: [],
@@ -730,7 +791,7 @@ function contentState(value) {
       tone: note?.tone === "bad" ? "bad" : "good",
     })),
     dates: mergeKeptDates(source.dates),
-    moods: source.moods || [],
+    moods: normalizeMoods(source),
     water: statusNote(source.water),
     mood: statusNote(source.mood),
     memories: source.memories || [],
@@ -2327,6 +2388,7 @@ let openDiaryDay = "";
 let openMemoryId = null;
 let memoryDraftDate = "";
 let memoriesComposing = false;
+let homeMoodWriting = false;
 let routineWho = "";
 let cycleMonth = "";
 let cycleEditId = "";
@@ -2872,6 +2934,24 @@ function homeDailyQuote() {
   return quotes[Math.max(0, day) % quotes.length];
 }
 
+function saveHomeMood({ key = "", text = "" } = {}) {
+  const me = selfId() || "ba";
+  const entry = emptyMood();
+  if (key && HOME_MOODS.some(([id]) => id === key)) {
+    entry.key = key;
+    entry.at = Date.now();
+  } else if (String(text || "").trim()) {
+    entry.text = String(text).trim().slice(0, 80);
+    entry.at = Date.now();
+  }
+  const moods = { ...normalizeMoods(state), [me]: entry };
+  homeMoodWriting = false;
+  setState({
+    moods,
+    mood: { text: moodLabel(entry), who: me, at: entry.at },
+  });
+}
+
 function homeView() {
   const days = daysTogether(state.startedOn);
   const lastPoke = state.pokes[0];
@@ -2879,6 +2959,14 @@ function homeView() {
     ? new Date(lastPoke.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "";
   const quote = homeDailyQuote();
+  const me = selfId();
+  const them = partnerId();
+  const themName = them === "ma" ? "Ma" : "Ba";
+  const themMood = moodOf(them);
+  const myMood = moodOf(me);
+  const themLine = moodLabel(themMood);
+  const myLine = moodLabel(myMood);
+  const themAgo = themMood.at ? fmtAgo(themMood.at) : "";
   const sections = [
     ["chat", "Chat"],
     ["routine", "Routine"],
@@ -2906,6 +2994,33 @@ function homeView() {
           <p class="home-quote-text">“${escapeHtml(quote.text)}”</p>
         </blockquote>
       </header>
+      <section class="home-mood" aria-label="Moods">
+        <p class="home-mood-them">
+          <span class="home-mood-kicker">${escapeHtml(themName)}</span>
+          <span class="home-mood-line">${themLine ? escapeHtml(themLine) : "hasn't said yet"}</span>
+          ${themAgo ? `<span class="home-mood-when">${escapeHtml(themAgo)}</span>` : ""}
+        </p>
+        <div class="home-mood-mine">
+          <p class="home-mood-kicker">Your mood</p>
+          <div class="home-mood-words" role="group" aria-label="Set your mood">
+            ${HOME_MOODS.map(
+              ([id, label]) =>
+                `<button type="button" class="home-mood-word${myMood.key === id ? " is-on" : ""}" data-mood="${id}">${escapeHtml(label)}</button>`
+            ).join("")}
+            <button type="button" class="home-mood-word${homeMoodWriting || (myLine && !myMood.key) ? " is-on" : ""}" data-mood-write>Write</button>
+            ${myLine ? `<button type="button" class="home-mood-word" data-mood-clear>Clear</button>` : ""}
+          </div>
+          ${
+            homeMoodWriting
+              ? `<form class="home-mood-write">
+            <input data-mood-text maxlength="80" placeholder="A few words for ${escapeHtml(themName)}" value="${escapeHtml(myMood.key ? "" : myMood.text)}" />
+          </form>`
+              : myLine && !myMood.key
+                ? `<p class="home-mood-own">${escapeHtml(myLine)}</p>`
+                : ""
+          }
+        </div>
+      </section>
       <button class="home-tile home-poke${Date.now() - pokePulseAt < 450 ? " is-poking" : ""}" type="button" data-poke aria-label="Poke">
         <span class="home-poke-time">${pokeTime ? escapeHtml(pokeTime) : "—"}</span>
       </button>
@@ -2945,6 +3060,30 @@ function homeView() {
     document.querySelector("[data-poke]")?.classList.remove("has-unread");
     sendPoke();
   });
+  page.querySelectorAll("[data-mood]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.mood;
+      if (myMood.key === key) saveHomeMood({});
+      else saveHomeMood({ key });
+    });
+  });
+  page.querySelector("[data-mood-write]")?.addEventListener("click", () => {
+    homeMoodWriting = !homeMoodWriting;
+    render();
+  });
+  page.querySelector("[data-mood-clear]")?.addEventListener("click", () => saveHomeMood({}));
+  const moodForm = page.querySelector(".home-mood-write");
+  const moodBox = page.querySelector("[data-mood-text]");
+  moodForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveHomeMood({ text: moodBox?.value || "" });
+  });
+  moodBox?.addEventListener("blur", () => {
+    if (!homeMoodWriting) return;
+    const text = moodBox.value.trim();
+    if (text) saveHomeMood({ text });
+  });
+  if (homeMoodWriting) requestAnimationFrame(() => moodBox?.focus());
   const menu = el(`<div class="chat-action nav-clear" data-clear-chat hidden><button type="button">Clear chat</button></div>`);
   page.append(menu);
   let hold = 0;
@@ -3247,6 +3386,7 @@ function settleHome() {
   openDiaryDay = "";
   overviewComposing = false;
   openNoteId = null;
+  homeMoodWriting = false;
   whereFull = false;
   document.body.classList.remove("map-full");
   settingsDeleteOpen = false;
