@@ -5955,6 +5955,49 @@ html.theme-day .settings-row .switch.is-on {
   opacity: 1;
 }
 
+.settings-delete {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+}
+
+.settings-delete-label {
+  font-size: var(--fs-label);
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.settings-delete #delete-code {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.settings-delete-note {
+  margin: 0;
+  font-size: var(--fs-label);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.settings-delete .btn-row {
+  margin-top: 4px;
+}
+
+.settings-delete .btn {
+  flex: 1;
+}
+
 .settings-page .err {
   margin: 4px 4px 0;
   text-align: center;

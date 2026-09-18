@@ -2337,6 +2337,7 @@ let courseDraft = null;
 let courseHistMonth = "";
 let periodHistMonth = "";
 let cycleSettingsOpen = false;
+let settingsDeleteOpen = false;
 let cycleScrollY = 0;
 let pendingScrollY = null;
 let todayScrollY = 0;
@@ -2603,6 +2604,7 @@ async function logout() {
   }
   forgetLocalIdentity();
   pendingLogin = null;
+  settingsDeleteOpen = false;
   await logoutCloud(token, id);
   tab = "home";
   gate = "home";
@@ -3224,6 +3226,11 @@ function goHome() {
     render();
     return;
   }
+  if (tab === "settings" && settingsDeleteOpen) {
+    settingsDeleteOpen = false;
+    render();
+    return;
+  }
   if (tab === "home") return;
   if (history.state?.ba === "section") {
     history.back();
@@ -3239,6 +3246,7 @@ function settleHome() {
   openNoteId = null;
   whereFull = false;
   document.body.classList.remove("map-full");
+  settingsDeleteOpen = false;
   tab = "home";
   persist().catch(() => {});
   render();
@@ -7437,8 +7445,21 @@ function settingsView() {
       <a class="settings-link" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
-      <button class="settings-danger" type="button" data-delete-account>Delete account</button>
-      <p class="err" data-settings-err hidden></p>
+      ${
+        settingsDeleteOpen
+          ? `<form class="settings-delete card" data-delete-form>
+        <label class="settings-delete-label" for="delete-code">Room code</label>
+        <input id="delete-code" name="code" inputmode="numeric" autocomplete="off" maxlength="12" required />
+        <p class="settings-delete-note">Enter the room code to delete this account. The shared room will close.</p>
+        <p class="err" data-settings-err hidden></p>
+        <div class="btn-row">
+          <button class="btn ghost" type="button" data-delete-cancel>Cancel</button>
+          <button class="btn danger" type="submit">Delete</button>
+        </div>
+      </form>`
+          : `<button class="settings-danger" type="button" data-delete-account>Delete account</button>
+      <p class="err" data-settings-err hidden></p>`
+      }
     </div>
   `);
   const err = wrap.querySelector("[data-settings-err]");
@@ -7458,14 +7479,21 @@ function settingsView() {
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
   wrap.querySelector("[data-out]").addEventListener("click", () => logout());
-  wrap.querySelector("[data-delete-account]").addEventListener("click", async () => {
+  wrap.querySelector("[data-delete-account]")?.addEventListener("click", () => {
+    settingsDeleteOpen = true;
+    render();
+  });
+  wrap.querySelector("[data-delete-cancel]")?.addEventListener("click", () => {
+    settingsDeleteOpen = false;
+    render();
+  });
+  wrap.querySelector("[data-delete-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
     if (err) {
       err.hidden = true;
       err.textContent = "";
     }
-    const code = window.prompt("Enter your room code to delete this account.");
-    if (code == null) return;
-    const cleaned = String(code).replace(/\D/g, "");
+    const cleaned = String(wrap.querySelector("#delete-code")?.value || "").replace(/\D/g, "");
     if (!cleaned) {
       if (err) {
         err.hidden = false;
@@ -7473,17 +7501,23 @@ function settingsView() {
       }
       return;
     }
-    if (!window.confirm("Delete your account? The shared room will close.")) return;
+    const btn = wrap.querySelector('[data-delete-form] [type="submit"]');
+    if (btn) btn.disabled = true;
     try {
       await deleteAccount(session.token, cleaned);
+      settingsDeleteOpen = false;
       await logout();
     } catch (error) {
+      if (btn) btn.disabled = false;
       if (err) {
         err.hidden = false;
         err.textContent = error?.message || "Could not delete account.";
       }
     }
   });
+  if (settingsDeleteOpen) {
+    requestAnimationFrame(() => wrap.querySelector("#delete-code")?.focus());
+  }
   return wrap;
 }
 
