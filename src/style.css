@@ -5377,16 +5377,15 @@ html.theme-day .map-tools button.is-on {
   height: 20px;
 }
 
-.place-map .maplibregl-canvas-container,
-.place-map .maplibregl-canvas,
-.place-map .maplibregl-canvas-container.maplibregl-touch-zoom-rotate,
-.place-map .maplibregl-canvas-container.maplibregl-touch-zoom-rotate .maplibregl-canvas,
-.place-map .maplibregl-canvas-container.maplibregl-touch-drag-pan,
-.place-map .maplibregl-canvas-container.maplibregl-touch-drag-pan .maplibregl-canvas {
+.place-map .maplibregl-canvas-container {
   position: absolute;
   inset: 0;
-  width: 100% !important;
-  height: 100% !important;
+}
+
+.place-map .maplibregl-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
   touch-action: none;
   pointer-events: auto;
 }

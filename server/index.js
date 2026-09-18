@@ -1266,7 +1266,7 @@ function enhanceMapStyle(style, _dark, extraStyle) {
     },
     baSat: {
       type: "raster",
-      tiles: ["/api/map/sat/{z}/{x}/{y}?v=2"],
+      tiles: ["/api/map/sat/{z}/{x}/{y}?v=3"],
       tileSize: 256,
       maxzoom: 19,
       attribution: "Esri",
@@ -1322,9 +1322,9 @@ function politicalMapStyle(ofm) {
     sources: {
       baPolitical: {
         type: "raster",
-        tiles: ["/api/map/political/{z}/{x}/{y}?v=6"],
+        tiles: ["/api/map/political/{z}/{x}/{y}?v=7"],
         tileSize: 256,
-        maxzoom: 17,
+        maxzoom: 19,
         attribution: "© OpenStreetMap",
       },
     },
@@ -1518,6 +1518,8 @@ function osmTileUrl(z, x, y) {
 
 function osmTileUrls(z, x, y) {
   return [
+    `https://basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`,
+    `https://tile.openstreetmap.fr/hot/${z}/${x}/${y}.png`,
     `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
     `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
   ];
@@ -1659,7 +1661,7 @@ async function replyCachedOrResolved(req, res, key, resolver) {
 
 async function fetchOsmFromUrl(url) {
   try {
-    const img = await fetchUpstream(url, "image/png,image/jpeg,image/*", 1600);
+    const img = await fetchUpstream(url, "image/png,image/jpeg,image/*", 8000);
     if (img.status === 429 || img.status === 503) return { tile: null, limited: true };
     if (!img.ok) return { tile: null, limited: false };
     const type = String(img.headers.get("content-type") || "");

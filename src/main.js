@@ -7430,7 +7430,7 @@ function prefetchDetailTiles() {
   detailPrefetchAt = now;
   const z = Math.min(MAP_Z_MAX, Math.max(12, Math.floor(whereMap.getZoom())));
   const kind = whereMapKind === "political" ? "political" : "sat";
-  const ver = kind === "political" ? "v=6" : "v=2";
+  const ver = kind === "political" ? "v=7" : "v=3";
   const bounds = whereMap.getBounds();
   const zooms = z >= 18 ? [z] : [z, Math.min(MAP_Z_MAX, z + 1)];
   const urls = [];
@@ -7460,11 +7460,11 @@ function mapTileTemplate() {
 function mapStyleUrl() {
   const theme = readTheme() === "day" ? "day" : "dark";
   const kind = whereMapKind === "political" ? "&k=political" : "";
-  return `${API_BASE || ""}/api/map/style?v=16&t=${theme}${kind}`;
+  return `${API_BASE || ""}/api/map/style?v=17&t=${theme}${kind}`;
 }
 
 function mapSatTemplate() {
-  return `${API_BASE || ""}/api/map/sat/{z}/{x}/{y}?v=2`;
+  return `${API_BASE || ""}/api/map/sat/{z}/{x}/{y}?v=3`;
 }
 
 function rewriteMapRequest(url) {
@@ -7577,9 +7577,9 @@ function politicalRasterStyle() {
     sources: {
       baPolitical: {
         type: "raster",
-        tiles: [`${API_BASE || ""}/api/map/political/{z}/{x}/{y}?v=6`],
+        tiles: [`${API_BASE || ""}/api/map/political/{z}/{x}/{y}?v=7`],
         tileSize: 256,
-        maxzoom: 17,
+        maxzoom: MAP_TILE_MAXZOOM,
         attribution: "OpenStreetMap",
       },
     },
@@ -8323,6 +8323,7 @@ async function initWhereMap(stage) {
       if (gen !== whereMapGen || !whereMap) return;
       whereMapVector = loaded.vector;
       if (styleHasOverlayLayers(loaded.style)) whereMap.setStyle(loaded.style, { diff: true });
+      requestAnimationFrame(() => whereMap?.resize());
     });
   } catch (error) {
     console.warn("Where map failed", error);
