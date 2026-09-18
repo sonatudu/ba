@@ -125,6 +125,7 @@ body {
   min-height: 100%;
   overflow-x: clip;
   overflow-y: auto;
+  background: var(--page);
 }
 
 html {
@@ -181,11 +182,12 @@ body.wa-open {
 
 .wa-app {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: env(safe-area-inset-top, 0px);
+  left: env(safe-area-inset-left, 0px);
+  right: env(safe-area-inset-right, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
   z-index: 30;
-  height: 100dvh;
+  height: auto;
   display: flex;
   flex-direction: column;
   background: var(--page);
@@ -197,7 +199,7 @@ body.wa-open {
   display: flex;
   align-items: center;
   margin: 4px 4px 0;
-  padding: calc(2px + env(safe-area-inset-top)) 4px 0;
+  padding: 2px 4px 0;
   background: transparent;
   border: 0;
   min-height: 0;
@@ -211,7 +213,6 @@ body.wa-open {
   margin: 10px 12px 0;
   min-height: 48px;
   padding: 4px 8px;
-  padding-top: calc(4px + env(safe-area-inset-top));
   background: var(--chrome);
   color: var(--ink);
   border: 1px solid var(--line);
@@ -561,6 +562,10 @@ button,
 
 #app {
   min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 .shell {
@@ -2450,7 +2455,7 @@ body.is-daily-sorting {
 }
 
 .setup {
-  min-height: 100dvh;
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   display: grid;
   place-items: center;
   padding: 24px;
@@ -5225,6 +5230,7 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
   position: fixed;
   inset: 0;
   z-index: 70;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   background: var(--page-deep);
   display: flex;
   flex-direction: column;
