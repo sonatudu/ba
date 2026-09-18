@@ -2686,6 +2686,10 @@ function gateView() {
       <form class="setup-card">
         <p class="kicker">Welcome</p>
         <h1 class="wordmark">Ba</h1>
+        <p class="cannot-see">
+          <strong>We cannot see any user's data.</strong>
+          The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a room. That content is encrypted on the device.
+        </p>
         ${setup ? `
         <div class="field">
           <label for="su">su _ _ toka</label>
@@ -7737,6 +7741,10 @@ function settingsView() {
         <i class="switch ${pushWanted() ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
       <p class="settings-note">Chat and calls show a banner. Poke only vibrates.</p>
+      <p class="cannot-see settings-cannot-see">
+        <strong>We cannot see any user's data.</strong>
+        The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a room. That content is encrypted on the device.
+      </p>
       <a class="settings-link" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
       <button class="settings-out" type="button" data-out>Log out</button>
