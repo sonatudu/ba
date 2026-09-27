@@ -216,6 +216,74 @@ export function addChild(tree, personData = {}) {
   return next;
 }
 
+export function addMemberToTree(tree, { side = "mandi", relation = "Relative", name = "", sex = "F", nick = "", born = "" } = {}) {
+  const next = JSON.parse(JSON.stringify(tree));
+  const relLower = String(relation || "").toLowerCase();
+  const person = {
+    kind: "person",
+    id: crypto.randomUUID(),
+    name: name || relation || "Family Member",
+    sex: sex || "F",
+    nick: nick || "",
+    born: born || "",
+    relation: relation || "",
+    locked: false,
+  };
+
+  if (side === "union" || relLower.includes("child") || relLower.includes("daughter") || relLower.includes("son")) {
+    if (!next.union) next.union = { kind: "couple", a: null, b: null, kids: [] };
+    if (!Array.isArray(next.union.kids)) next.union.kids = [];
+    next.union.kids.push({ ...person, link: true });
+    return next;
+  }
+
+  const branchKey = side === "tudu" ? "tudu" : "mandi";
+  const branch = next[branchKey];
+  if (!branch) return next;
+
+  if (relLower.includes("grand")) {
+    if (!branch.a) branch.a = person;
+    else if (!branch.b) branch.b = person;
+    else {
+      if (!Array.isArray(branch.kids)) branch.kids = [];
+      branch.kids.push(person);
+    }
+    return next;
+  }
+
+  if (relLower.includes("parent") || relLower.includes("father") || relLower.includes("mother")) {
+    const g2 = branch.kids?.[0];
+    if (g2) {
+      if (!g2.a) g2.a = person;
+      else if (!g2.b) g2.b = person;
+      else {
+        if (!Array.isArray(branch.kids)) branch.kids = [];
+        branch.kids.push(c(person, null, []));
+      }
+    }
+    return next;
+  }
+
+  const parentCouple = branch.kids?.[0];
+  if (parentCouple) {
+    if (!Array.isArray(parentCouple.kids)) parentCouple.kids = [];
+    if (relLower.includes("spouse") || relLower.includes("husband") || relLower.includes("wife") || relLower.includes("partner")) {
+      const single = parentCouple.kids.find((k) => k && k.kind === "person" && !k.link);
+      if (single) {
+        const idx = parentCouple.kids.indexOf(single);
+        parentCouple.kids[idx] = c(single, person, []);
+        return next;
+      }
+    }
+    if (branchKey === "mandi") {
+      parentCouple.kids.unshift(person);
+    } else {
+      parentCouple.kids.push(person);
+    }
+  }
+  return next;
+}
+
 export function mapPerson(node, id, patch) {
   if (!node) return node;
   if (node.kind === "person") return node.id === id ? { ...node, ...patch } : node;
@@ -259,6 +327,7 @@ function cardHtml(escapeHtml, person, role = "") {
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
       ${FACE}
       <input data-field="name" value="${escapeHtml(person.name || "")}" placeholder="Name" />
+      <input data-field="relation" placeholder="Relation" value="${escapeHtml(person.relation || "")}" />
       <input data-field="nick" placeholder="Nickname" value="${escapeHtml(person.nick || "")}" />
       <input data-field="born" placeholder="Birthday" value="${escapeHtml(person.born || "")}" />
     </article>
@@ -427,7 +496,8 @@ export function drawFamilyLines(root) {
     const midX = (a.x + b.x) / 2;
     const chartBox = chart.getBoundingClientRect();
     const below = Math.max(khu.getBoundingClientRect().bottom, bhutku.getBoundingClientRect().bottom) - chartBox.top + 28;
-    const spacing = 110;
+    const cardW = childCards[0]?.offsetWidth || 92;
+    const spacing = cardW + 20;
     const totalW = (childCards.length - 1) * spacing;
     const startX = midX - totalW / 2;
     childCards.forEach((childEl, i) => {

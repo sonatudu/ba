@@ -442,6 +442,55 @@ export function addCourse(personData, course) {
   personData.courses.push(course);
 }
 
+export function getRoutineSubjects(personData) {
+  const set = new Set();
+  if (Array.isArray(personData?.courses)) {
+    for (const c of personData.courses) {
+      if (c[1]) set.add(c[1]);
+      if (c[2]) set.add(c[2]);
+    }
+  }
+  if (Array.isArray(personData?.days)) {
+    for (const d of personData.days) {
+      if (Array.isArray(d?.cells)) {
+        for (const cell of d.cells) {
+          const t = String(cell.text || "").trim();
+          if (t && t !== "—") set.add(t);
+        }
+      }
+    }
+  }
+  return Array.from(set);
+}
+
+export function updateRoutineDays(personData, activeDayNames) {
+  if (!personData || !Array.isArray(activeDayNames) || !activeDayNames.length) return;
+  const currentMap = new Map();
+  if (Array.isArray(personData.days)) {
+    for (const d of personData.days) {
+      if (d && d.day) currentMap.set(d.day, d.cells);
+    }
+  }
+  const slotsCount = Array.isArray(personData.slots) ? personData.slots.length : GENERAL_SLOTS.length;
+  const activeSet = new Set(activeDayNames);
+  const newDays = [];
+  for (const day of WEEKDAYS) {
+    if (activeSet.has(day)) {
+      if (currentMap.has(day)) {
+        newDays.push({ day, cells: currentMap.get(day) });
+      } else {
+        newDays.push({
+          day,
+          cells: Array.from({ length: slotsCount }, () => ({ text: "—", span: 1 })),
+        });
+      }
+    }
+  }
+  if (newDays.length) {
+    personData.days = newDays;
+  }
+}
+
 export function removeCourse(personData, index) {
   if (!personData || !Array.isArray(personData.courses)) return;
   personData.courses.splice(index, 1);
@@ -521,8 +570,9 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
   const notes = String(person.notes || "");
 
   let coursesSection = "";
-  if (Array.isArray(person.courses) && person.courses.length > 0) {
-    const rows = person.courses.map(
+  const coursesList = Array.isArray(person.courses) ? person.courses : [];
+  if (coursesList.length > 0) {
+    const rows = coursesList.map(
       (row, idx) => `
         <tr data-course-idx="${idx}">
           <td>${escapeHtml(row[0] || String(idx + 1))}</td>
@@ -537,8 +587,8 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
     coursesSection = `
       <article class="card routine-card">
         <div class="routine-card-bar">
-          <h3>Courses</h3>
-          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Course</button>
+          <h3>Subjects & Courses</h3>
+          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
         </div>
         <div class="tt-scroll">
           <table class="tt tt-courses">
@@ -546,7 +596,7 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
               <tr>
                 <th>S.No</th>
                 <th>Title</th>
-                <th>Course No.</th>
+                <th>Course / Subj</th>
                 <th>Credits</th>
                 <th>Instructors</th>
                 <th></th>
@@ -555,6 +605,16 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
             <tbody>${rows}</tbody>
           </table>
         </div>
+      </article>
+    `;
+  } else {
+    coursesSection = `
+      <article class="card routine-card">
+        <div class="routine-card-bar">
+          <h3>Subjects & Courses</h3>
+          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
+        </div>
+        <p class="routine-hint" style="margin-top:6px;">No subjects added yet. Tap <strong>+ Add Subject</strong> to list your subjects/courses and quickly pick them in your weekly schedule.</p>
       </article>
     `;
   }
@@ -576,9 +636,12 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
     <article class="card routine-card">
       <div class="routine-card-bar">
         <h3>${escapeHtml(title)}</h3>
-        <button type="button" class="routine-action-btn" data-act="edit-slots">Edit Slots</button>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="routine-action-btn" data-act="edit-days">Edit Days</button>
+          <button type="button" class="routine-action-btn" data-act="edit-slots">Edit Slots</button>
+        </div>
       </div>
-      <p class="routine-hint">Tap any cell to add or change class, activity, or slot span.</p>
+      <p class="routine-hint">Tap any cell to add or change class/subject, or slot span.</p>
       ${gridHtml(escapeHtml, slots, days, who)}
     </article>
 
