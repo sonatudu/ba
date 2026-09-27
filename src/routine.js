@@ -1,6 +1,6 @@
-const BAU_SLOTS = ["07:30–09:30", "11:15–12:15", "12:15–01:15", "02:00–03:00", "03:00–04:00", "04:00–05:00"];
+export const BAU_SLOTS = ["07:30–09:30", "11:15–12:15", "12:15–01:15", "02:00–03:00", "03:00–04:00", "04:00–05:00"];
 
-const BAU_COURSES = [
+export const BAU_COURSES = [
   ["1", "Entrepreneurship Development and Business Communication", "AEcon 211", "3 (2–1)", "Dr. Kerobium Lakra", "Dr. Neetu Kumari; Dr. Poulami Ray"],
   ["2", "Physical Education, First Aid, Yoga Practices and Meditation", "PE 211", "2 (0–2)", "Dr. Shivam Mishra", ""],
   ["3", "Principles of Genetics", "GPB 211", "3 (2–1)", "Dr. Surya Prakash", "Dr. Nutan Verma; Dr. Tajwar Izhar"],
@@ -13,7 +13,7 @@ const BAU_COURSES = [
   ["10", "Agriculture Waste Management", "AE (SE) 211", "2 (0–2)", "Er. Gaurav Sahu", "Dr. Asha Kumari Sinha; Dr. Nity Tirkey"],
 ];
 
-const BAU_DAYS = [
+export const BAU_DAYS = [
   {
     day: "Monday",
     cells: [
@@ -78,7 +78,7 @@ const BAU_DAYS = [
   },
 ];
 
-const MA_SLOTS = [
+export const MA_SLOTS = [
   "08:00–08:45",
   "09:00–09:45",
   "10:00–10:45",
@@ -89,7 +89,7 @@ const MA_SLOTS = [
   "04:00–04:45",
 ];
 
-const MA_DAYS = [
+export const MA_DAYS = [
   {
     day: "Monday",
     cells: [
@@ -152,47 +152,14 @@ const MA_DAYS = [
   },
 ];
 
-function weekdayName() {
-  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
-}
-
-function slotHead(escapeHtml, slot) {
-  const [start, end] = String(slot).split("–");
-  if (!end) return escapeHtml(slot);
-  return `<span>${escapeHtml(start)}</span><span>${escapeHtml(end)}</span>`;
-}
-
-function gridHtml(escapeHtml, slots, days) {
-  const today = weekdayName();
-  const head = slots.map((slot) => `<th>${slotHead(escapeHtml, slot)}</th>`).join("");
-  const body = days
-    .map((row) => {
-      const cells = row.cells
-        .map((cell) => {
-          const span = cell.span || 1;
-          const free = !cell.text || cell.text === "—";
-          const label = String(cell.text || "")
-            .split("/")
-            .map((part) => escapeHtml(part.trim()))
-            .filter(Boolean)
-            .join("<br>");
-          return `<td colspan="${span}" class="${free ? "tt-free" : "tt-busy"}">${free ? "" : label}</td>`;
-        })
-        .join("");
-      return `<tr class="${row.day === today ? "tt-today" : ""}"><th>${escapeHtml(row.day)}</th>${cells}</tr>`;
-    })
-    .join("");
-  return `<div class="tt-scroll"><table class="tt"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
-}
-
-const MESS_HEAD = [
+export const MESS_HEAD = [
   { name: "Breakfast", times: ["07:00–09:30", "08:00–09:30"] },
   { name: "Lunch", times: ["12:00–14:00"] },
   { name: "Snacks", times: ["16:30–18:00"] },
   { name: "Dinner", times: ["19:30–21:30"] },
 ];
 
-const MESS_DAYS = [
+export const MESS_DAYS = [
   {
     day: "Monday",
     cells: [
@@ -258,6 +225,261 @@ const MESS_DAYS = [
   },
 ];
 
+export const GENERAL_SLOTS = [
+  "08:00–09:00",
+  "09:00–10:00",
+  "10:00–11:00",
+  "11:00–12:00",
+  "01:00–02:00",
+  "02:00–03:00",
+  "03:00–04:00",
+];
+
+export const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+function emptyDays(slotsCount) {
+  return WEEKDAYS.map((day) => ({
+    day,
+    cells: Array.from({ length: slotsCount }, () => ({ text: "—", span: 1 })),
+  }));
+}
+
+export function personalRoutine() {
+  return {
+    ba: {
+      title: "Weekly Schedule",
+      slots: [...BAU_SLOTS],
+      days: JSON.parse(JSON.stringify(BAU_DAYS)),
+      courses: JSON.parse(JSON.stringify(BAU_COURSES)),
+      notes: "",
+    },
+    ma: {
+      title: "Weekly Schedule",
+      slots: [...MA_SLOTS],
+      days: JSON.parse(JSON.stringify(MA_DAYS)),
+      messHead: JSON.parse(JSON.stringify(MESS_HEAD)),
+      messDays: JSON.parse(JSON.stringify(MESS_DAYS)),
+      notes: "",
+    },
+  };
+}
+
+export function generalRoutine() {
+  return {
+    ba: {
+      title: "Weekly Schedule",
+      slots: [...GENERAL_SLOTS],
+      days: emptyDays(GENERAL_SLOTS.length),
+      notes: "",
+    },
+    ma: {
+      title: "Weekly Schedule",
+      slots: [...GENERAL_SLOTS],
+      days: emptyDays(GENERAL_SLOTS.length),
+      notes: "",
+    },
+  };
+}
+
+export function defaultRoutine(isPersonal = false) {
+  return isPersonal ? personalRoutine() : generalRoutine();
+}
+
+function normalizePersonRoutine(cur, fallback) {
+  if (!cur || typeof cur !== "object") return JSON.parse(JSON.stringify(fallback));
+  const slots = Array.isArray(cur.slots) && cur.slots.length ? [...cur.slots] : [...fallback.slots];
+  const days = Array.isArray(cur.days) && cur.days.length
+    ? cur.days.map((d) => ({
+        day: String(d.day || "Day"),
+        cells: Array.isArray(d.cells)
+          ? d.cells.map((c) => ({
+              text: String(c.text ?? (c.cell || "—")),
+              ...(c.span && Number(c.span) > 1 ? { span: Number(c.span) } : {}),
+            }))
+          : Array.from({ length: slots.length }, () => ({ text: "—", span: 1 })),
+      }))
+    : JSON.parse(JSON.stringify(fallback.days));
+
+  const res = {
+    title: String(cur.title || fallback.title || "Weekly Schedule"),
+    slots,
+    days,
+    notes: String(cur.notes || ""),
+  };
+
+  if (cur.courses || fallback.courses) {
+    res.courses = Array.isArray(cur.courses)
+      ? JSON.parse(JSON.stringify(cur.courses))
+      : (fallback.courses ? JSON.parse(JSON.stringify(fallback.courses)) : []);
+  }
+
+  if (cur.messDays || fallback.messDays) {
+    res.messHead = Array.isArray(cur.messHead)
+      ? JSON.parse(JSON.stringify(cur.messHead))
+      : (fallback.messHead ? JSON.parse(JSON.stringify(fallback.messHead)) : []);
+    res.messDays = Array.isArray(cur.messDays)
+      ? JSON.parse(JSON.stringify(cur.messDays))
+      : (fallback.messDays ? JSON.parse(JSON.stringify(fallback.messDays)) : []);
+  }
+
+  return res;
+}
+
+export function ensureRoutine(raw, isPersonal = false) {
+  const fallback = defaultRoutine(isPersonal);
+  if (!raw || typeof raw !== "object") return fallback;
+  return {
+    ba: normalizePersonRoutine(raw.ba, fallback.ba),
+    ma: normalizePersonRoutine(raw.ma, fallback.ma),
+  };
+}
+
+export function updateRoutineCell(personData, dayIdx, cellIdx, newText, newSpan = 1) {
+  if (!personData?.days?.[dayIdx]?.cells?.[cellIdx]) return;
+  const row = personData.days[dayIdx];
+  const cell = row.cells[cellIdx];
+  const curSpan = cell.span || 1;
+  const span = Math.max(1, Math.min(Number(newSpan) || 1, 4));
+  const text = String(newText || "").trim() || "—";
+
+  if (span === curSpan) {
+    cell.text = text;
+    return;
+  }
+
+  if (span > curSpan) {
+    const diff = span - curSpan;
+    let available = 0;
+    for (let i = cellIdx + 1; i < row.cells.length; i++) {
+      available += (row.cells[i].span || 1);
+    }
+    const canAbsorb = Math.min(diff, available);
+    if (canAbsorb > 0) {
+      cell.span = curSpan + canAbsorb;
+      cell.text = text;
+      let needToRemove = canAbsorb;
+      while (needToRemove > 0 && cellIdx + 1 < row.cells.length) {
+        const nextSpan = row.cells[cellIdx + 1].span || 1;
+        if (nextSpan <= needToRemove) {
+          row.cells.splice(cellIdx + 1, 1);
+          needToRemove -= nextSpan;
+        } else {
+          row.cells[cellIdx + 1].span = nextSpan - needToRemove;
+          needToRemove = 0;
+        }
+      }
+    } else {
+      cell.text = text;
+    }
+  } else {
+    const diff = curSpan - span;
+    cell.span = span;
+    cell.text = text;
+    for (let i = 0; i < diff; i++) {
+      row.cells.splice(cellIdx + 1 + i, 0, { text: "—", span: 1 });
+    }
+  }
+}
+
+export function clearRoutineCell(personData, dayIdx, cellIdx) {
+  if (!personData?.days?.[dayIdx]?.cells?.[cellIdx]) return;
+  personData.days[dayIdx].cells[cellIdx].text = "—";
+}
+
+export function updateRoutineSlots(personData, newSlots) {
+  if (!personData || !Array.isArray(newSlots) || !newSlots.length) return;
+  personData.slots = newSlots.map((s) => String(s || "").trim()).filter(Boolean);
+  const targetLen = personData.slots.length;
+  if (!Array.isArray(personData.days)) return;
+
+  for (const row of personData.days) {
+    if (!Array.isArray(row.cells)) row.cells = [];
+    let totalSpan = row.cells.reduce((sum, c) => sum + (c.span || 1), 0);
+    if (totalSpan < targetLen) {
+      const needed = targetLen - totalSpan;
+      for (let i = 0; i < needed; i++) {
+        row.cells.push({ text: "—", span: 1 });
+      }
+    } else if (totalSpan > targetLen) {
+      while (totalSpan > targetLen && row.cells.length > 0) {
+        const last = row.cells[row.cells.length - 1];
+        const lastSpan = last.span || 1;
+        if (totalSpan - lastSpan >= targetLen) {
+          row.cells.pop();
+          totalSpan -= lastSpan;
+        } else {
+          last.span = targetLen - (totalSpan - lastSpan);
+          totalSpan = targetLen;
+        }
+      }
+    }
+  }
+}
+
+export function updateRoutineNotes(personData, notes) {
+  if (personData) {
+    personData.notes = String(notes || "");
+  }
+}
+
+export function updateMessCell(personData, dayIdx, cellIdx, text) {
+  if (personData?.messDays?.[dayIdx]?.cells && cellIdx in personData.messDays[dayIdx].cells) {
+    personData.messDays[dayIdx].cells[cellIdx] = String(text || "").trim();
+  }
+}
+
+export function addCourse(personData, course) {
+  if (!personData) return;
+  if (!Array.isArray(personData.courses)) personData.courses = [];
+  personData.courses.push(course);
+}
+
+export function removeCourse(personData, index) {
+  if (!personData || !Array.isArray(personData.courses)) return;
+  personData.courses.splice(index, 1);
+}
+
+export function weekdayName() {
+  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
+}
+
+function slotHead(escapeHtml, slot) {
+  const [start, end] = String(slot).split("–");
+  if (!end) return escapeHtml(slot);
+  return `<span>${escapeHtml(start)}</span><span>${escapeHtml(end)}</span>`;
+}
+
+function gridHtml(escapeHtml, slots, days, who) {
+  const today = weekdayName();
+  const head = slots.map((slot) => `<th>${slotHead(escapeHtml, slot)}</th>`).join("");
+  const body = days
+    .map((row, dayIdx) => {
+      const cells = row.cells
+        .map((cell, cellIdx) => {
+          const span = cell.span || 1;
+          const free = !cell.text || cell.text === "—";
+          const label = String(cell.text || "")
+            .split("/")
+            .map((part) => escapeHtml(part.trim()))
+            .filter(Boolean)
+            .join("<br>");
+          return `<td colspan="${span}" class="tt-cell-interactive ${free ? "tt-free" : "tt-busy"}" data-routine-cell="true" data-who="${who}" data-day-idx="${dayIdx}" data-cell-idx="${cellIdx}">${free ? "—" : label}</td>`;
+        })
+        .join("");
+      return `<tr class="${row.day === today ? "tt-today" : ""}"><th>${escapeHtml(row.day)}</th>${cells}</tr>`;
+    })
+    .join("");
+  return `<div class="tt-scroll"><table class="tt"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 function messItem(escapeHtml, value) {
   return String(value || "")
     .split(" / ")
@@ -276,62 +498,99 @@ function messCell(escapeHtml, text) {
   return `<strong>${messItem(escapeHtml, items[0])}</strong>${rest ? `<br>${rest}` : ""}`;
 }
 
-function messHtml(escapeHtml) {
+function messHtml(escapeHtml, messHead, messDays, who) {
   const today = weekdayName();
-  const head = MESS_HEAD.map(
-    (col) => `<th>${escapeHtml(col.name)}${col.times.map((time) => `<span>${escapeHtml(time)}</span>`).join("")}</th>`
+  const head = messHead.map(
+    (col) => `<th>${escapeHtml(col.name)}${Array.isArray(col.times) ? col.times.map((time) => `<span>${escapeHtml(time)}</span>`).join("") : ""}</th>`
   ).join("");
-  const body = MESS_DAYS.map((row) => {
-    const cells = row.cells.map((text) => `<td class="tt-busy">${messCell(escapeHtml, text)}</td>`).join("");
+  const body = messDays.map((row, dayIdx) => {
+    const cells = row.cells.map((text, cellIdx) => {
+      const content = messCell(escapeHtml, text);
+      return `<td class="tt-cell-interactive tt-busy" data-mess-cell="true" data-who="${who}" data-day-idx="${dayIdx}" data-cell-idx="${cellIdx}">${content || "—"}</td>`;
+    }).join("");
     return `<tr class="${row.day === today ? "tt-today" : ""}"><th>${escapeHtml(row.day)}</th>${cells}</tr>`;
   }).join("");
   return `<div class="tt-scroll"><table class="tt tt-mess"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-export function routineHtml(escapeHtml, who) {
-  if (who === "ma") {
-    return `
+export function routineHtml(escapeHtml, who, routineState, displayName = "") {
+  const person = routineState?.[who] || (who === "ma" ? generalRoutine().ma : generalRoutine().ba);
+  const title = displayName ? `${displayName}’s Schedule` : (person.title || "Weekly Schedule");
+  const slots = Array.isArray(person.slots) ? person.slots : GENERAL_SLOTS;
+  const days = Array.isArray(person.days) ? person.days : emptyDays(slots.length);
+  const notes = String(person.notes || "");
+
+  let coursesSection = "";
+  if (Array.isArray(person.courses) && person.courses.length > 0) {
+    const rows = person.courses.map(
+      (row, idx) => `
+        <tr data-course-idx="${idx}">
+          <td>${escapeHtml(row[0] || String(idx + 1))}</td>
+          <td>${escapeHtml(row[1] || "")}</td>
+          <td>${escapeHtml(row[2] || "")}</td>
+          <td>${escapeHtml(row[3] || "")}</td>
+          <td><strong>${escapeHtml(row[4] || "")}</strong>${row[5] ? `<br>${escapeHtml(row[5])}` : ""}</td>
+          <td style="text-align:right; width:44px;"><button type="button" class="routine-icon-btn is-danger" data-remove-course="${idx}" aria-label="Delete course" title="Delete course">×</button></td>
+        </tr>`
+    ).join("");
+
+    coursesSection = `
       <article class="card routine-card">
-        <h3>Classes</h3>
-        ${gridHtml(escapeHtml, MA_SLOTS, MA_DAYS)}
-      </article>
-      <article class="card routine-card">
-        <h3>Mess</h3>
-        ${messHtml(escapeHtml)}
+        <div class="routine-card-bar">
+          <h3>Courses</h3>
+          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Course</button>
+        </div>
+        <div class="tt-scroll">
+          <table class="tt tt-courses">
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Title</th>
+                <th>Course No.</th>
+                <th>Credits</th>
+                <th>Instructors</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </article>
     `;
   }
-  const courses = BAU_COURSES.map(
-    (row) => `
-      <tr>
-        <td>${escapeHtml(row[0])}</td>
-        <td>${escapeHtml(row[1])}</td>
-        <td>${escapeHtml(row[2])}</td>
-        <td>${escapeHtml(row[3])}</td>
-        <td><strong>${escapeHtml(row[4])}</strong>${row[5] ? `<br>${escapeHtml(row[5])}` : ""}</td>
-      </tr>`
-  ).join("");
+
+  let messSection = "";
+  if (Array.isArray(person.messDays) && person.messDays.length > 0 && Array.isArray(person.messHead)) {
+    messSection = `
+      <article class="card routine-card">
+        <div class="routine-card-bar">
+          <h3>Mess & Meals</h3>
+          <span class="routine-subtle-hint">Tap any meal to edit menu</span>
+        </div>
+        ${messHtml(escapeHtml, person.messHead, person.messDays, who)}
+      </article>
+    `;
+  }
+
   return `
     <article class="card routine-card">
-      <h3>Classes</h3>
-      ${gridHtml(escapeHtml, BAU_SLOTS, BAU_DAYS)}
-    </article>
-    <article class="card routine-card">
-      <h3>Courses</h3>
-      <div class="tt-scroll">
-        <table class="tt tt-courses">
-          <thead>
-            <tr>
-              <th>S.No</th>
-              <th>Title</th>
-              <th>Course No.</th>
-              <th>Credits</th>
-              <th>Instructors</th>
-            </tr>
-          </thead>
-          <tbody>${courses}</tbody>
-        </table>
+      <div class="routine-card-bar">
+        <h3>${escapeHtml(title)}</h3>
+        <button type="button" class="routine-action-btn" data-act="edit-slots">Edit Slots</button>
       </div>
+      <p class="routine-hint">Tap any cell to add or change class, activity, or slot span.</p>
+      ${gridHtml(escapeHtml, slots, days, who)}
     </article>
+
+    <article class="card routine-card routine-notes-card">
+      <div class="routine-card-bar">
+        <h3>Weekly Notes</h3>
+        <button type="button" class="routine-action-btn" data-act="save-notes">Save Notes</button>
+      </div>
+      <textarea class="routine-notes-area" data-routine-notes placeholder="Reminders, study goals, exam dates, or weekly notes...">${escapeHtml(notes)}</textarea>
+    </article>
+
+    ${coursesSection}
+    ${messSection}
   `;
 }
