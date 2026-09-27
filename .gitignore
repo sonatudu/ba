@@ -12,3 +12,4 @@ server/data
 *.aab
 *.apk
 *-firebase-adminsdk-*.json
+android/app/release/
