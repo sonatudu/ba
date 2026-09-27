@@ -7771,8 +7771,8 @@ button.is-down:not(:disabled):not(.inmap-dot),
 
 .cycle-gap-table th,
 .cycle-gap-table td {
-  width: 25%;
-  padding: 10px 6px;
+  width: 33.333%;
+  padding: 10px 8px;
   text-align: center;
   border-bottom: 1px solid color-mix(in srgb, var(--gold) 16%, var(--line));
   vertical-align: middle;

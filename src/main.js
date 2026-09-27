@@ -612,10 +612,9 @@ function normalizeCycleCourse(item) {
     intake === COURSE_INTAKE_TAKEN
       ? noteRaw || COURSE_TAKEN_NOTE
       : noteRaw;
-  const medName = String(item.name || item.medName || MEPRATE_NAME).trim().slice(0, 50) || MEPRATE_NAME;
   return {
     id,
-    name: medName,
+    name: MEPRATE_NAME,
     start,
     end,
     status,
@@ -2358,7 +2357,6 @@ let cycleSymptomsEditing = false;
 let cycleSymptomDraft = "";
 let courseEditId = "";
 let courseDraft = null;
-let medPromptOpen = false;
 let courseHistMonth = "";
 let periodHistMonth = "";
 let cycleSettingsOpen = false;
@@ -5565,10 +5563,10 @@ function draftFromPeriod(item) {
   };
 }
 
-function emptyCourseDraft(defaultName) {
+function emptyCourseDraft() {
   return {
     id: "",
-    name: defaultName || state.cycle?.lastMedName || MEPRATE_NAME,
+    name: MEPRATE_NAME,
     start: isoToday(),
     status: COURSE_STATUS_ON,
     intake: "",
@@ -5581,7 +5579,7 @@ function draftFromCourse(item) {
   if (!row) return emptyCourseDraft();
   return {
     id: row.id,
-    name: row.name || state.cycle?.lastMedName || MEPRATE_NAME,
+    name: MEPRATE_NAME,
     start: row.start,
     status: row.status || COURSE_STATUS_ON,
     intake: row.intake || "",
@@ -6095,14 +6093,13 @@ function cycleCourseMonthView(group) {
                     const time = item.at ? fmtClock(item.at) : "";
                     const showNote =
                       item.intake === COURSE_INTAKE_NOT && String(item.note || "").trim();
-                    const medPrefix = item.name ? `${item.name} · ` : "";
                     return `<article class="cycle-course${courseEditId === item.id ? " is-on" : ""}" data-course="${escapeHtml(item.id)}" data-course-ids="${escapeHtml(item.id)}">
-                      <p class="cycle-course-line">${escapeHtml(medPrefix)}${escapeHtml(fmt(item.start))}${intakeLabel ? ` · ${escapeHtml(intakeLabel)}` : ""}${time ? ` · ${escapeHtml(time)}` : ""}</p>
+                      <p class="cycle-course-line">${escapeHtml(fmt(item.start))}${intakeLabel ? ` · ${escapeHtml(intakeLabel)}` : ""}${time ? ` · ${escapeHtml(time)}` : ""}</p>
                       ${showNote ? `<p class="cycle-hist-note">${escapeHtml(item.note)}</p>` : ""}
                     </article>`;
                   })
                   .join("")
-              : `<p class="muted">No medicine logged yet.</p>`
+              : `<p class="muted">No Meprate yet.</p>`
           }
         </div>
       </article>
@@ -6272,7 +6269,7 @@ function cycleView() {
           .join("")}
       </div>
     </div>`
-    : `<p class="muted">No medicine logged yet.</p>`;
+    : `<p class="muted">No Meprate yet.</p>`;
   const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
   const gapRows = cycleGapTableRows(cycle);
   const showGap = isPersonal || gapRows.length > 0;
@@ -6282,7 +6279,6 @@ function cycleView() {
           <thead>
             <tr>
               <th scope="col">Month</th>
-              <th scope="col">Medicine end</th>
               <th scope="col">Period start</th>
               <th scope="col">Gap</th>
             </tr>
@@ -6292,7 +6288,6 @@ function cycleView() {
               .map(
                 (row) => `<tr>
               <td>${escapeHtml(row.month)}</td>
-              <td>${escapeHtml(fmt(row.medEnd, false))}</td>
               <td>${row.periodStart ? escapeHtml(fmt(row.periodStart, false)) : "—"}</td>
               <td>${row.gap != null ? escapeHtml(`${row.gap} days`) : "—"}</td>
             </tr>`
@@ -6302,10 +6297,6 @@ function cycleView() {
         </table>
       </div>`
     : `<p class="muted">No gaps yet.</p>`;
-  const medsList = Array.isArray(cycle.meds) && cycle.meds.length
-    ? cycle.meds
-    : [{ id: "meprate", name: MEPRATE_NAME, dose: "" }];
-  const currentMedName = courseDraft.name || cycle.lastMedName || MEPRATE_NAME;
   const wrap = el(`
     <div class="cycle-page">
       <article class="card cycle-card">
@@ -6371,21 +6362,15 @@ function cycleView() {
             </div>
           </div>
           <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsRemoving ? " is-removing" : ""}${cycleSymptomsEditing ? " is-editing" : ""}">
-            <div class="cycle-symptoms-head" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <div class="cycle-symptoms-head">
               <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
-              <div style="display:flex; gap:6px;">
-                <button type="button" class="cycle-symptoms-toggle" data-symptoms-quick-add style="font-size:0.75rem; padding:4px 10px;">+ Add</button>
-                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove style="font-size:0.75rem; padding:4px 8px;">
-                  ${cycleSymptomsRemoving ? "Done" : "Remove"}
-                </button>
-              </div>
             </div>
             ${
               cycleSymptomsAdding
-                ? `<form class="cycle-symptom-add" data-symptom-add-form style="margin-top:8px;">
-              <input type="text" data-symptom-input maxlength="40" placeholder="New symptom (e.g. Headache, Cramps)" value="${escapeHtml(cycleSymptomDraft)}" enterkeyhint="done" autocomplete="off" />
+                ? `<form class="cycle-symptom-add" data-symptom-add-form>
+              <input type="text" data-symptom-input maxlength="40" placeholder="Symptom name" value="${escapeHtml(cycleSymptomDraft)}" enterkeyhint="done" autocomplete="off" />
               <button type="submit" class="cycle-symptoms-toggle">Save</button>
-              <button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Cancel</button>
+              <button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>
             </form>`
                 : ""
             }
@@ -6398,9 +6383,24 @@ function cycleView() {
                     }${cycleSymptomsRemoving ? " disabled" : ""} /><span>${escapeHtml(row.label)}</span></label>`
                 )
                 .join("")}
-              ${(cycle.symptomList || []).length ? "" : `<p class="cycle-symptoms-summary">No symptoms yet — tap + Add.</p>`}
+              ${(cycle.symptomList || []).length ? "" : `<p class="cycle-symptoms-summary">${cycleSymptomsEditing ? "No symptoms yet — tap Add." : "No symptoms yet."}</p>`}
             </div>
             ${cycleSymptomsRemoving ? `<p class="cycle-symptoms-hint">Tap a symptom to remove it from your list.</p>` : ""}
+            <div class="cycle-symptoms-foot">
+              ${
+                cycleSymptomsEditing
+                  ? `<div class="cycle-symptoms-actions">
+                <button type="button" class="cycle-symptoms-toggle" data-symptoms-add ${cycleSymptomsRemoving || cycleSymptomsAdding ? "disabled" : ""}>Add</button>
+                <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove ${cycleSymptomsAdding ? "disabled" : ""}>
+                  Remove
+                </button>
+                ${cycleSymptomsAdding ? "" : `<button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>`}
+              </div>`
+                  : `<button type="button" class="cycle-symptoms-edit" data-symptoms-edit aria-label="Edit symptoms" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+              </button>`
+              }
+            </div>
           </div>
           <div class="cycle-record-block">
             <label class="cycle-record-label" for="cycle-note">Notes</label>
@@ -6421,29 +6421,8 @@ function cycleView() {
         ${periodHistoryHtml}
       </article>
       <article class="card cycle-card" data-course-log>
-        <div class="cycle-card-bar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h3 style="margin:0;">Medicine (${escapeHtml(currentMedName)})</h3>
-          <button type="button" class="routine-action-btn" data-act="add-med-prompt" style="font-size:0.75rem; padding:4px 10px;">+ Add Medicine</button>
-        </div>
-        ${
-          medPromptOpen
-            ? `<form data-add-med-form style="margin-bottom:14px; display:flex; gap:8px;">
-            <input type="text" data-new-med-input placeholder="Medicine name (e.g. Paracetamol, Ibuprofen)" maxlength="50" style="flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
-            <button type="submit" class="routine-action-btn" style="background:var(--accent); color:#fff; border-color:transparent;">Add</button>
-            <button type="button" class="routine-action-btn" data-cancel-med>Cancel</button>
-          </form>`
-            : ""
-        }
+        <h3>Meprate</h3>
         <div class="cycle-record cycle-course-form">
-          <div class="cycle-record-row">
-            <span class="cycle-record-label">Medicine</span>
-            <div class="cycle-record-control">
-              <select data-course-med style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.88rem;">
-                ${medsList.map((m) => `<option value="${escapeHtml(m.name)}"${currentMedName === m.name ? " selected" : ""}>${escapeHtml(m.name)}</option>`).join("")}
-                ${!medsList.some((m) => m.name === currentMedName) && currentMedName ? `<option value="${escapeHtml(currentMedName)}" selected>${escapeHtml(currentMedName)}</option>` : ""}
-              </select>
-            </div>
-          </div>
           <div class="cycle-record-row">
             <span class="cycle-record-label">Date</span>
             <div class="cycle-record-control">${appCalPickerHtml("course-date", courseDraft.start || "")}</div>
@@ -6531,8 +6510,6 @@ function cycleView() {
   };
   const readCourseDraftFrom = () => {
     if (!courseDraft) return;
-    const medSel = wrap.querySelector("[data-course-med]");
-    if (medSel && medSel.value) courseDraft.name = medSel.value.trim();
     const reason = wrap.querySelector("[data-course-note]");
     if (courseDraft.intake === COURSE_INTAKE_NOT && reason) {
       courseDraft.note = reason.value.trim();
@@ -6642,16 +6619,7 @@ function cycleView() {
       render();
     });
   });
-  wrap.querySelector("[data-symptoms-quick-add]")?.addEventListener("click", () => {
-    readDraftDates();
-    readCourseDraftFrom();
-    cycleSymptomsRemoving = false;
-    cycleSymptomsEditing = true;
-    cycleSymptomsAdding = true;
-    cycleSymptomDraft = "";
-    render();
-    setTimeout(() => wrap.querySelector("[data-symptom-input]")?.focus(), 50);
-  });
+
   wrap.querySelector("[data-symptoms-add]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
@@ -6693,45 +6661,11 @@ function cycleView() {
     cycleSymptomsAdding = false;
     cycleSymptomDraft = "";
     cycleSymptomsEditing = true;
-    cycleDraft.symptoms = [...(cycleDraft.symptoms || []), id];
     writeCycle({ symptomList: [...(latest.symptomList || []), { id, label }] }, true);
     render();
   });
   wrap.querySelector("[data-symptom-input]")?.addEventListener("input", (event) => {
     cycleSymptomDraft = String(event.target.value || "").slice(0, 40);
-  });
-  wrap.querySelector("[data-act='add-med-prompt']")?.addEventListener("click", () => {
-    readDraftDates();
-    readCourseDraftFrom();
-    medPromptOpen = true;
-    render();
-    setTimeout(() => wrap.querySelector("[data-new-med-input]")?.focus(), 50);
-  });
-  wrap.querySelector("[data-cancel-med]")?.addEventListener("click", () => {
-    medPromptOpen = false;
-    render();
-  });
-  wrap.querySelector("[data-add-med-form]")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    readDraftDates();
-    readCourseDraftFrom();
-    const input = wrap.querySelector("[data-new-med-input]");
-    const name = String(input?.value || "").trim().slice(0, 50);
-    if (name) {
-      const next = normalizeCycle(state.cycle);
-      const existing = Array.isArray(next.meds) ? [...next.meds] : [];
-      if (!existing.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
-        existing.push({ id: symptomIdFromLabel(name), name, dose: "" });
-      }
-      courseDraft.name = name;
-      medPromptOpen = false;
-      writeCycle({ meds: existing, lastMedName: name }, true);
-      render();
-    }
-  });
-  wrap.querySelector("[data-course-med]")?.addEventListener("change", (e) => {
-    courseDraft.name = e.target.value;
-    render();
   });
   wrap.querySelector("[data-save]").addEventListener("click", () => {
     readDraftDates();
@@ -6830,20 +6764,19 @@ function cycleView() {
       return;
     }
     const note = intake === COURSE_INTAKE_TAKEN ? COURSE_TAKEN_NOTE : String(courseDraft.note || "").trim().slice(0, 400);
-    const medName = String(courseDraft.name || state.cycle?.lastMedName || MEPRATE_NAME).trim().slice(0, 50) || MEPRATE_NAME;
     const next = normalizeCycle(state.cycle);
     const sameDay = (next.courses || []).find(
-      (item) => item.start === start && (item.name || "").toLowerCase() === medName.toLowerCase() && item.id !== courseDraft.id
+      (item) => item.start === start && item.id !== courseDraft.id
     );
     const editId = courseDraft.id || sameDay?.id || "";
     const monthKeyForCourse = start.slice(0, 7);
-    if (!editId && (next.courses || []).length >= 120) {
+    if (!editId && (next.courses || []).length >= 80) {
       if (courseErr) courseErr.textContent = "Too many entries.";
       return;
     }
     const row = {
       id: editId || uid(),
-      name: medName,
+      name: MEPRATE_NAME,
       start,
       end: status === COURSE_STATUS_ENDED ? start : "",
       status,
@@ -6877,24 +6810,18 @@ function cycleView() {
           : item
       );
     }
-    const existingMeds = Array.isArray(next.meds) ? [...next.meds] : [];
-    const nextMeds = existingMeds.some((m) => m.name.toLowerCase() === medName.toLowerCase())
-      ? existingMeds
-      : [...existingMeds, { id: symptomIdFromLabel(medName), name: medName, dose: "" }];
-
     const wasEdit = Boolean(editId);
     courseEditId = "";
-    courseDraft = emptyCourseDraft(medName);
+    courseDraft = emptyCourseDraft();
     writeCycle({
       courses: list,
-      meds: nextMeds,
-      lastMedName: medName,
+      lastMedName: MEPRATE_NAME,
     });
-    showAppToast(wasEdit ? `${medName} updated` : `${medName} saved`);
+    showAppToast(wasEdit ? "Meprate updated" : "Meprate saved");
   });
   wrap.querySelector("[data-course-cancel]")?.addEventListener("click", () => {
     courseEditId = "";
-    courseDraft = emptyCourseDraft(state.cycle?.lastMedName);
+    courseDraft = emptyCourseDraft();
     render();
   });
   const openCourse = (id) => {
