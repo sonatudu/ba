@@ -299,7 +299,7 @@
     </dl>
 
     <h2 id="periods">Periods</h2>
-    <p>Ba-only tracker. Summary, calendar, Record period, Meprate, and Gap.</p>
+    <p>Ba-only tracker. Summary, calendar, Record period, Medicine courses, and Gap.</p>
     <h3>Summary</h3>
     <p>Period start, cycle day, fertile window, next period, days between periods, period length — from logged days, with Settings as fallback.</p>
     <h3>Calendar</h3>
@@ -310,7 +310,7 @@
       <dd>Sets the date for Record period. Colours: period, predicted period, fertile, today.</dd>
     </dl>
     <h3>Record period</h3>
-    <p>Logged <strong>day by day</strong>, like Meprate — not a single start/end range.</p>
+    <p>Logged <strong>day by day</strong>, like medicine courses — not a single start/end range.</p>
     <dl>
       <dt>Date</dt>
       <dd>The day you are recording.</dd>
@@ -319,14 +319,17 @@
       <dt>Menstrual flow</dt>
       <dd>Light / Medium / Heavy.</dd>
       <dt>Symptoms</dt>
-      <dd>Tick any that apply. Pencil: Add, Remove, Done for the symptom list.</dd>
+      <dd>Tick any that apply. Tap <strong>+ Add</strong> to instantly add and select any custom symptom. Pencil icon toggles full list editing (Add/Remove/Done).</dd>
       <dt>Notes</dt>
       <dd>Optional.</dd>
       <dt>Save / Update</dt>
       <dd>Writes that day. History is month buttons; open a month for daily rows until Ended, then a month summary. Long-press: Edit, Last day (if still on), Delete.</dd>
     </dl>
-    <h3>Meprate</h3>
+    <h3>Medicine courses</h3>
+    <p>Track any prescribed course (such as Meprate, progesterone, vitamins, or custom medications).</p>
     <dl>
+      <dt>Medicine</dt>
+      <dd>Select from previously logged medications, or tap <strong>+ Add Medicine</strong> to enter and track a new medication name.</dd>
       <dt>Date</dt>
       <dd>The day of this log.</dd>
       <dt>Status</dt>
@@ -334,10 +337,10 @@
       <dt>Taken / Not taken</dt>
       <dd>If not taken, a reason is required.</dd>
       <dt>Save</dt>
-      <dd>Daily history until Ended, then a month summary. Long-press: Edit or Delete.</dd>
+      <dd>Daily history until Ended, then a month summary showing the specific medicine name. Long-press: Edit or Delete.</dd>
     </dl>
     <h3>Gap</h3>
-    <p>Days from Meprate <strong>end</strong> to the next <strong>period start</strong> (diary gap(m)).</p>
+    <p>Days from medicine course <strong>end</strong> to the next <strong>period start</strong>. To keep the app clean for general users, the Gap card is hidden for new rooms and is shown whenever course gap data exists (such as for treatment tracking in BA-OURS).</p>
     <h3>Period settings (gear)</h3>
     <dl>
       <dt>Days between periods</dt>
@@ -365,6 +368,10 @@
       <dd>This page.</dd>
       <dt>Privacy policy</dt>
       <dd>How data is stored and deleted. Also highlights that we cannot see any user's data.</dd>
+      <dt>Export all data (Backup JSON)</dt>
+      <dd>Downloads a complete, unencrypted JSON backup of all your shared room data directly to your device (including notes, memories, daily habits, routines, todos, period & medicine logs, family tree, and all decrypted chat messages). Keep this safe for personal offline storage or backup.</dd>
+      <dt>Session & Chat persistence</dt>
+      <dd>Your login session remains active indefinitely on your phone without unexpected automatic termination. Chat messages are never automatically pruned or deleted.</dd>
       <dt>Log out</dt>
       <dd>Leaves the room on this device. Data in the room stays for the other person until they delete the account.</dd>
       <dt>Delete account</dt>
@@ -382,6 +389,7 @@
     <h2 id="updates">Recent updates</h2>
     <p class="meta">Keep this list in step with the app. Newest first.</p>
     <ul>
+      <li><strong>28 Sep 2026</strong> — Custom symptoms, customizable medicine courses, permanent retention, and data backup: Add custom symptoms directly with "+ Add" under Period symptoms. Log any medicine course (not just Meprate) with custom medicine names, selection, and history. Gap tracking is hidden for new accounts and preserved for existing treatment logs. Sessions and chat messages are now retained permanently without automatic deletion or expiration. Added "Export all data (Backup JSON)" in Settings to download a complete offline backup of all room data and decrypted chat.</li>
       <li><strong>28 Sep 2026</strong> — Customizable weekly Routine for everyone: both partners now have a customizable 7-day schedule. Tap any cell to edit the subject/activity, adjust column span (1–4 slots), or clear to free. Edit daily time slots dynamically with "Edit Slots". Added encrypted Weekly Notes for reminders and goals. Preserved complete BAU and NITK timetables, courses, and mess menus for existing accounts (BA-OURS) with full editing support.</li>
       <li><strong>28 Sep 2026</strong> — General family tree for all couples: new rooms start with a clean starter tree for both sides instead of locked personal families. Tap any card to edit details; tap face avatar to toggle gender; long-press to remove. Added top buttons to add siblings for either partner or add children. Personal room (BA-OURS) data remains preserved.</li>
       <li><strong>18 Sep 2026</strong> — New people can <strong>Create a room</strong> or <strong>Join a room</strong> (room id + code). Settings shows Room id with Copy. Memories: small <strong>+</strong> on the right of the saved / coming up line. Edit is only on long-press of that memory (not a button on the card). Memories no longer shows “Dates and stories you want to keep.” Where map: N and P switch without going blank; street tiles keep filling when zoomed in. No extra inset for the status bar or the phone’s home / back / recent buttons. Chat message bar sits above the keyboard when you tap it. Home mood line removed. Every public page highlights that we cannot see any user's data. Memories: Add is at the top; each card has Delete and More. Manual explains that Ba is not a WhatsApp replacement (no images, video, or voice notes) and exists as a private place for the relationship. Privacy policy updated for room code, optional location and notifications, and Delete account code verification. Delete account verifies with the room code in Settings (not a system prompt). User manual. Settings label is Relationship start date. Where: one pin each, from the latest active device. Daily: tasks can be Both/Ba/Ma; graph uses each person’s own totals. Record period is daily (Still on / Ended) like Meprate. Daily <strong>Done</strong> saves new tasks (no add tick). To Do has Edit. Chat opens on the latest message; send keeps the keyboard. Poke vibrates only. Map stays visible when zooming N and P.</li>

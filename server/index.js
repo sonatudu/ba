@@ -288,15 +288,7 @@ function readSession(tokenHash) {
   const file = join(sessionsDir, `${tokenHash}.json`);
   const session = readJson(file);
   if (!session) return null;
-  if (session.expiresAt < Date.now()) {
-    unlinkSync(file);
-    try {
-      deleteFromOci(relative(dataDir, file));
-    } catch {
-      /* ignore */
-    }
-    return null;
-  }
+  // Sessions remain active until explicitly logged out or deleted
   return session;
 }
 
@@ -318,14 +310,7 @@ function touchSession(session) {
 }
 
 function pruneSessions() {
-  for (const name of readdirSync(sessionsDir)) {
-    try {
-      const session = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
-      if (session.expiresAt < Date.now()) unlinkSync(join(sessionsDir, name));
-    } catch {
-      /* ignore */
-    }
-  }
+  // No automatic session pruning; sessions remain active indefinitely
 }
 
 const hits = new Map();
@@ -349,7 +334,7 @@ function issueToken(username, roomId, deviceId) {
     roomId: roomId || null,
     issuedAt: now,
     activeAt: now,
-    expiresAt: now + SESSION_MS,
+    expiresAt: null,
   });
   return token;
 }
@@ -365,7 +350,6 @@ function sessionRoomId(session) {
 
 function liveLogins(room) {
   pruneSessions();
-  const now = Date.now();
   const roomId = room?.id || COUPLE_ROOM_ID;
   const byWho = { ba: null, ma: null };
   const ids = new Set();
@@ -374,7 +358,6 @@ function liveLogins(room) {
       const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
       if (!COUPLE_MEMBERS.includes(sess.username)) continue;
       if (sessionRoomId(sess) !== roomId) continue;
-      if (!Number.isFinite(Number(sess.expiresAt)) || Number(sess.expiresAt) < now) continue;
       const deviceId = sessionDeviceId(sess);
       if (!deviceId) continue;
       ids.add(deviceId);
@@ -758,7 +741,6 @@ app.post("/api/chat", (req, res) => {
     iv,
     blob,
   });
-  if (auth.room.chat.length > 800) auth.room.chat = auth.room.chat.slice(-800);
   auth.room.typing[auth.user.username] = 0;
   auth.room.updatedAt = Date.now();
   writeRoom(auth.room);
