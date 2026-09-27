@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 
 const endpoint = process.env.OCI_ENDPOINT;
@@ -41,6 +42,21 @@ export async function uploadToOci(key, data, contentType = "application/json") {
     );
   } catch (err) {
     console.error(`[oci] failed to upload ${key}:`, err.message);
+  }
+}
+
+// Delete a single file from OCI
+export async function deleteFromOci(key) {
+  if (!isOciConfigured) return;
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      })
+    );
+  } catch (err) {
+    console.error(`[oci] failed to delete ${key}:`, err.message);
   }
 }
 

@@ -1,4 +1,4 @@
-import { uploadToOci, syncFromOciToDisk } from "./storage.js";
+import { uploadToOci, syncFromOciToDisk, deleteFromOci } from "./storage.js";
 import { notifyPartner, savePushToken, tokenCount, withPushTokens, pushConfigured } from "./push.js";
 import { relative } from "path";
 import { promises as fsPromises } from "fs";
@@ -118,6 +118,11 @@ function writeUser(user) {
 function deleteUserFile(username) {
   const file = userPath(username);
   if (existsSync(file)) unlinkSync(file);
+  try {
+    deleteFromOci(relative(dataDir, file));
+  } catch (err) {
+    console.error("[oci] error deleting user:", err.message);
+  }
 }
 
 function deleteRoomFile(roomId) {
@@ -125,13 +130,23 @@ function deleteRoomFile(roomId) {
   if (existsSync(file)) unlinkSync(file);
   const bak = `${file}.bak`;
   if (existsSync(bak)) unlinkSync(bak);
+  try {
+    deleteFromOci(relative(dataDir, file));
+    deleteFromOci(relative(dataDir, bak));
+  } catch (err) {
+    console.error("[oci] error deleting room:", err.message);
+  }
 }
 
 function deleteSessionsFor(username) {
   for (const name of readdirSync(sessionsDir)) {
     try {
-      const session = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
-      if (session.username === username) unlinkSync(join(sessionsDir, name));
+      const file = join(sessionsDir, name);
+      const session = JSON.parse(readFileSync(file, "utf8"));
+      if (session.username === username) {
+        unlinkSync(file);
+        deleteFromOci(relative(dataDir, file));
+      }
     } catch {
       /* ignore */
     }
@@ -142,8 +157,12 @@ function deleteSessionsForRoom(roomId) {
   const id = String(roomId || "") || COUPLE_ROOM_ID;
   for (const name of readdirSync(sessionsDir)) {
     try {
-      const session = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
-      if (sessionRoomId(session) === id) unlinkSync(join(sessionsDir, name));
+      const file = join(sessionsDir, name);
+      const session = JSON.parse(readFileSync(file, "utf8"));
+      if (sessionRoomId(session) === id) {
+        unlinkSync(file);
+        deleteFromOci(relative(dataDir, file));
+      }
     } catch {
       /* ignore */
     }
@@ -266,10 +285,16 @@ function uniqueRoomId() {
 }
 
 function readSession(tokenHash) {
-  const session = readJson(join(sessionsDir, `${tokenHash}.json`));
+  const file = join(sessionsDir, `${tokenHash}.json`);
+  const session = readJson(file);
   if (!session) return null;
   if (session.expiresAt < Date.now()) {
-    unlinkSync(join(sessionsDir, `${tokenHash}.json`));
+    unlinkSync(file);
+    try {
+      deleteFromOci(relative(dataDir, file));
+    } catch {
+      /* ignore */
+    }
     return null;
   }
   return session;
@@ -2085,9 +2110,11 @@ function forgetDevice(deviceId, room) {
   }
   for (const name of readdirSync(sessionsDir)) {
     try {
-      const sess = JSON.parse(readFileSync(join(sessionsDir, name), "utf8"));
+      const file = join(sessionsDir, name);
+      const sess = JSON.parse(readFileSync(file, "utf8"));
       if (sess.deviceId === id && (!room || sessionRoomId(sess) === room.id)) {
-        unlinkSync(join(sessionsDir, name));
+        unlinkSync(file);
+        deleteFromOci(relative(dataDir, file));
       }
     } catch {
       /* ignore */
@@ -2105,7 +2132,10 @@ app.post("/api/logout", (req, res) => {
     if (session?.deviceId) deviceId = String(session.deviceId).slice(0, 80);
     if (session) room = loadAuthRoom(session);
     const file = join(sessionsDir, `${hashHex(token)}.json`);
-    if (existsSync(file)) unlinkSync(file);
+    if (existsSync(file)) {
+      unlinkSync(file);
+      deleteFromOci(relative(dataDir, file));
+    }
   }
   if (deviceId.length < 8) deviceId = String(req.body?.deviceId || "").slice(0, 80);
   forgetDevice(deviceId, room);
