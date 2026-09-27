@@ -7,7 +7,17 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
 import { addChild, addSibling, drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
-import { routineHtml } from "./routine.js";
+import {
+  routineHtml,
+  ensureRoutine,
+  updateRoutineCell,
+  clearRoutineCell,
+  updateRoutineSlots,
+  updateRoutineNotes,
+  updateMessCell,
+  addCourse,
+  removeCourse,
+} from "./routine.js";
 
 const SESSION_KEY = "ba-session-v2";
 const DEVICE_KEY = "ba-device-v1";
@@ -109,6 +119,7 @@ function sectionSigs(source) {
     poke: JSON.stringify(s.pokes || []),
     cycle: JSON.stringify(s.cycle || null),
     daily: JSON.stringify(s.daily || null),
+    routine: JSON.stringify(s.routine || null),
   };
 }
 
@@ -121,6 +132,7 @@ function patchSections(patch) {
   if ("familyTree" in patch || "family" in patch) ids.push("family");
   if ("pokes" in patch) ids.push("poke");
   if ("cycle" in patch) ids.push("cycle");
+  if ("routine" in patch) ids.push("routine");
   return ids;
 }
 
@@ -713,6 +725,7 @@ const defaultState = () => ({
   checkins: [],
   daily: { habits: [], days: {} },
   cycle: { who: "ba", cycleLen: 28, periodLen: 5, periods: [], meds: defaultCycleMeds(), taken: {}, courses: [], lastMedName: "", symptomList: defaultSymptomList() },
+  routine: null,
 });
 
 function contentState(value) {
@@ -743,6 +756,7 @@ function contentState(value) {
     checkins: source.checkins || [],
     daily: normalizeDaily(source.daily),
     cycle: normalizeCycle(source.cycle),
+    routine: source.routine || null,
   };
 }
 
@@ -7822,26 +7836,304 @@ async function toggleShareLocation() {
 }
 
 function routineView() {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  if (!state.routine) {
+    state.routine = ensureRoutine(null, isPersonal);
+    schedulePersist();
+  } else {
+    state.routine = ensureRoutine(state.routine, isPersonal);
+  }
+
   const first = partnerId();
   const second = selfId() || (first === "ma" ? "ba" : "ma");
   if (routineWho !== "ba" && routineWho !== "ma") routineWho = first;
+
+  const firstName = coupleId(first) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
+  const secondName = coupleId(second) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
+  const currentDisplayName = coupleId(routineWho) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
+
   const wrap = el(`
     <div>
       <article class="card routine-pick">
         <div class="routine-switch">
-          <button type="button" data-who="${first}" ${routineWho === first ? 'class="active"' : ""}>${first === "ma" ? "Ma" : "Ba"}</button>
-          <button type="button" data-who="${second}" ${routineWho === second ? 'class="active"' : ""}>${second === "ma" ? "Ma" : "Ba"}</button>
+          <button type="button" data-who="${first}" ${routineWho === first ? 'class="active"' : ""}>${escapeHtml(firstName)}</button>
+          <button type="button" data-who="${second}" ${routineWho === second ? 'class="active"' : ""}>${escapeHtml(secondName)}</button>
         </div>
       </article>
-      ${routineHtml(escapeHtml, routineWho)}
+      ${routineHtml(escapeHtml, routineWho, state.routine, currentDisplayName)}
+
+      <div class="hold-menu" data-routine-cell-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker" data-cell-kicker>Edit Schedule Slot</p>
+          <h2 class="hold-menu-title" data-cell-title>Monday • Slot</h2>
+          <div style="margin-top: 14px;">
+            <label style="display:block; font-size: 0.78rem; font-weight:600; color:var(--ink-soft); margin-bottom: 6px;">Subject / Activity</label>
+            <input type="text" data-cell-text placeholder="e.g. Mathematics, Gym, Free" maxlength="120" style="width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.9rem;" />
+          </div>
+          <div style="margin-top: 12px; display:flex; align-items:center; justify-content:space-between;">
+            <label style="font-size: 0.78rem; font-weight:600; color:var(--ink-soft);">Span</label>
+            <select data-cell-span style="padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+              <option value="1">1 slot</option>
+              <option value="2">2 slots</option>
+              <option value="3">3 slots</option>
+              <option value="4">4 slots</option>
+            </select>
+          </div>
+          <div class="hold-menu-row" style="margin-top: 16px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-cell-save>Save</button>
+          </div>
+          <div style="margin-top: 8px;">
+            <button type="button" class="hold-menu-btn is-danger" style="width:100%;" data-cell-clear>Clear (Set Free)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hold-menu" data-routine-slots-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Time Slots</p>
+          <h2 class="hold-menu-title">Customize Slots</h2>
+          <p class="hold-menu-note">Enter daily time slots, one per line:</p>
+          <textarea data-slots-text style="width:100%; box-sizing:border-box; min-height:120px; margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem; line-height:1.4; resize:vertical;"></textarea>
+          <div class="hold-menu-row" style="margin-top: 14px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-slots-save>Save Slots</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hold-menu" data-routine-mess-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Mess Menu</p>
+          <h2 class="hold-menu-title" data-mess-title>Monday • Lunch</h2>
+          <p class="hold-menu-note">Items separated by semicolons (;):</p>
+          <textarea data-mess-text style="width:100%; box-sizing:border-box; min-height:100px; margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem; line-height:1.4; resize:vertical;"></textarea>
+          <div class="hold-menu-row" style="margin-top: 14px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-mess-save>Save</button>
+          </div>
+          <div style="margin-top: 8px;">
+            <button type="button" class="hold-menu-btn is-danger" style="width:100%;" data-mess-clear>Clear Menu</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hold-menu" data-routine-course-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Course</p>
+          <h2 class="hold-menu-title">Add Course</h2>
+          <div style="margin-top: 12px; display:flex; flex-direction:column; gap:8px;">
+            <input type="text" data-course-title placeholder="Course Title (e.g. Genetics)" maxlength="100" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            <input type="text" data-course-code placeholder="Course No. (e.g. GPB 211)" maxlength="40" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            <input type="text" data-course-credits placeholder="Credits (e.g. 3 (2–1))" maxlength="30" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            <input type="text" data-course-instructor placeholder="Instructor(s)" maxlength="100" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+          </div>
+          <div class="hold-menu-row" style="margin-top: 14px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-course-save>Add Course</button>
+          </div>
+        </div>
+      </div>
     </div>
   `);
+
   wrap.querySelectorAll("[data-who]").forEach((button) => {
     button.addEventListener("click", () => {
       routineWho = button.dataset.who;
       render();
     });
   });
+
+  const cellModal = wrap.querySelector("[data-routine-cell-modal]");
+  const cellModalTitle = wrap.querySelector("[data-cell-title]");
+  const cellInput = wrap.querySelector("[data-cell-text]");
+  const cellSpanSelect = wrap.querySelector("[data-cell-span]");
+  let activeCellTarget = null;
+
+  wrap.querySelectorAll("[data-routine-cell]").forEach((cellEl) => {
+    cellEl.addEventListener("click", () => {
+      const dayIdx = Number(cellEl.dataset.dayIdx);
+      const cellIdx = Number(cellEl.dataset.cellIdx);
+      const who = cellEl.dataset.who;
+      const person = state.routine[who];
+      if (!person?.days?.[dayIdx]?.cells?.[cellIdx]) return;
+      const row = person.days[dayIdx];
+      const cell = row.cells[cellIdx];
+
+      let startSlotIdx = 0;
+      for (let i = 0; i < cellIdx; i++) startSlotIdx += (row.cells[i].span || 1);
+      const span = cell.span || 1;
+      const endSlotIdx = startSlotIdx + span - 1;
+      const slotLabel = startSlotIdx === endSlotIdx
+        ? (person.slots[startSlotIdx] || `Slot ${startSlotIdx + 1}`)
+        : `${person.slots[startSlotIdx]?.split("–")[0] || ""}${person.slots[startSlotIdx] ? "–" : ""}${person.slots[endSlotIdx]?.split("–")[1] || person.slots[endSlotIdx] || ""}`;
+
+      activeCellTarget = { who, dayIdx, cellIdx };
+      cellModalTitle.textContent = `${row.day} • ${slotLabel}`;
+      cellInput.value = (!cell.text || cell.text === "—") ? "" : cell.text;
+      cellSpanSelect.value = String(span);
+      cellModal.hidden = false;
+      document.body.classList.add("is-hold-menu");
+      setTimeout(() => cellInput.focus(), 50);
+    });
+  });
+
+  wrap.querySelector("[data-cell-save]")?.addEventListener("click", () => {
+    if (!activeCellTarget) return;
+    const { who, dayIdx, cellIdx } = activeCellTarget;
+    updateRoutineCell(state.routine[who], dayIdx, cellIdx, cellInput.value, cellSpanSelect.value);
+    document.body.classList.remove("is-hold-menu");
+    setState({ routine: state.routine }, true);
+    render();
+  });
+
+  wrap.querySelector("[data-cell-clear]")?.addEventListener("click", () => {
+    if (!activeCellTarget) return;
+    const { who, dayIdx, cellIdx } = activeCellTarget;
+    clearRoutineCell(state.routine[who], dayIdx, cellIdx);
+    document.body.classList.remove("is-hold-menu");
+    setState({ routine: state.routine }, true);
+    render();
+  });
+
+  const slotsModal = wrap.querySelector("[data-routine-slots-modal]");
+  const slotsText = wrap.querySelector("[data-slots-text]");
+  wrap.querySelector('[data-act="edit-slots"]')?.addEventListener("click", () => {
+    const person = state.routine[routineWho];
+    slotsText.value = (person?.slots || []).join("\n");
+    slotsModal.hidden = false;
+    document.body.classList.add("is-hold-menu");
+    setTimeout(() => slotsText.focus(), 50);
+  });
+
+  wrap.querySelector("[data-slots-save]")?.addEventListener("click", () => {
+    const person = state.routine[routineWho];
+    const newSlots = slotsText.value.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (newSlots.length) {
+      updateRoutineSlots(person, newSlots);
+      document.body.classList.remove("is-hold-menu");
+      setState({ routine: state.routine }, true);
+      render();
+    }
+  });
+
+  const notesArea = wrap.querySelector("[data-routine-notes]");
+  const saveNotes = () => {
+    if (!notesArea) return;
+    const txt = notesArea.value;
+    if (txt !== (state.routine[routineWho]?.notes || "")) {
+      updateRoutineNotes(state.routine[routineWho], txt);
+      setState({ routine: state.routine }, true);
+    }
+  };
+  wrap.querySelector('[data-act="save-notes"]')?.addEventListener("click", () => {
+    saveNotes();
+    showAppToast("Notes saved");
+  });
+  notesArea?.addEventListener("blur", saveNotes);
+
+  const messModal = wrap.querySelector("[data-routine-mess-modal]");
+  const messTitle = wrap.querySelector("[data-mess-title]");
+  const messText = wrap.querySelector("[data-mess-text]");
+  let activeMessTarget = null;
+
+  wrap.querySelectorAll("[data-mess-cell]").forEach((cellEl) => {
+    cellEl.addEventListener("click", () => {
+      const dayIdx = Number(cellEl.dataset.dayIdx);
+      const cellIdx = Number(cellEl.dataset.cellIdx);
+      const who = cellEl.dataset.who;
+      const person = state.routine[who];
+      if (!person?.messDays?.[dayIdx]) return;
+      const row = person.messDays[dayIdx];
+      const mealName = person.messHead?.[cellIdx]?.name || "Meal";
+
+      activeMessTarget = { who, dayIdx, cellIdx };
+      messTitle.textContent = `${row.day} • ${mealName}`;
+      messText.value = row.cells[cellIdx] || "";
+      messModal.hidden = false;
+      document.body.classList.add("is-hold-menu");
+      setTimeout(() => messText.focus(), 50);
+    });
+  });
+
+  wrap.querySelector("[data-mess-save]")?.addEventListener("click", () => {
+    if (!activeMessTarget) return;
+    const { who, dayIdx, cellIdx } = activeMessTarget;
+    updateMessCell(state.routine[who], dayIdx, cellIdx, messText.value);
+    document.body.classList.remove("is-hold-menu");
+    setState({ routine: state.routine }, true);
+    render();
+  });
+
+  wrap.querySelector("[data-mess-clear]")?.addEventListener("click", () => {
+    if (!activeMessTarget) return;
+    const { who, dayIdx, cellIdx } = activeMessTarget;
+    updateMessCell(state.routine[who], dayIdx, cellIdx, "");
+    document.body.classList.remove("is-hold-menu");
+    setState({ routine: state.routine }, true);
+    render();
+  });
+
+  const courseModal = wrap.querySelector("[data-routine-course-modal]");
+  const courseTitleInput = wrap.querySelector("[data-course-title]");
+  const courseCodeInput = wrap.querySelector("[data-course-code]");
+  const courseCreditsInput = wrap.querySelector("[data-course-credits]");
+  const courseInstructorInput = wrap.querySelector("[data-course-instructor]");
+
+  wrap.querySelector('[data-act="add-course"]')?.addEventListener("click", () => {
+    if (courseTitleInput) courseTitleInput.value = "";
+    if (courseCodeInput) courseCodeInput.value = "";
+    if (courseCreditsInput) courseCreditsInput.value = "";
+    if (courseInstructorInput) courseInstructorInput.value = "";
+    courseModal.hidden = false;
+    document.body.classList.add("is-hold-menu");
+    setTimeout(() => courseTitleInput?.focus(), 50);
+  });
+
+  wrap.querySelector("[data-course-save]")?.addEventListener("click", () => {
+    const title = courseTitleInput?.value.trim();
+    if (title) {
+      const person = state.routine[routineWho];
+      addCourse(person, [
+        String((person.courses?.length || 0) + 1),
+        title,
+        courseCodeInput?.value.trim() || "",
+        courseCreditsInput?.value.trim() || "",
+        courseInstructorInput?.value.trim() || "",
+        "",
+      ]);
+      document.body.classList.remove("is-hold-menu");
+      setState({ routine: state.routine }, true);
+      render();
+    }
+  });
+
+  wrap.querySelectorAll("[data-remove-course]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.removeCourse);
+      removeCourse(state.routine[routineWho], idx);
+      setState({ routine: state.routine }, true);
+      render();
+    });
+  });
+
+  wrap.querySelectorAll("[data-modal-close]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      cellModal.hidden = true;
+      slotsModal.hidden = true;
+      messModal.hidden = true;
+      courseModal.hidden = true;
+      document.body.classList.remove("is-hold-menu");
+      activeCellTarget = null;
+      activeMessTarget = null;
+    });
+  });
+
   return wrap;
 }
 

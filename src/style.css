@@ -5781,7 +5781,102 @@ html.theme-day .map-tools button.is-on {
 }
 
 .routine-card h3 {
+  margin: 0;
+}
+
+.routine-card-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.routine-action-btn {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft, rgba(255, 255, 255, 0.06));
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.routine-action-btn:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.routine-action-btn:active {
+  transform: scale(0.96);
+}
+
+.routine-hint {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+  line-height: 1.35;
+}
+
+.routine-subtle-hint {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.routine-notes-area {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--field-bg, rgba(255, 255, 255, 0.04));
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.routine-notes-area:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.routine-icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.routine-icon-btn.is-danger:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
+.tt-cell-interactive {
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tt-cell-interactive:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.tt-cell-interactive:active {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .tt-scroll {
