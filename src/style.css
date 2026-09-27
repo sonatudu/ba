@@ -2147,8 +2147,10 @@ body.is-daily-sorting {
 
 .chart {
   position: relative;
-  min-width: 1760px;
-  padding: 16px 20px 180px;
+  min-width: max-content;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 24px 180px;
 }
 
 .chart-lines {
@@ -2166,9 +2168,10 @@ body.is-daily-sorting {
 }
 
 .chart-row {
-  display: grid;
-  grid-template-columns: 420px minmax(1180px, 1fr);
+  display: flex;
+  justify-content: center;
   align-items: start;
+  gap: clamp(36px, 6vw, 96px);
   position: relative;
   z-index: 1;
 }
@@ -2185,10 +2188,13 @@ body.is-daily-sorting {
 .chart-house {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .chart-g2 .chart-house {
-  display: block;
+  display: flex;
+  justify-content: center;
   width: 100%;
   min-width: 0;
 }
@@ -2196,17 +2202,15 @@ body.is-daily-sorting {
 .chart-g3-house {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 18px;
 }
 
 .chart-g3-house[data-g3-mandi] {
   justify-content: flex-end;
-  padding-right: 6px;
 }
 
 .chart-g3-house[data-g3-tudu] {
   justify-content: flex-start;
-  padding-left: 6px;
 }
 
 .ft-pair {
@@ -2313,6 +2317,14 @@ body.is-daily-sorting {
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.ft-card [data-field="relation"] {
+  color: var(--accent, #6ea8ff);
+  font-size: 0.58rem;
+  font-weight: 500;
+  line-height: 1.1;
+  margin-top: 1px;
 }
 
 .ft-card [data-field="nick"],

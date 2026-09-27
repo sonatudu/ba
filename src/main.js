@@ -6,17 +6,20 @@ import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
-import { addChild, addSibling, drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
+import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import {
   routineHtml,
   ensureRoutine,
   updateRoutineCell,
   clearRoutineCell,
   updateRoutineSlots,
+  updateRoutineDays,
+  getRoutineSubjects,
   updateRoutineNotes,
   updateMessCell,
   addCourse,
   removeCourse,
+  WEEKDAYS,
 } from "./routine.js";
 
 const SESSION_KEY = "ba-session-v2";
@@ -388,6 +391,10 @@ const KEPT_DATES = [
 
 function mergeKeptDates(list) {
   const next = Array.isArray(list) ? [...list] : [];
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  if (!isPersonal) {
+    return next.filter((item) => !KEPT_DATES.some((row) => row.id === item.id));
+  }
   const have = new Set(next.map((item) => item.id));
   for (const row of KEPT_DATES) {
     if (have.has(row.id)) continue;
@@ -941,8 +948,8 @@ function dailyWhoOf(value) {
 
 function dailyWhoLabel(who) {
   const id = dailyWhoOf(who);
-  if (id === "ba") return "Ba";
-  if (id === "ma") return "Ma";
+  if (id === "ba") return state.you || "Ba";
+  if (id === "ma") return state.them || "Ma";
   return "Both";
 }
 
@@ -1170,14 +1177,16 @@ function dailyGraphSvg(points) {
     const row = plotted[0];
     const baLabel = row.ba == null ? "—" : `${row.ba}%`;
     const maLabel = row.ma == null ? "—" : `${row.ma}%`;
-    return `<div class="daily-graph-bars" role="img" aria-label="Ba ${baLabel}, Ma ${maLabel}">
+    const nameA = state.you || "Ba";
+    const nameB = state.them || "Ma";
+    return `<div class="daily-graph-bars" role="img" aria-label="${escapeHtml(nameA)} ${baLabel}, ${escapeHtml(nameB)} ${maLabel}">
       <div class="daily-graph-bar is-ba">
         <div class="daily-graph-bar-track"><i style="height:${row.ba || 0}%"></i></div>
-        <span>Ba</span><strong>${baLabel}</strong>
+        <span>${escapeHtml(nameA)}</span><strong>${baLabel}</strong>
       </div>
       <div class="daily-graph-bar is-ma">
         <div class="daily-graph-bar-track"><i style="height:${row.ma || 0}%"></i></div>
-        <span>Ma</span><strong>${maLabel}</strong>
+        <span>${escapeHtml(nameB)}</span><strong>${maLabel}</strong>
       </div>
     </div>`;
   }
@@ -2677,6 +2686,18 @@ function gateView() {
           </div>
         </div>
         ${
+          creating
+            ? `<div class="field">
+          <label for="create-you">Your name or short name</label>
+          <input id="create-you" name="createYou" maxlength="28" placeholder="e.g. Alex, Ba" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="create-them">Partner's name or short name</label>
+          <input id="create-them" name="createThem" maxlength="28" placeholder="e.g. Sam, Ma" autocomplete="off" />
+        </div>`
+            : ""
+        }
+        ${
           joining
             ? `<div class="field">
           <label for="room-id">Room id</label>
@@ -2738,11 +2759,18 @@ function gateView() {
         body.su = card.querySelector("#su")?.value || "";
         body.rin = card.querySelector("#rin")?.value || "";
       }
+      const customYou = String(card.querySelector("#create-you")?.value || "").trim().slice(0, 30);
+      const customThem = String(card.querySelector("#create-them")?.value || "").trim().slice(0, 30);
       const entered = creating ? await createRoom(body) : await enterRoom(body);
       pendingLogin = null;
       if (needSetup) localStorage.setItem(SETUP_KEY, "1");
       saveWho(coupleId(entered.username) || who);
       await openSession(entered);
+      if (creating && (customYou || customThem)) {
+        const nextYou = who === "ba" ? (customYou || "Partner 1") : (customThem || "Partner 1");
+        const nextThem = who === "ba" ? (customThem || "Partner 2") : (customYou || "Partner 2");
+        setState({ you: nextYou, them: nextThem }, true);
+      }
       await locating;
       welcomeStep = "choose";
       render();
@@ -4983,6 +5011,8 @@ function memoryIso(item) {
 }
 
 function isKeptMemory(id) {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  if (!isPersonal) return false;
   return KEPT_DATES.some((row) => row.id === id);
 }
 
@@ -6984,13 +7014,100 @@ function familyView() {
   const wrap = el(`
     <div class="family-page">
       <div class="family-actions">
+        <button type="button" class="family-add-btn" data-add-member>+ Add Member</button>
         <button type="button" class="family-add-btn" data-add-sibling="mandi">+ Sibling (${escapeHtml(partnerAName)})</button>
         <button type="button" class="family-add-btn" data-add-sibling="tudu">+ Sibling (${escapeHtml(partnerBName)})</button>
         <button type="button" class="family-add-btn" data-add-child>+ Child</button>
       </div>
       ${familyTreeHtml(escapeHtml, tree)}
+
+      <div class="hold-menu" data-family-member-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Family Tree</p>
+          <h2 class="hold-menu-title">Add Family Member</h2>
+          <div style="margin-top: 12px; display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Full Name</label>
+              <input type="text" data-member-name placeholder="e.g. Priya Sharma" maxlength="60" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            </div>
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Relationship / Label</label>
+              <select data-member-relation style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+                <option value="Sibling">Sibling (Brother / Sister)</option>
+                <option value="Father">Father</option>
+                <option value="Mother">Mother</option>
+                <option value="Parent">Parent</option>
+                <option value="Grandfather">Grandfather</option>
+                <option value="Grandmother">Grandmother</option>
+                <option value="Spouse">Spouse / Partner</option>
+                <option value="Child">Child (Son / Daughter)</option>
+                <option value="Uncle">Uncle</option>
+                <option value="Aunt">Aunt</option>
+                <option value="Cousin">Cousin</option>
+                <option value="Niece">Niece</option>
+                <option value="Nephew">Nephew</option>
+                <option value="Relative">Other Relative</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Family Side</label>
+              <select data-member-side style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+                <option value="mandi">${escapeHtml(partnerAName)}’s Family Side</option>
+                <option value="tudu">${escapeHtml(partnerBName)}’s Family Side</option>
+                <option value="union">Our Children / Shared</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <div style="flex:1;">
+                <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Gender</label>
+                <select data-member-sex style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+                  <option value="F">Female</option>
+                  <option value="M">Male</option>
+                </select>
+              </div>
+              <div style="flex:1;">
+                <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Nickname</label>
+                <input type="text" data-member-nick placeholder="Optional" maxlength="30" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+              </div>
+            </div>
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Birthday (MM/DD/YYYY)</label>
+              <input type="text" data-member-born placeholder="e.g. 05/20/1998" maxlength="20" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            </div>
+          </div>
+          <div class="hold-menu-row" style="margin-top: 16px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-member-save>Add to Tree</button>
+          </div>
+        </div>
+      </div>
     </div>
   `);
+  const memberModal = wrap.querySelector("[data-family-member-modal]");
+  wrap.querySelector('[data-add-member]')?.addEventListener("click", () => {
+    memberModal.hidden = false;
+    document.body.classList.add("is-hold-menu");
+    setTimeout(() => wrap.querySelector("[data-member-name]")?.focus(), 50);
+  });
+  wrap.querySelector("[data-member-save]")?.addEventListener("click", () => {
+    const name = wrap.querySelector("[data-member-name]")?.value.trim();
+    const relation = wrap.querySelector("[data-member-relation]")?.value;
+    const side = wrap.querySelector("[data-member-side]")?.value;
+    const sex = wrap.querySelector("[data-member-sex]")?.value;
+    const nick = wrap.querySelector("[data-member-nick]")?.value.trim();
+    const born = wrap.querySelector("[data-member-born]")?.value.trim();
+    state.familyTree = addMemberToTree(state.familyTree, { side, relation, name, sex, nick, born });
+    document.body.classList.remove("is-hold-menu");
+    setState({ familyTree: state.familyTree }, true);
+    render();
+  });
+  wrap.querySelectorAll("[data-family-member-modal] [data-modal-close]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      memberModal.hidden = true;
+      document.body.classList.remove("is-hold-menu");
+    });
+  });
   wrap.querySelector('[data-add-sibling="mandi"]')?.addEventListener("click", () => {
     state.familyTree = addSibling(state.familyTree, "mandi");
     setState({ familyTree: state.familyTree }, true);
@@ -7009,19 +7126,23 @@ function familyView() {
   const saveCard = (card) => {
     const id = card.dataset.treeId;
     if (!id) return;
+    const relation = card.querySelector('[data-field="relation"]')?.value.trim() || "";
     const next = {
       mandi: mapPerson(state.familyTree.mandi, id, {
         name: card.querySelector('[data-field="name"]').value,
+        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
       tudu: mapPerson(state.familyTree.tudu, id, {
         name: card.querySelector('[data-field="name"]').value,
+        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
       union: mapPerson(state.familyTree.union, id, {
         name: card.querySelector('[data-field="name"]').value,
+        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
@@ -7187,8 +7308,8 @@ function todoView() {
           </button>
           <div class="todo-who" role="group" aria-label="For">
             <button type="button" data-who="us" class="${todoDraftWho === "us" ? "is-on" : ""}">Us</button>
-            <button type="button" data-who="ba" class="${todoDraftWho === "ba" ? "is-on" : ""}">Ba</button>
-            <button type="button" data-who="ma" class="${todoDraftWho === "ma" ? "is-on" : ""}">Ma</button>
+            <button type="button" data-who="ba" class="${todoDraftWho === "ba" ? "is-on" : ""}">${escapeHtml(state.you || "Ba")}</button>
+            <button type="button" data-who="ma" class="${todoDraftWho === "ma" ? "is-on" : ""}">${escapeHtml(state.them || "Ma")}</button>
           </div>
           <div class="todo-pri" role="group" aria-label="Priority">
             <button type="button" data-pri="near" class="todo-pri-dot is-near${todoDraftPri === "near" ? " is-on" : ""}" aria-label="Near" title="Near"></button>
@@ -7225,7 +7346,7 @@ function todoView() {
     const pri = todoPriOf(item);
     const dueText = todoDueLabel(item);
     const overdue = todoOverdue(item);
-    const whoLabel = who === "ba" ? "Ba" : who === "ma" ? "Ma" : "Us";
+    const whoLabel = who === "ba" ? (state.you || "Ba") : who === "ma" ? (state.them || "Ma") : "Us";
     const row = el(`
       <article class="todo-item ${item.done ? "is-done" : ""} is-${pri} ${overdue ? "is-late" : ""}" data-id="${escapeHtml(item.id)}">
         <button type="button" data-done aria-label="${item.done ? "Not done" : "Done"}"></button>
@@ -7481,8 +7602,8 @@ function dailyView() {
             ${
               baTotal || maTotal
                 ? `<div class="daily-stats" aria-label="Progress">
-              <div class="daily-stat is-ba"><span>Ba</span><strong>${baDone}/${baTotal}</strong></div>
-              <div class="daily-stat is-ma"><span>Ma</span><strong>${maDone}/${maTotal}</strong></div>
+              <div class="daily-stat is-ba"><span>${escapeHtml(state.you || "Ba")}</span><strong>${baDone}/${baTotal}</strong></div>
+              <div class="daily-stat is-ma"><span>${escapeHtml(state.them || "Ma")}</span><strong>${maDone}/${maTotal}</strong></div>
             </div>`
                 : ""
             }
@@ -7519,8 +7640,8 @@ function dailyView() {
             ${graphFromLabel ? `<p class="daily-graph-from">${escapeHtml(graphFromLabel)}</p>` : ""}
           </div>
           <p class="daily-graph-avg" aria-label="Average completion">
-            <span class="is-ba">Ba ${graphBaAvg}%</span>
-            <span class="is-ma">Ma ${graphMaAvg}%</span>
+            <span class="is-ba">${escapeHtml(state.you || "Ba")} ${graphBaAvg}%</span>
+            <span class="is-ma">${escapeHtml(state.them || "Ma")} ${graphMaAvg}%</span>
           </p>
         </div>
         <div class="daily-graph-ranges" role="tablist" aria-label="Graph range">
@@ -7531,8 +7652,8 @@ function dailyView() {
         </div>
         ${dailyGraphSvg(graphPoints)}
         <div class="daily-graph-legend" aria-hidden="true">
-          <span class="is-ba">Ba</span>
-          <span class="is-ma">Ma</span>
+          <span class="is-ba">${escapeHtml(state.you || "Ba")}</span>
+          <span class="is-ma">${escapeHtml(state.them || "Ma")}</span>
         </div>
       </article>`
       }
@@ -7549,8 +7670,8 @@ function dailyView() {
                 <thead>
                   <tr>
                     <th scope="col" class="daily-task-head">Task</th>
-                    <th scope="col" class="is-ba">Ba</th>
-                    <th scope="col" class="is-ma">Ma</th>
+                    <th scope="col" class="is-ba">${escapeHtml(state.you || "Ba")}</th>
+                    <th scope="col" class="is-ma">${escapeHtml(state.them || "Ma")}</th>
                   </tr>
                 </thead>
                 <tbody class="daily-group">
@@ -7613,12 +7734,12 @@ function dailyView() {
           <div class="daily-add-slots" role="group" aria-label="Whose task">
             ${[
               ["both", "Both"],
-              ["ba", "Ba"],
-              ["ma", "Ma"],
+              ["ba", state.you || "Ba"],
+              ["ma", state.them || "Ma"],
             ]
               .map(
                 ([id, label]) =>
-                  `<button type="button" data-new-who="${id}" class="${dailyDraftWho === id ? "is-on" : ""}">${label}</button>`
+                  `<button type="button" data-new-who="${id}" class="${dailyDraftWho === id ? "is-on" : ""}">${escapeHtml(label)}</button>`
               )
               .join("")}
           </div>
@@ -7840,6 +7961,20 @@ function settingsView() {
         <span class="settings-start-label">Relationship start date</span>
         <div class="settings-start-control">${appCalPickerHtml("started-on", startDraft)}</div>
       </div>
+      <div class="settings-card card" style="padding:14px; margin-bottom:12px;">
+        <span class="settings-start-label" style="font-weight:600; margin-bottom:8px; display:block;">Partner Names & Short Names</span>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div>
+            <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Your Name / Call Sign</label>
+            <input data-setting-you value="${escapeHtml(state.you || "")}" placeholder="e.g. Ba, Alex" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+          </div>
+          <div>
+            <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Partner's Name / Call Sign</label>
+            <input data-setting-them value="${escapeHtml(state.them || "")}" placeholder="e.g. Ma, Sam" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+          </div>
+          <button type="button" class="btn rose" data-save-names style="margin-top:4px; font-size:0.82rem; padding:7px 12px; align-self:flex-start;">Save Names</button>
+        </div>
+      </div>
       ${
         session?.roomId
           ? `<div class="settings-room">
@@ -7918,6 +8053,13 @@ function settingsView() {
     } catch {
       showAppToast(id);
     }
+  });
+  wrap.querySelector("[data-save-names]")?.addEventListener("click", () => {
+    const nextYou = String(wrap.querySelector("[data-setting-you]")?.value || "").trim().slice(0, 30) || "Partner 1";
+    const nextThem = String(wrap.querySelector("[data-setting-them]")?.value || "").trim().slice(0, 30) || "Partner 2";
+    setState({ you: nextYou, them: nextThem }, true);
+    showAppToast("Names saved");
+    render();
   });
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
@@ -8019,6 +8161,11 @@ function routineView() {
           <h2 class="hold-menu-title" data-cell-title>Monday • Slot</h2>
           <div style="margin-top: 14px;">
             <label style="display:block; font-size: 0.78rem; font-weight:600; color:var(--ink-soft); margin-bottom: 6px;">Subject / Activity</label>
+            <div data-cell-quick-wrap style="margin-bottom:8px; display:none;">
+              <select data-cell-quick-subject style="width:100%; box-sizing:border-box; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+                <option value="">— Pick from saved subjects —</option>
+              </select>
+            </div>
             <input type="text" data-cell-text placeholder="e.g. Mathematics, Gym, Free" maxlength="120" style="width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.9rem;" />
           </div>
           <div style="margin-top: 12px; display:flex; align-items:center; justify-content:space-between;">
@@ -8036,6 +8183,32 @@ function routineView() {
           </div>
           <div style="margin-top: 8px;">
             <button type="button" class="hold-menu-btn is-danger" style="width:100%;" data-cell-clear>Clear (Set Free)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hold-menu" data-routine-days-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Weekly Schedule</p>
+          <h2 class="hold-menu-title">Customize Schedule Days</h2>
+          <p class="hold-menu-note">Choose which days of the week to show in your timetable:</p>
+          <div style="display:flex; gap:6px; margin: 12px 0 14px; flex-wrap:wrap;">
+            <button type="button" class="family-add-btn" data-days-preset="mon-fri">Mon – Fri</button>
+            <button type="button" class="family-add-btn" data-days-preset="mon-sat">Mon – Sat</button>
+            <button type="button" class="family-add-btn" data-days-preset="all">All 7 Days</button>
+          </div>
+          <div class="routine-days-checklist" style="display:flex; flex-direction:column; gap:10px; margin: 8px 0;">
+            ${WEEKDAYS.map((day) => `
+              <label style="display:flex; align-items:center; gap:10px; font-size:0.9rem; cursor:pointer;">
+                <input type="checkbox" data-day-checkbox="${day}" style="width:18px; height:18px; accent-color:var(--accent, #6ea8ff);" />
+                <span>${day}</span>
+              </label>
+            `).join("")}
+          </div>
+          <div class="hold-menu-row" style="margin-top: 16px;">
+            <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
+            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-days-save>Save Days</button>
           </div>
         </div>
       </div>
@@ -8126,6 +8299,24 @@ function routineView() {
       cellModalTitle.textContent = `${row.day} • ${slotLabel}`;
       cellInput.value = (!cell.text || cell.text === "—") ? "" : cell.text;
       cellSpanSelect.value = String(span);
+
+      const subjects = getRoutineSubjects(person);
+      const quickWrap = cellModal.querySelector("[data-cell-quick-wrap]");
+      const select = cellModal.querySelector("[data-cell-quick-subject]");
+      if (quickWrap && select) {
+        if (subjects.length > 0) {
+          quickWrap.style.display = "block";
+          select.innerHTML = `<option value="">— Pick from saved subjects —</option>${subjects.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}`;
+          select.onchange = (e) => {
+            if (e.target.value) {
+              cellInput.value = e.target.value;
+            }
+          };
+        } else {
+          quickWrap.style.display = "none";
+        }
+      }
+
       cellModal.hidden = false;
       document.body.classList.add("is-hold-menu");
       setTimeout(() => cellInput.focus(), 50);
@@ -8145,6 +8336,45 @@ function routineView() {
     if (!activeCellTarget) return;
     const { who, dayIdx, cellIdx } = activeCellTarget;
     clearRoutineCell(state.routine[who], dayIdx, cellIdx);
+    document.body.classList.remove("is-hold-menu");
+    setState({ routine: state.routine }, true);
+    render();
+  });
+
+  const daysModal = wrap.querySelector("[data-routine-days-modal]");
+  wrap.querySelector('[data-act="edit-days"]')?.addEventListener("click", () => {
+    const person = state.routine[routineWho];
+    const activeDays = new Set((person?.days || []).map((d) => d.day));
+    daysModal.querySelectorAll("[data-day-checkbox]").forEach((cb) => {
+      cb.checked = activeDays.has(cb.dataset.dayCheckbox);
+    });
+    daysModal.hidden = false;
+    document.body.classList.add("is-hold-menu");
+  });
+
+  daysModal?.querySelectorAll("[data-days-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const preset = btn.dataset.daysPreset;
+      daysModal.querySelectorAll("[data-day-checkbox]").forEach((cb) => {
+        const d = cb.dataset.dayCheckbox;
+        if (preset === "mon-fri") cb.checked = d !== "Saturday" && d !== "Sunday";
+        else if (preset === "mon-sat") cb.checked = d !== "Sunday";
+        else cb.checked = true;
+      });
+    });
+  });
+
+  wrap.querySelector("[data-days-save]")?.addEventListener("click", () => {
+    const checked = [];
+    daysModal.querySelectorAll("[data-day-checkbox]").forEach((cb) => {
+      if (cb.checked) checked.push(cb.dataset.dayCheckbox);
+    });
+    if (!checked.length) {
+      showAppToast("Select at least one day");
+      return;
+    }
+    const person = state.routine[routineWho];
+    updateRoutineDays(person, checked);
     document.body.classList.remove("is-hold-menu");
     setState({ routine: state.routine }, true);
     render();
@@ -8275,6 +8505,7 @@ function routineView() {
   wrap.querySelectorAll("[data-modal-close]").forEach((btn) => {
     btn.addEventListener("click", () => {
       cellModal.hidden = true;
+      if (daysModal) daysModal.hidden = true;
       slotsModal.hidden = true;
       messModal.hidden = true;
       courseModal.hidden = true;
@@ -8741,7 +8972,9 @@ function wherePins() {
 }
 
 function pinMark(pin) {
-  return coupleId(pin.who) === "ma" ? "Ma" : "Ba";
+  const isMa = coupleId(pin.who) === "ma";
+  const custom = isMa ? state.them : state.you;
+  return custom ? custom.slice(0, 8) : (isMa ? "Ma" : "Ba");
 }
 
 function followedPin(pins = wherePins()) {
