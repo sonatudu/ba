@@ -32,6 +32,12 @@ const SESSION_MS = 1000 * 60 * 60 * 24 * 30;
 const PAIR_CODE = "192746";
 const COUPLE_ROOM_ID = "BA-OURS";
 const COUPLE_MEMBERS = ["ba", "ma"];
+function partnerPushTitle(room, username) {
+  if (String(room?.id || "").toUpperCase() === COUPLE_ROOM_ID) {
+    return username === "ma" ? "Ma" : "Ba";
+  }
+  return username === "ma" ? "Partner 2" : "Partner 1";
+}
 function hashHex(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -745,7 +751,7 @@ app.post("/api/chat", (req, res) => {
   auth.room.updatedAt = Date.now();
   writeRoom(auth.room);
   notifyPartner(auth.room, auth.user.username, {
-    title: auth.user.username === "ma" ? "Ma" : "Ba",
+    title: partnerPushTitle(auth.room, auth.user.username),
     body: "New message",
     kind: "chat",
   }).then(() => writeRoom(auth.room));
@@ -857,14 +863,14 @@ app.post("/api/signal", (req, res) => {
   writeRoom(auth.room);
   if (kind === "poke") {
     notifyPartner(auth.room, auth.user.username, {
-      title: auth.user.username === "ma" ? "Ma" : "Ba",
+      title: partnerPushTitle(auth.room, auth.user.username),
       body: "Poke",
       kind: "poke",
       silent: true,
     }).then(() => writeRoom(auth.room));
   } else if (kind === "offer") {
     notifyPartner(auth.room, auth.user.username, {
-      title: auth.user.username === "ma" ? "Ma" : "Ba",
+      title: partnerPushTitle(auth.room, auth.user.username),
       body: req.body?.video ? "Video call" : "Call",
       kind: "call",
     }).then(() => writeRoom(auth.room));
