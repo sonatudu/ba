@@ -636,7 +636,8 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
     <article class="card routine-card">
       <div class="routine-card-bar">
         <h3>${escapeHtml(title)}</h3>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
           <button type="button" class="routine-action-btn" data-act="edit-days">Edit Days</button>
           <button type="button" class="routine-action-btn" data-act="edit-slots">Edit Slots</button>
         </div>

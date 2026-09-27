@@ -709,37 +709,54 @@ function normalizeCycle(value) {
   };
 }
 
-const defaultState = () => ({
-  you: "Ba",
-  them: "Ma",
-  startedOn: "",
-  nextDate: "",
-  notes: [],
-  dates: [],
-  moods: [],
-  water: { text: "", who: "", at: 0 },
-  mood: { text: "", who: "", at: 0 },
-  memories: [],
-  answers: [],
-  pokes: [],
-  thanks: [],
-  songs: [],
-  sealed: [],
-  promises: [],
-  family: [],
-  familyTree: null,
-  todos: [],
-  checkins: [],
-  daily: { habits: [], days: {} },
-  cycle: { who: "ba", cycleLen: 28, periodLen: 5, periods: [], meds: defaultCycleMeds(), taken: {}, courses: [], lastMedName: "", symptomList: defaultSymptomList() },
-  routine: null,
-});
+function defaultPartnerName(who) {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  if (isPersonal) return who === "ma" ? "Ma" : "Ba";
+  return who === "ma" ? "Partner 2" : "Partner 1";
+}
+
+function personName(id) {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  if (id === "ba") return state?.you || (isPersonal ? "Ba" : "Partner 1");
+  if (id === "ma") return state?.them || (isPersonal ? "Ma" : "Partner 2");
+  return "";
+}
+
+const defaultState = () => {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  return {
+    you: isPersonal ? "Ba" : "",
+    them: isPersonal ? "Ma" : "",
+    startedOn: "",
+    nextDate: "",
+    notes: [],
+    dates: [],
+    moods: [],
+    water: { text: "", who: "", at: 0 },
+    mood: { text: "", who: "", at: 0 },
+    memories: [],
+    answers: [],
+    pokes: [],
+    thanks: [],
+    songs: [],
+    sealed: [],
+    promises: [],
+    family: [],
+    familyTree: null,
+    todos: [],
+    checkins: [],
+    daily: { habits: [], days: {} },
+    cycle: { who: "ba", cycleLen: 28, periodLen: 5, periods: [], meds: defaultCycleMeds(), taken: {}, courses: [], lastMedName: "", symptomList: defaultSymptomList() },
+    routine: null,
+  };
+};
 
 function contentState(value) {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
   const source = value || defaultState();
   return {
-    you: source.you || "Ba",
-    them: source.them || "Ma",
+    you: source.you || (isPersonal ? "Ba" : "Partner 1"),
+    them: source.them || (isPersonal ? "Ma" : "Partner 2"),
     startedOn: source.startedOn || "",
     nextDate: source.nextDate || "",
     notes: (source.notes || []).map((note) => ({
@@ -947,8 +964,8 @@ function dailyWhoOf(value) {
 
 function dailyWhoLabel(who) {
   const id = dailyWhoOf(who);
-  if (id === "ba") return state.you || "Ba";
-  if (id === "ma") return state.them || "Ma";
+  if (id === "ba") return personName("ba");
+  if (id === "ma") return personName("ma");
   return "Both";
 }
 
@@ -1176,8 +1193,8 @@ function dailyGraphSvg(points) {
     const row = plotted[0];
     const baLabel = row.ba == null ? "—" : `${row.ba}%`;
     const maLabel = row.ma == null ? "—" : `${row.ma}%`;
-    const nameA = state.you || "Ba";
-    const nameB = state.them || "Ma";
+    const nameA = personName("ba");
+    const nameB = personName("ma");
     return `<div class="daily-graph-bars" role="img" aria-label="${escapeHtml(nameA)} ${baLabel}, ${escapeHtml(nameB)} ${maLabel}">
       <div class="daily-graph-bar is-ba">
         <div class="daily-graph-bar-track"><i style="height:${row.ba || 0}%"></i></div>
@@ -2678,20 +2695,20 @@ function gateView() {
                   : ""
               }
         <div class="field">
-          <div class="who-pick" role="group" aria-label="Ba or Ma">
-            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span>Ba</span></button>
-            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span>Ma</span></button>
+          <div class="who-pick" role="group" aria-label="${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ba or Ma" : "Partner selection"}">
+            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span>${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ba" : "Partner 1"}</span></button>
+            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span>${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ma" : "Partner 2"}</span></button>
           </div>
         </div>
         ${
           creating
             ? `<div class="field">
           <label for="create-you">Your name or short name</label>
-          <input id="create-you" name="createYou" maxlength="28" placeholder="e.g. Alex, Ba" autocomplete="off" />
+          <input id="create-you" name="createYou" maxlength="28" placeholder="e.g. Alex, Sam" autocomplete="off" />
         </div>
         <div class="field">
           <label for="create-them">Partner's name or short name</label>
-          <input id="create-them" name="createThem" maxlength="28" placeholder="e.g. Sam, Ma" autocomplete="off" />
+          <input id="create-them" name="createThem" maxlength="28" placeholder="e.g. Jordan, Taylor" autocomplete="off" />
         </div>`
             : ""
         }
@@ -2744,8 +2761,9 @@ function gateView() {
     }
     try {
       const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
+      const isPersonal = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
       if (!savedWho && who !== "ba" && who !== "ma") {
-        err.textContent = "Pick Ba or Ma.";
+        err.textContent = isPersonal ? "Pick Ba or Ma." : "Select who you are (Partner 1 or Partner 2).";
         return;
       }
       const locating = requestLocation();
@@ -2801,7 +2819,7 @@ function locGateView() {
       <form class="setup-card">
         <p class="kicker">Where</p>
         <h1 class="wordmark">Ba</h1>
-        <p class="lede">Allow location so Ba can stay on the map.</p>
+        <p class="lede">Allow location so you and your partner can stay on the map.</p>
         <p class="err" data-err>${escapeHtml(geoNote)}</p>
         <button class="btn rose" type="submit">Allow location</button>
       </form>
@@ -3572,7 +3590,7 @@ function noteTone(note) {
 
 function noteWho(note) {
   const who = coupleId(note?.from);
-  return who === "ba" ? "Ba" : who === "ma" ? "Ma" : "";
+  return who === "ba" ? personName("ba") : who === "ma" ? personName("ma") : "";
 }
 
 function notesForDay(day) {
@@ -6942,9 +6960,6 @@ function familyView() {
     <div class="family-page">
       <div class="family-actions">
         <button type="button" class="family-add-btn" data-add-member>+ Add Member</button>
-        <button type="button" class="family-add-btn" data-add-sibling="mandi">+ Sibling (${escapeHtml(partnerAName)})</button>
-        <button type="button" class="family-add-btn" data-add-sibling="tudu">+ Sibling (${escapeHtml(partnerBName)})</button>
-        <button type="button" class="family-add-btn" data-add-child>+ Child</button>
       </div>
       ${familyTreeHtml(escapeHtml, tree)}
 
@@ -7034,21 +7049,6 @@ function familyView() {
       memberModal.hidden = true;
       document.body.classList.remove("is-hold-menu");
     });
-  });
-  wrap.querySelector('[data-add-sibling="mandi"]')?.addEventListener("click", () => {
-    state.familyTree = addSibling(state.familyTree, "mandi");
-    setState({ familyTree: state.familyTree }, true);
-    render();
-  });
-  wrap.querySelector('[data-add-sibling="tudu"]')?.addEventListener("click", () => {
-    state.familyTree = addSibling(state.familyTree, "tudu");
-    setState({ familyTree: state.familyTree }, true);
-    render();
-  });
-  wrap.querySelector('[data-add-child]')?.addEventListener("click", () => {
-    state.familyTree = addChild(state.familyTree);
-    setState({ familyTree: state.familyTree }, true);
-    render();
   });
   const saveCard = (card) => {
     const id = card.dataset.treeId;
@@ -7235,8 +7235,8 @@ function todoView() {
           </button>
           <div class="todo-who" role="group" aria-label="For">
             <button type="button" data-who="us" class="${todoDraftWho === "us" ? "is-on" : ""}">Us</button>
-            <button type="button" data-who="ba" class="${todoDraftWho === "ba" ? "is-on" : ""}">${escapeHtml(state.you || "Ba")}</button>
-            <button type="button" data-who="ma" class="${todoDraftWho === "ma" ? "is-on" : ""}">${escapeHtml(state.them || "Ma")}</button>
+            <button type="button" data-who="ba" class="${todoDraftWho === "ba" ? "is-on" : ""}">${escapeHtml(personName("ba"))}</button>
+            <button type="button" data-who="ma" class="${todoDraftWho === "ma" ? "is-on" : ""}">${escapeHtml(personName("ma"))}</button>
           </div>
           <div class="todo-pri" role="group" aria-label="Priority">
             <button type="button" data-pri="near" class="todo-pri-dot is-near${todoDraftPri === "near" ? " is-on" : ""}" aria-label="Near" title="Near"></button>
@@ -7273,7 +7273,7 @@ function todoView() {
     const pri = todoPriOf(item);
     const dueText = todoDueLabel(item);
     const overdue = todoOverdue(item);
-    const whoLabel = who === "ba" ? (state.you || "Ba") : who === "ma" ? (state.them || "Ma") : "Us";
+    const whoLabel = who === "ba" ? personName("ba") : who === "ma" ? personName("ma") : "Us";
     const row = el(`
       <article class="todo-item ${item.done ? "is-done" : ""} is-${pri} ${overdue ? "is-late" : ""}" data-id="${escapeHtml(item.id)}">
         <button type="button" data-done aria-label="${item.done ? "Not done" : "Done"}"></button>
@@ -7499,8 +7499,8 @@ function dailyView() {
   const maStreak = dailyStreakFor(daily, "ma");
   const streakBits = [];
   if (viewDay === today) {
-    if (baStreak >= 2) streakBits.push(`Ba ${baStreak} days`);
-    if (maStreak >= 2) streakBits.push(`Ma ${maStreak} days`);
+    if (baStreak >= 2) streakBits.push(`${personName("ba")} ${baStreak} days`);
+    if (maStreak >= 2) streakBits.push(`${personName("ma")} ${maStreak} days`);
   }
   const extra = streakBits.join(" · ");
   const strip = dailyMonthStripDays(viewDay, today);
@@ -7529,8 +7529,8 @@ function dailyView() {
             ${
               baTotal || maTotal
                 ? `<div class="daily-stats" aria-label="Progress">
-              <div class="daily-stat is-ba"><span>${escapeHtml(state.you || "Ba")}</span><strong>${baDone}/${baTotal}</strong></div>
-              <div class="daily-stat is-ma"><span>${escapeHtml(state.them || "Ma")}</span><strong>${maDone}/${maTotal}</strong></div>
+              <div class="daily-stat is-ba"><span>${escapeHtml(personName("ba"))}</span><strong>${baDone}/${baTotal}</strong></div>
+              <div class="daily-stat is-ma"><span>${escapeHtml(personName("ma"))}</span><strong>${maDone}/${maTotal}</strong></div>
             </div>`
                 : ""
             }
@@ -7567,8 +7567,8 @@ function dailyView() {
             ${graphFromLabel ? `<p class="daily-graph-from">${escapeHtml(graphFromLabel)}</p>` : ""}
           </div>
           <p class="daily-graph-avg" aria-label="Average completion">
-            <span class="is-ba">${escapeHtml(state.you || "Ba")} ${graphBaAvg}%</span>
-            <span class="is-ma">${escapeHtml(state.them || "Ma")} ${graphMaAvg}%</span>
+            <span class="is-ba">${escapeHtml(personName("ba"))} ${graphBaAvg}%</span>
+            <span class="is-ma">${escapeHtml(personName("ma"))} ${graphMaAvg}%</span>
           </p>
         </div>
         <div class="daily-graph-ranges" role="tablist" aria-label="Graph range">
@@ -7579,8 +7579,8 @@ function dailyView() {
         </div>
         ${dailyGraphSvg(graphPoints)}
         <div class="daily-graph-legend" aria-hidden="true">
-          <span class="is-ba">${escapeHtml(state.you || "Ba")}</span>
-          <span class="is-ma">${escapeHtml(state.them || "Ma")}</span>
+          <span class="is-ba">${escapeHtml(personName("ba"))}</span>
+          <span class="is-ma">${escapeHtml(personName("ma"))}</span>
         </div>
       </article>`
       }
@@ -7597,8 +7597,8 @@ function dailyView() {
                 <thead>
                   <tr>
                     <th scope="col" class="daily-task-head">Task</th>
-                    <th scope="col" class="is-ba">${escapeHtml(state.you || "Ba")}</th>
-                    <th scope="col" class="is-ma">${escapeHtml(state.them || "Ma")}</th>
+                    <th scope="col" class="is-ba">${escapeHtml(personName("ba"))}</th>
+                    <th scope="col" class="is-ma">${escapeHtml(personName("ma"))}</th>
                   </tr>
                 </thead>
                 <tbody class="daily-group">
@@ -7610,7 +7610,7 @@ function dailyView() {
                       const complete = (!baMine || done.ba) && (!maMine || done.ma);
                       const tickCell = (who, mine) =>
                         mine
-                          ? `<td class="daily-tick-cell"><button type="button" data-tick="${who}" class="is-${who}${done[who] ? " is-on" : ""}" aria-label="${who === "ma" ? "Ma" : "Ba"}, ${escapeHtml(habit.label)}${done[who] ? ", done" : ""}"></button></td>`
+                          ? `<td class="daily-tick-cell"><button type="button" data-tick="${who}" class="is-${who}${done[who] ? " is-on" : ""}" aria-label="${personName(who)}, ${escapeHtml(habit.label)}${done[who] ? ", done" : ""}"></button></td>`
                           : `<td class="daily-tick-cell is-na"><span class="daily-tick-na" aria-hidden="true"></span></td>`;
                       return `<tr class="daily-item${complete ? " is-both" : ""}" data-id="${escapeHtml(habit.id)}">
                     <td class="daily-task-cell">
@@ -7661,8 +7661,8 @@ function dailyView() {
           <div class="daily-add-slots" role="group" aria-label="Whose task">
             ${[
               ["both", "Both"],
-              ["ba", state.you || "Ba"],
-              ["ma", state.them || "Ma"],
+              ["ba", personName("ba")],
+              ["ma", personName("ma")],
             ]
               .map(
                 ([id, label]) =>
@@ -7893,11 +7893,11 @@ function settingsView() {
         <div style="display:flex; flex-direction:column; gap:8px;">
           <div>
             <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Your Name / Call Sign</label>
-            <input data-setting-you value="${escapeHtml(state.you || "")}" placeholder="e.g. Ba, Alex" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+            <input data-setting-you value="${escapeHtml(state.you || "")}" placeholder="e.g. Alex, Sam" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
           </div>
           <div>
             <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Partner's Name / Call Sign</label>
-            <input data-setting-them value="${escapeHtml(state.them || "")}" placeholder="e.g. Ma, Sam" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+            <input data-setting-them value="${escapeHtml(state.them || "")}" placeholder="e.g. Jordan, Taylor" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
           </div>
           <button type="button" class="btn rose" data-save-names style="margin-top:4px; font-size:0.82rem; padding:7px 12px; align-self:flex-start;">Save Names</button>
         </div>
@@ -8087,7 +8087,10 @@ function routineView() {
           <p class="hold-menu-kicker" data-cell-kicker>Edit Schedule Slot</p>
           <h2 class="hold-menu-title" data-cell-title>Monday • Slot</h2>
           <div style="margin-top: 14px;">
-            <label style="display:block; font-size: 0.78rem; font-weight:600; color:var(--ink-soft); margin-bottom: 6px;">Subject / Activity</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+              <label style="font-size: 0.78rem; font-weight:600; color:var(--ink-soft);">Subject / Activity</label>
+              <button type="button" class="routine-action-btn" data-act="cell-add-course" style="font-size:0.75rem; padding:3px 8px;">+ Add New Subject</button>
+            </div>
             <div data-cell-quick-wrap style="margin-bottom:8px; display:none;">
               <select data-cell-quick-subject style="width:100%; box-sizing:border-box; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
                 <option value="">— Pick from saved subjects —</option>
@@ -8391,7 +8394,7 @@ function routineView() {
   const courseCreditsInput = wrap.querySelector("[data-course-credits]");
   const courseInstructorInput = wrap.querySelector("[data-course-instructor]");
 
-  wrap.querySelector('[data-act="add-course"]')?.addEventListener("click", () => {
+  const openCourseModal = () => {
     if (courseTitleInput) courseTitleInput.value = "";
     if (courseCodeInput) courseCodeInput.value = "";
     if (courseCreditsInput) courseCreditsInput.value = "";
@@ -8399,6 +8402,15 @@ function routineView() {
     courseModal.hidden = false;
     document.body.classList.add("is-hold-menu");
     setTimeout(() => courseTitleInput?.focus(), 50);
+  };
+
+  wrap.querySelectorAll('[data-act="add-course"]').forEach((btn) => {
+    btn.addEventListener("click", openCourseModal);
+  });
+
+  wrap.querySelector('[data-act="cell-add-course"]')?.addEventListener("click", () => {
+    cellModal.hidden = true;
+    openCourseModal();
   });
 
   wrap.querySelector("[data-course-save]")?.addEventListener("click", () => {
@@ -8901,7 +8913,8 @@ function wherePins() {
 function pinMark(pin) {
   const isMa = coupleId(pin.who) === "ma";
   const custom = isMa ? state.them : state.you;
-  return custom ? custom.slice(0, 8) : (isMa ? "Ma" : "Ba");
+  if (custom) return custom.slice(0, 8);
+  return defaultPartnerName(isMa ? "ma" : "ba").slice(0, 8);
 }
 
 function followedPin(pins = wherePins()) {
