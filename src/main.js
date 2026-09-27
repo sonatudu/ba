@@ -6,7 +6,7 @@ import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
-import { drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
+import { addChild, addSibling, drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import { routineHtml } from "./routine.js";
 
 const SESSION_KEY = "ba-session-v2";
@@ -6875,16 +6875,43 @@ function usView() {
 }
 
 function familyView() {
+  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const partnerAName = state.you || "Partner 1";
+  const partnerBName = state.them || "Partner 2";
   const raw = state.familyTree;
   if (!raw?.mandi && !raw?.tudu && !raw?.union) {
-    state.familyTree = ensureFamilyTree(null);
+    state.familyTree = ensureFamilyTree(null, isPersonal, partnerAName, partnerBName);
     schedulePersist();
   } else if (missingLockFlags(raw.mandi) || missingLockFlags(raw.tudu) || missingLockFlags(raw.union)) {
-    state.familyTree = ensureFamilyTree(raw);
+    state.familyTree = ensureFamilyTree(raw, isPersonal, partnerAName, partnerBName);
     schedulePersist();
   }
   const tree = state.familyTree;
-  const wrap = el(familyTreeHtml(escapeHtml, tree));
+  const wrap = el(`
+    <div class="family-page">
+      <div class="family-actions">
+        <button type="button" class="family-add-btn" data-add-sibling="mandi">+ Sibling (${escapeHtml(partnerAName)})</button>
+        <button type="button" class="family-add-btn" data-add-sibling="tudu">+ Sibling (${escapeHtml(partnerBName)})</button>
+        <button type="button" class="family-add-btn" data-add-child>+ Child</button>
+      </div>
+      ${familyTreeHtml(escapeHtml, tree)}
+    </div>
+  `);
+  wrap.querySelector('[data-add-sibling="mandi"]')?.addEventListener("click", () => {
+    state.familyTree = addSibling(state.familyTree, "mandi");
+    setState({ familyTree: state.familyTree }, true);
+    render();
+  });
+  wrap.querySelector('[data-add-sibling="tudu"]')?.addEventListener("click", () => {
+    state.familyTree = addSibling(state.familyTree, "tudu");
+    setState({ familyTree: state.familyTree }, true);
+    render();
+  });
+  wrap.querySelector('[data-add-child]')?.addEventListener("click", () => {
+    state.familyTree = addChild(state.familyTree);
+    setState({ familyTree: state.familyTree }, true);
+    render();
+  });
   const saveCard = (card) => {
     const id = card.dataset.treeId;
     if (!id) return;
@@ -6915,6 +6942,20 @@ function familyView() {
         window.clearTimeout(wait);
         wait = window.setTimeout(() => saveCard(card), 350);
       });
+    });
+    card.querySelector(".ft-face")?.addEventListener("click", () => {
+      const id = card.dataset.treeId;
+      if (!id) return;
+      const isF = card.classList.contains("is-f");
+      const nextSex = isF ? "M" : "F";
+      card.classList.toggle("is-f", nextSex === "F");
+      card.classList.toggle("is-m", nextSex === "M");
+      const next = {
+        mandi: mapPerson(state.familyTree.mandi, id, { sex: nextSex }),
+        tudu: mapPerson(state.familyTree.tudu, id, { sex: nextSex }),
+        union: mapPerson(state.familyTree.union, id, { sex: nextSex }),
+      };
+      setState({ familyTree: next }, true);
     });
     if (card.dataset.locked === "1") return;
     bindHoldOpen(card, {

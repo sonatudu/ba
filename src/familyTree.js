@@ -1,52 +1,53 @@
 function p(name, sex, extra = {}) {
-  return { kind: "person", name, sex, locked: true, ...extra };
+  return { kind: "person", name, sex, locked: false, ...extra };
 }
 
 function c(a, b, kids = []) {
   return { kind: "couple", a, b, kids };
 }
 
+// Personal seed tree for room BA-OURS
 const mandi = c(
-  p("Gurucharan Mandi", "M"),
-  p("Rani Mandi", "F"),
+  p("Gurucharan Mandi", "M", { locked: true }),
+  p("Rani Mandi", "F", { locked: true }),
   [
-    c(p("Shyampada Mandi", "M"), p("Saraswati Mandi", "F"), [
-      p("Gurucharan Mandi", "M"),
-      p("Seema Mandi", "F", { nick: "T2" }),
-      p("Sonamuni Tudu", "F", { nick: "Khu", born: "01/30/2005", link: true }),
+    c(p("Shyampada Mandi", "M", { locked: true }), p("Saraswati Mandi", "F", { locked: true }), [
+      p("Gurucharan Mandi", "M", { locked: true }),
+      p("Seema Mandi", "F", { nick: "T2", locked: true }),
+      p("Sonamuni Tudu", "F", { nick: "Khu", born: "01/30/2005", link: true, locked: true }),
     ]),
   ]
 );
 
 const tudu = c(
-  p("Baya Tudu", "M"),
-  p("Salma Tudu", "F"),
+  p("Baya Tudu", "M", { locked: true }),
+  p("Salma Tudu", "F", { locked: true }),
   [
-    c(p("Piru Ram Tudu", "M"), p("Galo Tudu", "F", { born: "01/01/1974" }), [
-      p("Sona Tudu", "M", { nick: "Bhutku", born: "03/15/2004", link: true }),
-      c(p("Salma Murmu", "F", { nick: "Sabita" }), p("Kanto Murmu", "M"), [
-        p("Anju Murmu", "F", { nick: "Bitimai", born: "01/14/2016" }),
-        p("Anshu Murmu", "F", { nick: "Chhoti", born: "04/07/2019" }),
+    c(p("Piru Ram Tudu", "M", { locked: true }), p("Galo Tudu", "F", { born: "01/01/1974", locked: true }), [
+      p("Sona Tudu", "M", { nick: "Bhutku", born: "03/15/2004", link: true, locked: true }),
+      c(p("Salma Murmu", "F", { nick: "Sabita", locked: true }), p("Kanto Murmu", "M", { locked: true }), [
+        p("Anju Murmu", "F", { nick: "Bitimai", born: "01/14/2016", locked: true }),
+        p("Anshu Murmu", "F", { nick: "Chhoti", born: "04/07/2019", locked: true }),
       ]),
-      c(p("Maino Hansda", "F", { nick: "Saboti" }), p("Daso Hansda", "M"), [
-        p("Semoti Hansda", "F", { nick: "Seema" }),
-        p("Asman Hansda", "M", { nick: "Salkhan" }),
+      c(p("Maino Hansda", "F", { nick: "Saboti", locked: true }), p("Daso Hansda", "M", { locked: true }), [
+        p("Semoti Hansda", "F", { nick: "Seema", locked: true }),
+        p("Asman Hansda", "M", { nick: "Salkhan", locked: true }),
       ]),
-      c(p("Masang Tudu", "M", { nick: "Baya", born: "03/13/1999" }), p("Duli Tudu", "F"), [
-        p("Anushka Tudu", "F", { born: "12/17/2022" }),
-        p("Avinash Tudu", "M", { born: "12/12/2025" }),
+      c(p("Masang Tudu", "M", { nick: "Baya", born: "03/13/1999", locked: true }), p("Duli Tudu", "F", { locked: true }), [
+        p("Anushka Tudu", "F", { born: "12/17/2022", locked: true }),
+        p("Avinash Tudu", "M", { born: "12/12/2025", locked: true }),
       ]),
-      c(p("Sonamuni Mandi", "F", { nick: "Chhita", born: "03/15/2000" }), p("Ramray Mandi", "M"), [
-        p("Riya Mandi", "F", { born: "07/26/2019" }),
+      c(p("Sonamuni Mandi", "F", { nick: "Chhita", born: "03/15/2000", locked: true }), p("Ramray Mandi", "M", { locked: true }), [
+        p("Riya Mandi", "F", { born: "07/26/2019", locked: true }),
       ]),
     ]),
   ]
 );
 
 const union = c(
-  p("Sonamuni Tudu", "F", { nick: "Khu", born: "01/30/2005", link: true }),
-  p("Sona Tudu", "M", { nick: "Bhutku", born: "03/15/2004", link: true }),
-  [p("Olly Tudu", "F", { link: true })]
+  p("Sonamuni Tudu", "F", { nick: "Khu", born: "01/30/2005", link: true, locked: true }),
+  p("Sona Tudu", "M", { nick: "Bhutku", born: "03/15/2004", link: true, locked: true }),
+  [p("Olly Tudu", "F", { link: true, locked: true })]
 );
 
 function seedKey(person) {
@@ -72,7 +73,7 @@ const SEED_KEYS = new Set(
 function withIds(node) {
   if (!node) return null;
   if (node.kind === "person") {
-    return { ...node, id: node.id || crypto.randomUUID(), locked: node.locked !== false };
+    return { ...node, id: node.id || crypto.randomUUID(), locked: Boolean(node.locked) };
   }
   if (node.kind === "group") return { kind: "group", kids: (node.kids || []).map(withIds) };
   return {
@@ -83,19 +84,19 @@ function withIds(node) {
   };
 }
 
-function lockSeedPeople(node) {
+function lockSeedPeople(node, isPersonal = false) {
   if (!node) return null;
   if (node.kind === "person") {
     const flagged = node.locked === true || node.locked === false;
-    const locked = flagged ? Boolean(node.locked) : SEED_KEYS.has(seedKey(node));
+    const locked = isPersonal ? (flagged ? Boolean(node.locked) : SEED_KEYS.has(seedKey(node))) : Boolean(node.locked);
     return { ...node, id: node.id || crypto.randomUUID(), locked };
   }
-  if (node.kind === "group") return { kind: "group", kids: (node.kids || []).map(lockSeedPeople) };
+  if (node.kind === "group") return { kind: "group", kids: (node.kids || []).map((k) => lockSeedPeople(k, isPersonal)) };
   return {
     kind: "couple",
-    a: lockSeedPeople(node.a),
-    b: lockSeedPeople(node.b),
-    kids: (node.kids || []).map(lockSeedPeople),
+    a: lockSeedPeople(node.a, isPersonal),
+    b: lockSeedPeople(node.b, isPersonal),
+    kids: (node.kids || []).map((k) => lockSeedPeople(k, isPersonal)),
   };
 }
 
@@ -105,7 +106,7 @@ export function missingLockFlags(node) {
   return missingLockFlags(node.a) || missingLockFlags(node.b) || (node.kids || []).some(missingLockFlags);
 }
 
-export function defaultFamilyTree() {
+export function personalFamilyTree() {
   return {
     mandi: withIds(mandi),
     tudu: withIds(tudu),
@@ -113,13 +114,106 @@ export function defaultFamilyTree() {
   };
 }
 
-export function ensureFamilyTree(tree) {
-  if (!tree?.mandi && !tree?.tudu && !tree?.union) return defaultFamilyTree();
+export function generalFamilyTree(nameA = "Partner 1", nameB = "Partner 2") {
+  const sideA = c(
+    p("Grandfather", "M", { nick: "", born: "" }),
+    p("Grandmother", "F", { nick: "", born: "" }),
+    [
+      c(
+        p("Father", "M", { nick: "", born: "" }),
+        p("Mother", "F", { nick: "", born: "" }),
+        [
+          p(nameA || "Partner 1", "F", { link: true, nick: "", born: "" }),
+        ]
+      ),
+    ]
+  );
+
+  const sideB = c(
+    p("Grandfather", "M", { nick: "", born: "" }),
+    p("Grandmother", "F", { nick: "", born: "" }),
+    [
+      c(
+        p("Father", "M", { nick: "", born: "" }),
+        p("Mother", "F", { nick: "", born: "" }),
+        [
+          p(nameB || "Partner 2", "M", { link: true, nick: "", born: "" }),
+        ]
+      ),
+    ]
+  );
+
+  const unionTree = c(
+    p(nameA || "Partner 1", "F", { link: true, nick: "", born: "" }),
+    p(nameB || "Partner 2", "M", { link: true, nick: "", born: "" }),
+    [p("Child", "F", { link: true, nick: "", born: "" })]
+  );
+
   return {
-    mandi: lockSeedPeople(tree.mandi),
-    tudu: lockSeedPeople(tree.tudu),
-    union: lockSeedPeople(tree.union),
+    mandi: withIds(sideA),
+    tudu: withIds(sideB),
+    union: withIds(unionTree),
   };
+}
+
+export function defaultFamilyTree(isPersonal = false, nameA = "Partner 1", nameB = "Partner 2") {
+  if (isPersonal) return personalFamilyTree();
+  return generalFamilyTree(nameA, nameB);
+}
+
+export function ensureFamilyTree(tree, isPersonal = false, nameA = "Partner 1", nameB = "Partner 2") {
+  if (!tree?.mandi && !tree?.tudu && !tree?.union) return defaultFamilyTree(isPersonal, nameA, nameB);
+  return {
+    mandi: lockSeedPeople(tree.mandi, isPersonal),
+    tudu: lockSeedPeople(tree.tudu, isPersonal),
+    union: lockSeedPeople(tree.union, isPersonal),
+  };
+}
+
+export function addSibling(tree, side, personData = {}) {
+  const next = JSON.parse(JSON.stringify(tree));
+  const branch = side === "mandi" ? next.mandi : next.tudu;
+  if (!branch) return next;
+  const parentCouple = branch.kids?.[0];
+  if (!parentCouple) return next;
+  if (!Array.isArray(parentCouple.kids)) parentCouple.kids = [];
+  const newPerson = {
+    kind: "person",
+    id: crypto.randomUUID(),
+    name: personData.name || "Sibling",
+    sex: personData.sex || (side === "mandi" ? "M" : "F"),
+    nick: personData.nick || "",
+    born: personData.born || "",
+    locked: false,
+    ...personData,
+  };
+  if (side === "mandi") {
+    parentCouple.kids.unshift(newPerson);
+  } else {
+    parentCouple.kids.push(newPerson);
+  }
+  return next;
+}
+
+export function addChild(tree, personData = {}) {
+  const next = JSON.parse(JSON.stringify(tree));
+  if (!next.union) {
+    next.union = { kind: "couple", a: null, b: null, kids: [] };
+  }
+  if (!Array.isArray(next.union.kids)) next.union.kids = [];
+  const newChild = {
+    kind: "person",
+    id: crypto.randomUUID(),
+    name: personData.name || "Child",
+    sex: personData.sex || "F",
+    nick: personData.nick || "",
+    born: personData.born || "",
+    link: true,
+    locked: false,
+    ...personData,
+  };
+  next.union.kids.push(newChild);
+  return next;
 }
 
 export function mapPerson(node, id, patch) {
@@ -164,9 +258,9 @@ function cardHtml(escapeHtml, person, role = "") {
   return `
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
       ${FACE}
-      <input data-field="name" value="${escapeHtml(person.name || "")}" />
-      <input data-field="nick" placeholder=" " value="${escapeHtml(person.nick || "")}" />
-      <input data-field="born" placeholder=" " value="${escapeHtml(person.born || "")}" />
+      <input data-field="name" value="${escapeHtml(person.name || "")}" placeholder="Name" />
+      <input data-field="nick" placeholder="Nickname" value="${escapeHtml(person.nick || "")}" />
+      <input data-field="born" placeholder="Birthday" value="${escapeHtml(person.born || "")}" />
     </article>
   `;
 }
@@ -217,8 +311,8 @@ function kidUnit(kid, side) {
 function houseUnits(tree) {
   const mandi = (tree.mandi?.kids?.[0]?.kids || []).map((kid) => kidUnit(kid, "mandi")).filter(Boolean);
   const tudu = (tree.tudu?.kids?.[0]?.kids || []).map((kid) => kidUnit(kid, "tudu")).filter(Boolean);
-  const olly = (tree.union?.kids || []).find((kid) => kid?.kind === "person") || null;
-  return { mandi, tudu, olly };
+  const children = (tree.union?.kids || []).filter((kid) => kid && (kid.kind === "person" || kid.name));
+  return { mandi, tudu, children };
 }
 
 function unitHtml(escapeHtml, unit, key) {
@@ -260,7 +354,11 @@ export function familyTreeHtml(escapeHtml, tree) {
             ${houses.tudu.map((unit, index) => unitHtml(escapeHtml, unit, `tudu-g3-${index}`)).join("")}
           </div>
         </div>
-        ${houses.olly ? `<div class="ft-olly" data-olly>${cardHtml(escapeHtml, houses.olly, "blood")}</div>` : ""}
+        ${(houses.children || []).map((child, idx) => `
+          <div class="ft-olly" data-child-idx="${idx}" data-olly-id="${escapeHtml(child.id)}">
+            ${cardHtml(escapeHtml, child, "blood")}
+          </div>
+        `).join("")}
       </div>
     </div>
   `;
@@ -322,14 +420,19 @@ export function drawFamilyLines(root) {
   if (!chart || !svg) return;
   const khu = chart.querySelector("[data-khu] .ft-card");
   const bhutku = chart.querySelector("[data-bhutku] .ft-card");
-  const olly = chart.querySelector("[data-olly]");
-  if (khu && bhutku && olly) {
+  const childCards = [...chart.querySelectorAll(".ft-olly")];
+  if (khu && bhutku && childCards.length) {
     const a = rel(chart, khu);
     const b = rel(chart, bhutku);
     const midX = (a.x + b.x) / 2;
     const chartBox = chart.getBoundingClientRect();
     const below = Math.max(khu.getBoundingClientRect().bottom, bhutku.getBoundingClientRect().bottom) - chartBox.top + 28;
-    pinFace(chart, olly, midX, below);
+    const spacing = 110;
+    const totalW = (childCards.length - 1) * spacing;
+    const startX = midX - totalW / 2;
+    childCards.forEach((childEl, i) => {
+      pinFace(chart, childEl, startX + i * spacing, below);
+    });
   }
   const w = Math.max(chart.scrollWidth, chart.clientWidth);
   const h = Math.max(chart.scrollHeight, chart.clientHeight);
@@ -381,9 +484,9 @@ export function drawFamilyLines(root) {
     const b = rel(chart, bhutku);
     const midX = (a.x + b.x) / 2;
     add(a.x, a.y, b.x, b.y);
-    if (olly) {
-      const child = rel(chart, olly);
-      fork(midX, a.y, [child]);
+    if (childCards.length) {
+      const childPts = childCards.map((card) => rel(chart, card));
+      fork(midX, a.y, childPts);
     }
   }
   [...chart.querySelectorAll("[data-unit]")].forEach((unit) => {
