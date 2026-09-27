@@ -2271,6 +2271,12 @@ body.is-daily-sorting {
   display: grid;
   place-items: center;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.ft-face:active {
+  transform: scale(0.92);
 }
 
 .ft-card.is-f .ft-face {
@@ -2317,7 +2323,36 @@ body.is-daily-sorting {
 }
 
 .ft-card input::placeholder {
-  color: transparent;
+  color: var(--ink-soft);
+  opacity: 0.55;
+}
+
+.family-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px 14px;
+}
+
+.family-add-btn {
+  font: inherit;
+  font-size: var(--fs-micro, 0.78rem);
+  font-weight: 600;
+  padding: 6px 14px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--chrome);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.family-add-btn:active {
+  transform: scale(0.96);
+  background: var(--tile);
 }
 
 .note-del {
