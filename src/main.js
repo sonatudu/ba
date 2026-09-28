@@ -33,6 +33,22 @@ const LAST_PIN_KEY = "ba-last-pin";
 const MAP_KIND_KEY = "ba-map-kind-v1";
 const KEEP_MS = 24 * 60 * 60 * 1000;
 
+let session = null;
+let state = null;
+
+function isPersonalRoom() {
+  try {
+    if (session?.roomId) {
+      return String(session.roomId).toUpperCase() === "BA-OURS";
+    }
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return String(parsed?.roomId || "").toUpperCase() === "BA-OURS";
+  } catch {
+    return false;
+  }
+}
+
 function readSavedWho() {
   try {
     const who = String(localStorage.getItem(WHO_KEY) || "").trim().toLowerCase();
@@ -391,8 +407,7 @@ const KEPT_DATES = [
 
 function mergeKeptDates(list) {
   const next = Array.isArray(list) ? [...list] : [];
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
-  if (!isPersonal) {
+  if (!isPersonalRoom()) {
     return next.filter((item) => !KEPT_DATES.some((row) => row.id === item.id));
   }
   const have = new Set(next.map((item) => item.id));
@@ -710,20 +725,19 @@ function normalizeCycle(value) {
 }
 
 function defaultPartnerName(who) {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
-  if (isPersonal) return who === "ma" ? "Ma" : "Ba";
+  if (isPersonalRoom()) return who === "ma" ? "Ma" : "Ba";
   return who === "ma" ? "Partner 2" : "Partner 1";
 }
 
 function personName(id) {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   if (id === "ba") return state?.you || (isPersonal ? "Ba" : "Partner 1");
   if (id === "ma") return state?.them || (isPersonal ? "Ma" : "Partner 2");
   return "";
 }
 
 const defaultState = () => {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   return {
     you: isPersonal ? "Ba" : "",
     them: isPersonal ? "Ma" : "",
@@ -752,7 +766,7 @@ const defaultState = () => {
 };
 
 function contentState(value) {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   const source = value || defaultState();
   return {
     you: source.you || (isPersonal ? "Ba" : "Partner 1"),
@@ -2347,8 +2361,8 @@ async function sendChatContent(extra = {}) {
   }
 }
 
-let state = defaultState();
-let session = loadSession();
+session = loadSession();
+state = defaultState();
 let spaceKey = null;
 let saveTimer = 0;
 let tab = "home";
@@ -2570,11 +2584,6 @@ async function openSession(payload) {
   } catch {
     opened = null;
   }
-  state = {
-    ...defaultState(),
-    startedOn: payload.startedOn,
-    ...contentState(opened),
-  };
   session = {
     token: payload.token,
     username: coupleId(payload.username) || readSavedWho(),
@@ -2583,6 +2592,11 @@ async function openSession(payload) {
     them: "ma",
     roomId,
     kdfSalt: payload.kdfSalt,
+  };
+  state = {
+    ...defaultState(),
+    startedOn: payload.startedOn,
+    ...contentState(opened),
   };
   saveSession(session);
   saveWho(session.username);
@@ -2601,7 +2615,7 @@ async function openSession(payload) {
   startGeoShare();
   startPush();
   const had = new Set((opened?.dates || []).map((item) => item.id));
-  if (KEPT_DATES.some((row) => !had.has(row.id))) persist().catch(() => {});
+  if (isPersonalRoom() && KEPT_DATES.some((row) => !had.has(row.id))) persist().catch(() => {});
 }
 
 async function logout() {
@@ -2745,6 +2759,14 @@ function gateView() {
       card.querySelectorAll("[data-who]").forEach((item) => item.classList.toggle("picked", item === button));
     });
   });
+  const updateWhoLabels = () => {
+    const isP = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
+    const baBtn = card.querySelector('[data-who="ba"] span');
+    const maBtn = card.querySelector('[data-who="ma"] span');
+    if (baBtn) baBtn.textContent = isP ? "Ba" : "Partner 1";
+    if (maBtn) maBtn.textContent = isP ? "Ma" : "Partner 2";
+  };
+  card.querySelector("#room-id")?.addEventListener("input", updateWhoLabels);
   card.querySelector("form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (choosing) return;
@@ -5027,7 +5049,7 @@ function memoryIso(item) {
 }
 
 function isKeptMemory(id) {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   if (!isPersonal) return false;
   return KEPT_DATES.some((row) => row.id === id);
 }
@@ -6288,7 +6310,7 @@ function cycleView() {
       </div>
     </div>`
     : `<p class="muted">No Meprate yet.</p>`;
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   const gapRows = cycleGapTableRows(cycle);
   const showGap = isPersonal || gapRows.length > 0;
   const gapTableHtml = gapRows.length
@@ -6944,7 +6966,7 @@ function usView() {
 }
 
 function familyView() {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   const partnerAName = state.you || "Partner 1";
   const partnerBName = state.them || "Partner 2";
   const raw = state.familyTree;
@@ -8055,7 +8077,7 @@ async function toggleShareLocation() {
 }
 
 function routineView() {
-  const isPersonal = String(session?.roomId || "").toUpperCase() === "BA-OURS";
+  const isPersonal = isPersonalRoom();
   if (!state.routine) {
     state.routine = ensureRoutine(null, isPersonal);
     schedulePersist();
