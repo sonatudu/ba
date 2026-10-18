@@ -40,6 +40,18 @@ export function enterRoom(body) {
   return request("/api/enter", { method: "POST", body });
 }
 
+export function previewRoom(body) {
+  return request("/api/room-preview", { method: "POST", body });
+}
+
+export function saveRoomProfile(token, body) {
+  return request("/api/room-profile", { method: "POST", token, body });
+}
+
+export function loadQuote() {
+  return request("/api/quote");
+}
+
 export function setIdentity(token, who) {
   return request("/api/identity", { method: "POST", token, body: { who } });
 }

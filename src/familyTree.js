@@ -114,39 +114,52 @@ export function personalFamilyTree() {
   };
 }
 
-export function generalFamilyTree(nameA = "Partner 1", nameB = "Partner 2") {
+export const FAMILY_RELATIONS = [
+  ["Sibling", "Sibling"],
+  ["Father", "Father"],
+  ["Mother", "Mother"],
+  ["Parent", "Parent"],
+  ["Grandfather", "Grandfather"],
+  ["Grandmother", "Grandmother"],
+  ["Spouse", "Spouse"],
+  ["Child", "Child"],
+  ["Uncle", "Uncle"],
+  ["Aunt", "Aunt"],
+  ["Cousin", "Cousin"],
+  ["Niece", "Niece"],
+  ["Nephew", "Nephew"],
+  ["Relative", "Relative"],
+];
+
+export function generalFamilyTree(nameA = "", nameB = "") {
   const sideA = c(
-    p("Grandfather", "M", { nick: "", born: "" }),
-    p("Grandmother", "F", { nick: "", born: "" }),
+    p("", "M"),
+    p("", "F"),
     [
       c(
-        p("Father", "M", { nick: "", born: "" }),
-        p("Mother", "F", { nick: "", born: "" }),
-        [
-          p(nameA || "Partner 1", "F", { link: true, nick: "", born: "" }),
-        ]
+        p("", "M"),
+        p("", "F"),
+        [p(nameA || "", "F", { link: true })],
       ),
     ]
   );
 
   const sideB = c(
-    p("Grandfather", "M", { nick: "", born: "" }),
-    p("Grandmother", "F", { nick: "", born: "" }),
+    p("", "M"),
+    p("", "F"),
     [
       c(
-        p("Father", "M", { nick: "", born: "" }),
-        p("Mother", "F", { nick: "", born: "" }),
-        [
-          p(nameB || "Partner 2", "M", { link: true, nick: "", born: "" }),
-        ]
+        p("", "M"),
+        p("", "F"),
+        [p(nameB || "", "M", { link: true })],
       ),
     ]
   );
 
   const unionTree = c(
-    p(nameA || "Partner 1", "F", { link: true, nick: "", born: "" }),
-    p(nameB || "Partner 2", "M", { link: true, nick: "", born: "" }),
-    [p("Child", "F", { link: true, nick: "", born: "" })]
+    p(nameA || "", "F", { link: true }),
+    p(nameB || "", "M", { link: true }),
+    []
   );
 
   return {
@@ -156,12 +169,12 @@ export function generalFamilyTree(nameA = "Partner 1", nameB = "Partner 2") {
   };
 }
 
-export function defaultFamilyTree(isPersonal = false, nameA = "Partner 1", nameB = "Partner 2") {
+export function defaultFamilyTree(isPersonal = false, nameA = "", nameB = "") {
   if (isPersonal) return personalFamilyTree();
   return generalFamilyTree(nameA, nameB);
 }
 
-export function ensureFamilyTree(tree, isPersonal = false, nameA = "Partner 1", nameB = "Partner 2") {
+export function ensureFamilyTree(tree, isPersonal = false, nameA = "", nameB = "") {
   if (!tree?.mandi && !tree?.tudu && !tree?.union) return defaultFamilyTree(isPersonal, nameA, nameB);
   return {
     mandi: lockSeedPeople(tree.mandi, isPersonal),
@@ -323,13 +336,14 @@ const FACE = `<span class="ft-face" aria-hidden="true"><svg viewBox="0 0 24 24">
 function cardHtml(escapeHtml, person, role = "") {
   if (!person) return "";
   const roleClass = role ? ` is-${role}` : "";
+  const nick = String(person.nick || "").trim();
+  const born = String(person.born || "").trim();
   return `
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
       ${FACE}
       <input data-field="name" value="${escapeHtml(person.name || "")}" placeholder="Name" />
-      <input data-field="relation" placeholder="Relation" value="${escapeHtml(person.relation || "")}" />
-      <input data-field="nick" placeholder="Nickname" value="${escapeHtml(person.nick || "")}" />
-      <input data-field="born" placeholder="Birthday" value="${escapeHtml(person.born || "")}" />
+      ${nick ? `<input data-field="nick" value="${escapeHtml(nick)}" />` : `<input data-field="nick" value="" hidden />`}
+      ${born ? `<input data-field="born" value="${escapeHtml(born)}" />` : `<input data-field="born" value="" hidden />`}
     </article>
   `;
 }
@@ -404,7 +418,11 @@ export function familyTreeHtml(escapeHtml, tree) {
   const tuduG2 = tuduG1?.kids?.[0];
   const houses = houseUnits(source);
   return `
-    <div class="chart-scroll">
+    <div class="family-zoom-bar">
+      <button type="button" class="family-zoom-btn" data-family-zoom-out aria-label="Zoom out">−</button>
+      <button type="button" class="family-zoom-btn" data-family-zoom-in aria-label="Zoom in">+</button>
+    </div>
+    <div class="chart-scroll" data-family-scroll>
       <div class="chart" data-chart>
         <svg class="chart-lines" data-tree-lines></svg>
         <div class="chart-row chart-g1">
@@ -497,7 +515,7 @@ export function drawFamilyLines(root) {
     const chartBox = chart.getBoundingClientRect();
     const below = Math.max(khu.getBoundingClientRect().bottom, bhutku.getBoundingClientRect().bottom) - chartBox.top + 28;
     const cardW = childCards[0]?.offsetWidth || 92;
-    const spacing = cardW + 20;
+    const spacing = cardW + 56;
     const totalW = (childCards.length - 1) * spacing;
     const startX = midX - totalW / 2;
     childCards.forEach((childEl, i) => {
@@ -521,7 +539,7 @@ export function drawFamilyLines(root) {
     if (info.pts.length >= 2) add(info.pts[0].x, info.pts[0].y, info.pts[1].x, info.pts[1].y);
     return info;
   };
-  const fork = (originX, originY, targets, gap = 28) => {
+  const fork = (originX, originY, targets, gap = 42) => {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const barY = Math.min(...kids.map((pt) => pt.top ?? pt.y)) - gap;
@@ -565,7 +583,7 @@ export function drawFamilyLines(root) {
     const parent = pair ? pairPoints(chart, pair) : null;
     if (!parent || !kids) return;
     const childPts = [...kids.querySelectorAll(".ft-card")].map((card) => rel(chart, card));
-    fork(parent.midX, parent.y, childPts, 18);
+    fork(parent.midX, parent.y, childPts, 28);
   });
   svg.innerHTML = lines.join("");
 }

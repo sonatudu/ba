@@ -33,10 +33,55 @@ const PAIR_CODE = "192746";
 const COUPLE_ROOM_ID = "BA-OURS";
 const COUPLE_MEMBERS = ["ba", "ma"];
 function partnerPushTitle(room, username) {
+  const names = room?.names && typeof room.names === "object" ? room.names : {};
   if (String(room?.id || "").toUpperCase() === COUPLE_ROOM_ID) {
-    return username === "ma" ? "Ma" : "Ba";
+    return username === "ma" ? names.ma || "Ma" : names.ba || "Ba";
   }
-  return username === "ma" ? "Partner 2" : "Partner 1";
+  const named = username === "ma" ? names.ma : names.ba;
+  return named || (username === "ma" ? "Partner" : "You");
+}
+
+let quoteCache = { day: "", quote: null };
+
+function httpGetJson(url, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const lib = String(url).startsWith("https") ? https : http;
+    const req = lib.get(url, { headers: { Accept: "application/json" } }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "null"));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      reject(new Error("timeout"));
+    });
+  });
+}
+
+async function fetchQuoteOfDay() {
+  try {
+    const data = await httpGetJson("https://zenquotes.io/api/today");
+    const row = Array.isArray(data) ? data[0] : data;
+    const text = String(row?.q || "").trim();
+    if (text) return { text, by: String(row?.a || "").trim() };
+  } catch {
+    /* try next */
+  }
+  try {
+    const data = await httpGetJson("https://favqs.com/api/qotd");
+    const text = String(data?.quote?.body || "").trim();
+    if (text) return { text, by: String(data?.quote?.author || "").trim() };
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 function hashHex(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -177,8 +222,10 @@ function deleteSessionsForRoom(roomId) {
 
 function wipeAccount(user) {
   const roomId = user.roomId || COUPLE_ROOM_ID;
+  if (roomId === COUPLE_ROOM_ID) return false;
   deleteRoomFile(roomId);
   deleteSessionsForRoom(roomId);
+  return true;
 }
 
 function readRoom(roomId) {
@@ -402,11 +449,14 @@ function assignWho(room, deviceId, requested) {
 
 function publicRoom(room, username) {
   const who = room.members[0] === username ? "you" : "them";
+  const names = roomNamesOf(room);
   return {
     roomId: room.id,
     who,
     you: room.members[0],
     them: room.members[1],
+    names,
+    title: cleanTitle(room.title),
     startedOn: room.startedOn,
     kdfSalt: room.kdfSalt,
     blob: room.blob,
@@ -445,10 +495,31 @@ function roomCodeOk(room, value) {
   return safeEqual(hashHex(code), String(room.codeHash));
 }
 
+function cleanName(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 30);
+}
+
+function cleanTitle(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 24);
+}
+
+function roomNamesOf(room) {
+  const names = room?.names && typeof room.names === "object" ? room.names : {};
+  return { ba: cleanName(names.ba), ma: cleanName(names.ma) };
+}
+
 function emptyRoom(id, extra = {}) {
   return {
     id,
     members: [...COUPLE_MEMBERS],
+    names: { ba: "", ma: "" },
+    title: "",
     startedOn: "",
     kdfSalt: randomBytes(16).toString("hex"),
     blob: "",
@@ -586,11 +657,71 @@ app.post("/api/rooms", (req, res) => {
   } catch {
     return res.status(500).json({ error: "Could not create a room." });
   }
-  const room = emptyRoom(id, { codeHash: hashHex(code) });
+  const youName = cleanName(req.body?.youName || req.body?.you);
+  const themName = cleanName(req.body?.themName || req.body?.them);
+  const title = cleanTitle(req.body?.title);
+  const names = { ba: "", ma: "" };
+  if (who === "ba") {
+    names.ba = youName;
+    names.ma = themName;
+  } else {
+    names.ma = youName;
+    names.ba = themName;
+  }
+  const room = emptyRoom(id, { codeHash: hashHex(code), names, title });
   room.devices[deviceId] = who;
   writeRoom(room);
   const token = issueToken(who, room.id, deviceId);
   res.json({ token, username: who, ...publicRoom(room, who) });
+});
+
+app.post("/api/room-preview", (req, res) => {
+  const ip = req.ip || "local";
+  if (!rateLimit(`preview:${ip}`, 40, 60 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many tries. Wait a bit." });
+  }
+  const code = digitsCode(req.body?.code);
+  const roomId = parseRoomId(req.body?.roomId);
+  if (!roomId || !code) return res.status(400).json({ error: "Enter the room id and code." });
+  const room = roomId === COUPLE_ROOM_ID ? ensureCoupleRoom() : readRoom(roomId);
+  if (!room || !roomCodeOk(room, code)) {
+    return res.status(401).json({ error: "That room or code is wrong." });
+  }
+  const names = roomNamesOf(room);
+  res.json({
+    roomId: room.id,
+    names: room.id === COUPLE_ROOM_ID ? { ba: names.ba || "Ba", ma: names.ma || "Ma" } : names,
+    title: cleanTitle(room.title),
+  });
+});
+
+app.post("/api/room-profile", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (auth.room.id === COUPLE_ROOM_ID) {
+    return res.json({ names: roomNamesOf(auth.room), title: cleanTitle(auth.room.title) });
+  }
+  const names = roomNamesOf(auth.room);
+  const nextBa = cleanName(req.body?.names?.ba ?? req.body?.you ?? names.ba);
+  const nextMa = cleanName(req.body?.names?.ma ?? req.body?.them ?? names.ma);
+  auth.room.names = { ba: nextBa, ma: nextMa };
+  if (req.body?.title != null) auth.room.title = cleanTitle(req.body.title);
+  writeRoom(auth.room);
+  res.json({ names: auth.room.names, title: auth.room.title });
+});
+
+app.get("/api/quote", async (_req, res) => {
+  const day = new Date().toISOString().slice(0, 10);
+  if (quoteCache.day === day && quoteCache.quote) {
+    return res.json(quoteCache.quote);
+  }
+  const quote = await fetchQuoteOfDay();
+  if (quote?.text) {
+    quoteCache = { day, quote };
+    return res.json(quote);
+  }
+  if (quoteCache.quote) return res.json(quoteCache.quote);
+  res.status(502).json({ error: "No quote today." });
 });
 
 app.post("/api/enter", (req, res) => {
@@ -2079,11 +2210,13 @@ app.delete("/api/account", (req, res) => {
     return res.status(401).json({ error: "That code is wrong." });
   }
   const roomId = auth.room.id;
+  if (roomId === COUPLE_ROOM_ID) {
+    return res.status(400).json({ error: "This room’s data is kept and cannot be deleted." });
+  }
   wipeAccount({
     username: auth.user.username,
     roomId,
   });
-  if (roomId === COUPLE_ROOM_ID) ensureCoupleRoom();
   res.json({ ok: true });
 });
 

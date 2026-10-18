@@ -81,7 +81,7 @@
   </head>
   <body>
     <h1>Ba user manual</h1>
-    <p class="meta">Last updated: 28 September 2026 · Private room for two partners</p>
+    <p class="meta">Last updated: 19 October 2026 · Private room for two</p>
     <p class="cannot-see">
       <strong>We cannot see any user's data.</strong>
       The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a
@@ -108,7 +108,6 @@
       <li><a href="#family">Family</a></li>
       <li><a href="#settings">Settings</a></li>
       <li><a href="#gestures">Gestures</a></li>
-      <li><a href="#updates">Recent updates</a></li>
     </ul>
 
     <h2 id="why">Why Ba exists</h2>
@@ -141,11 +140,11 @@
     </p>
     <dl>
       <dt>Create a room</dt>
-      <dd>Enter your name or short name, partner's name or short name, choose Ba or Ma, pick a 6-digit code, and tap <strong>Create</strong>. Settings then shows the room id to share with your partner.</dd>
+      <dd>Enter your name, their name, and a name for your relationship (shown under Together on Home). Pick who you are using those names, choose a 6-digit code, and tap <strong>Create</strong>. Settings then shows the room id to share.</dd>
       <dt>Join a room</dt>
-      <dd>Enter the room id, the code, pick Ba or Ma, tap <strong>Open</strong>. Room id can be left blank only if you already share a private code from before rooms were public.</dd>
-      <dt>Ba / Ma</dt>
-      <dd>Who you are in this room. Remembered on the phone. Ba and Ma see the same room with their chosen custom partner names. Periods stay on the Ba side.</dd>
+      <dd>Enter the room id and code. When the names are already saved, the two buttons show those names so you can pick who you are. Tap <strong>Open</strong>.</dd>
+      <dt>Who you are</dt>
+      <dd>Remembered on this phone. Both people see the same room. Periods stay on one side of the pair.</dd>
       <dt>Choose a code / Code</dt>
       <dd>At least 6 digits. The people who run Ba cannot read your journal even with this code; it only opens the room.</dd>
       <dt>Back</dt>
@@ -158,9 +157,9 @@
     <p>Home is the hub. The phone <strong>Back</strong> button returns here from other screens (and closes nested Periods/Memories editors first).</p>
     <dl>
       <dt>Days together</dt>
-      <dd>Shown under the Ba wordmark once a relationship start date is set in Settings.</dd>
+      <dd>Shown under your relationship name once a start date is set in Settings.</dd>
       <dt>Daily quote</dt>
-      <dd>A quiet line that changes with the calendar day. Not a button.</dd>
+      <dd>A quiet line fetched for the calendar day. Not a button.</dd>
       <dt>Poke (large tile with the time)</dt>
       <dd>Sends a poke. Your phone vibrates. The partner’s phone vibrates only — no banner, no sound. The time on the tile is the last poke.</dd>
       <dt>Chat, Routine, Daily, Where, To Do, Overview, Memories, Periods, Family</dt>
@@ -223,9 +222,9 @@
       <dt>Partner ticks on a row</dt>
       <dd>Mark that person done for that task. Empty dashed circles mean the task is not theirs.</dd>
       <dt>Edit</dt>
-      <dd>Opens add/rename/reorder. Time-of-day label cycles Morning → Afternoon → Evening → Night. The assignee label cycles Both → Partner 1 → Partner 2. Drag the handle to reorder inside a slot. Long-press a row to delete.</dd>
+      <dd>Opens add/rename/reorder. New rooms start with no tasks — add your own. Time-of-day cycles Morning → Afternoon → Evening → Night. Whose task cycles Both and each person’s name. Drag the handle to reorder inside a slot. Long-press a row for Rename, Delete, or Keep. A task added today is counted from today onward, not on earlier days. Percentages use each person’s own tasks.</dd>
       <dt>Add a daily task</dt>
-      <dd>Type the name, pick time of day and whose task it is. Enter adds while staying in Edit. <strong>Done</strong> saves the field, any renamed tasks, and leaves Edit. There is no separate tick next to the add field.</dd>
+      <dd>Type the name, pick time of day and whose task it is. Enter adds while staying in Edit. <strong>Done</strong> saves and leaves Edit.</dd>
     </dl>
 
     <h2 id="where">Where</h2>
@@ -262,12 +261,14 @@
       <dt>Priority dots</dt>
       <dd>Near, Soon, Later (colour flags on the list).</dd>
       <dt>Long-press a task</dt>
-      <dd>Delete (when not using the × in Edit).</dd>
+      <dd>Rename, Delete, or Keep, including outside Edit.</dd>
     </dl>
 
     <h2 id="overview">Overview</h2>
     <p>Day notes, good and bad, for one date.</p>
     <dl>
+      <dt>Notes</dt>
+      <dd>Lists days that already have overview notes. Tap a day to jump there.</dd>
       <dt>Calendar icon</dt>
       <dd>Jump to another day. Swipe the month if the picker is open.</dd>
       <dt>Add</dt>
@@ -290,19 +291,15 @@
       <dt>Coming up</dt>
       <dd>Yearly or dated memories in the next 45 days.</dd>
       <dt>All</dt>
-      <dd>Grouped by year (and Yearly). Cards show Delete and More. Long-press a card to Edit that memory (title, story, date, Repeat yearly).</dd>
+      <dd>Grouped by year (and Yearly). Long-press a card for Edit, Duplicate, yearly repeat, Copy, and Delete.</dd>
       <dt>Edit</dt>
-      <dd>Only after a long-press on that memory (or from More). <strong>Done</strong> / <strong>Delete</strong> are on the editor.</dd>
-      <dt>Delete</dt>
-      <dd>On each card (with Keep / Delete confirm). Also from long-press, the editor, or More. All user memories can be deleted freely.</dd>
-      <dt>More</dt>
-      <dd>Edit, Duplicate, Repeat yearly / Stop yearly repeat, Copy (title, date, and story), and Delete. Long-press a card for the same actions.</dd>
+      <dd>Opens from that long-press menu. <strong>Done</strong> / <strong>Delete</strong> are on the editor.</dd>
     </dl>
 
     <h2 id="periods">Periods</h2>
-    <p>Cycle & period tracker. Summary, calendar, Record period, Medicine courses, and Gap.</p>
+    <p>Cycle tracker. Summary, calendar, and Record period. Fertile window, next period, days between periods, and period length use averages of logged cycles, not only the last month.</p>
     <h3>Summary</h3>
-    <p>Period start, cycle day, fertile window, next period, days between periods, period length — from logged days, with Settings as fallback.</p>
+    <p>Period start, fertile window, next period, days between periods, period length. Day count appears only while a period is still on. After it has ended, the day number is hidden until the next period starts.</p>
     <h3>Calendar</h3>
     <dl>
       <dt>Swipe left / right</dt>
@@ -320,14 +317,12 @@
       <dt>Menstrual flow</dt>
       <dd>Light / Medium / Heavy.</dd>
       <dt>Symptoms</dt>
-      <dd>Tick any that apply. Tap the pencil icon at the bottom to add new symptoms, remove existing ones, or tap Done.</dd>
-      <dt>Notes</dt>
-      <dd>Optional.</dd>
+      <dd>Collapsed until you tap <strong>Symptoms</strong>. Then tick options, add notes, and use the pencil to add or remove symptom names.</dd>
       <dt>Save / Update</dt>
       <dd>Writes that day. History is month buttons; open a month for daily rows until Ended, then a month summary. Long-press: Edit, Last day (if still on), Delete.</dd>
     </dl>
     <h3>Meprate</h3>
-    <p>Track prescribed Meprate courses day by day.</p>
+    <p>Shown only in the original personal room. Track prescribed Meprate courses day by day.</p>
     <dl>
       <dt>Date</dt>
       <dd>The day of this log.</dd>
@@ -339,7 +334,7 @@
       <dd>Daily history until Ended, then a month summary. Long-press: Edit or Delete.</dd>
     </dl>
     <h3>Gap</h3>
-    <p>Days from Meprate course <strong>end</strong> to the next <strong>period start</strong> (clean 3-column table showing Month, Period start, and Gap). To keep the app clean for general users, the Gap card is hidden for new rooms and is shown whenever treatment gap data exists (such as in BA-OURS).</p>
+    <p>Shown only in the original personal room. Days from Meprate course <strong>end</strong> to the next <strong>period start</strong> (Month, Period start, Gap).</p>
     <h3>Period settings (gear)</h3>
     <dl>
       <dt>Days between periods</dt>
@@ -349,7 +344,9 @@
     </dl>
 
     <h2 id="family">Family</h2>
-    <p>Two-sided, balanced family tree for the couple. New rooms start with a clean tree for both sides with flexible, adaptive spacing on all screens. Use the single <strong>+ Add Member</strong> button to add any relationship type (Sibling, Parent, Father, Mother, Grandfather, Grandmother, Spouse/Partner, Child, Uncle, Aunt, Cousin, Relative) to either side or shared children. Tap any card to edit name, relation label, nickname, or birthday (saves automatically as you type). Tap the face avatar to toggle gender. Long-press any card to remove it. Scroll the chart; connecting lines redraw dynamically.</p>
+    <p>
+      Two-sided family tree. Use <strong>+ Add Member</strong> and the in-app pickers for where to add the person (the relationship is only for placement — it is not drawn on the card). Cards show the name, and nickname or birthday only when those values exist. Tap the face to toggle gender. Long-press a card to remove it. Pinch or use + / − to zoom so connecting lines stay clear.
+    </p>
 
     <h2 id="settings">Settings</h2>
     <dl>
@@ -357,8 +354,8 @@
       <dd>Day theme or night theme.</dd>
       <dt>Room id</dt>
       <dd>Shown after you create or join. <strong>Copy</strong> shares the id so the other person can Join. Also share your room code (not shown here).</dd>
-      <dt>Partner Names & Short Names</dt>
-      <dd>Customize your display name and your partner's name or short names at any time. Updates throughout the app including Routine, Daily habits, To Do, Where map pins, and Family Tree.</dd>
+      <dt>Names</dt>
+      <dd>Your name, their name, and the relationship name (Together on Home). Saves as you type. A Saved label stays on after they are stored.</dd>
       <dt>Relationship start date</dt>
       <dd>Sets the home “days together” count. Calendar picker.</dd>
       <dt>Share location</dt>
@@ -369,8 +366,10 @@
       <dd>This page.</dd>
       <dt>Privacy policy</dt>
       <dd>How data is stored and deleted. Also highlights that we cannot see any user's data.</dd>
+      <dt>Download data as PDF</dt>
+      <dd>Saves a readable PDF of notes, memories, tasks, habits, periods, and chat on this device.</dd>
       <dt>Export all data (Backup JSON)</dt>
-      <dd>Downloads a complete, unencrypted JSON backup of all your shared room data directly to your device (including notes, memories, daily habits, routines, todos, period & medicine logs, family tree, and all decrypted chat messages). Keep this safe for personal offline storage or backup.</dd>
+      <dd>Downloads a complete, unencrypted JSON backup of shared room data (notes, memories, habits, routines, to-dos, period logs, family tree, and chat). Keep it for your own offline copy.</dd>
       <dt>Session & Chat persistence</dt>
       <dd>Your login session remains active indefinitely on your phone without unexpected automatic termination. Chat messages are never automatically pruned or deleted.</dd>
       <dt>Log out</dt>
@@ -382,21 +381,9 @@
     <h2 id="gestures">Gestures that show up in several places</h2>
     <ul>
       <li><strong>Phone Back</strong> — close the current screen or nested editor; from Home, leave the app.</li>
-      <li><strong>Long-press</strong> — delete / edit menus on tasks, period history, memories, family cards, chat messages. Memories: long-press a card for Edit (and Duplicate, yearly, Copy, Delete); cards also have Delete and More.</li>
+      <li><strong>Long-press</strong> — menus on tasks, period history, memories, family cards, and chat messages.</li>
       <li><strong>In-app calendar</strong> — tap the date control; change month with ‹ › or by swiping; tap a day.</li>
       <li><strong>Keep / Delete</strong> — confirm before something is removed.</li>
-    </ul>
-
-    <h2 id="updates">Recent updates</h2>
-    <p class="meta">Keep this list in step with the app. Newest first.</p>
-    <ul>
-      <li><strong>28 Sep 2026</strong> — Removed partner-specific Ba/Ma references for general rooms across all screens, push notifications, and manual docs (defaulting cleanly to Partner 1 and Partner 2 or custom user names); streamlined Family Tree actions to a clean, single "+ Add Member" button; added "+ Add Subject" directly to schedule card header and slot editor modal for instant subject management.</li>
-      <li><strong>28 Sep 2026</strong> — Restored original clean symptoms editor with bottom pencil toggle; streamlined Meprate course tracker and removed Medicine end column from Gap table for a clean 3-column view (Month, Period start, Gap).</li>
-      <li><strong>28 Sep 2026</strong> — Custom names & short names, clean memories for new users, all relationship types & adaptive family tree, and schedule day customization: Users can now enter their own names or short names when creating a room and edit them at any time in Settings. New rooms start with a clean memories list without developer seed dates. Family tree now supports all relationship types (parents, grandparents, siblings, spouses, children, uncles, aunts, cousins) with dedicated relation labels and flexible adaptive layout. Added "Edit Days" to schedule to remove or add days (such as removing Sunday for a 5 or 6-day timetable), and quick-pick subject selection when editing timetable slots.</li>
-      <li><strong>28 Sep 2026</strong> — Custom symptoms, customizable medicine courses, permanent retention, and data backup: Add custom symptoms directly with "+ Add" under Period symptoms. Log any medicine course (not just Meprate) with custom medicine names, selection, and history. Gap tracking is hidden for new accounts and preserved for existing treatment logs. Sessions and chat messages are now retained permanently without automatic deletion or expiration. Added "Export all data (Backup JSON)" in Settings to download a complete offline backup of all room data and decrypted chat.</li>
-      <li><strong>28 Sep 2026</strong> — Customizable weekly Routine for everyone: both partners now have a customizable 7-day schedule. Tap any cell to edit the subject/activity, adjust column span (1–4 slots), or clear to free. Edit daily time slots dynamically with "Edit Slots". Added encrypted Weekly Notes for reminders and goals. Preserved complete BAU and NITK timetables, courses, and mess menus for existing accounts (BA-OURS) with full editing support.</li>
-      <li><strong>28 Sep 2026</strong> — General family tree for all couples: new rooms start with a clean starter tree for both sides instead of locked personal families. Tap any card to edit details; tap face avatar to toggle gender; long-press to remove. Added top buttons to add siblings for either partner or add children. Personal room (BA-OURS) data remains preserved.</li>
-      <li><strong>18 Sep 2026</strong> — New people can <strong>Create a room</strong> or <strong>Join a room</strong> (room id + code). Settings shows Room id with Copy. Memories: small <strong>+</strong> on the right of the saved / coming up line. Edit is only on long-press of that memory (not a button on the card). Memories no longer shows “Dates and stories you want to keep.” Where map: N and P switch without going blank; street tiles keep filling when zoomed in. No extra inset for the status bar or the phone’s home / back / recent buttons. Chat message bar sits above the keyboard when you tap it. Home mood line removed. Every public page highlights that we cannot see any user's data. Memories: Add is at the top; each card has Delete and More. Manual explains that Ba is not a WhatsApp replacement (no images, video, or voice notes) and exists as a private place for the relationship. Privacy policy updated for room code, optional location and notifications, and Delete account code verification. Delete account verifies with the room code in Settings (not a system prompt). User manual. Settings label is Relationship start date. Where: one pin each, from the latest active device. Daily: tasks can be Both/Ba/Ma; graph uses each person’s own totals. Record period is daily (Still on / Ended) like Meprate. Daily <strong>Done</strong> saves new tasks (no add tick). To Do has Edit. Chat opens on the latest message; send keeps the keyboard. Poke vibrates only. Map stays visible when zooming N and P.</li>
     </ul>
   </body>
 </html>
