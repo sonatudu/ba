@@ -4,9 +4,9 @@ import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadSignals, logoutCloud, pingPresence, readChat, registerPushToken, removeChat, clearChat, saveCloud, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
+import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadQuote, loadSignals, logoutCloud, pingPresence, previewRoom, readChat, registerPushToken, removeChat, clearChat, saveCloud, saveRoomProfile, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
-import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
+import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, FAMILY_RELATIONS, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import {
   routineHtml,
   ensureRoutine,
@@ -726,14 +726,20 @@ function normalizeCycle(value) {
 
 function defaultPartnerName(who) {
   if (isPersonalRoom()) return who === "ma" ? "Ma" : "Ba";
-  return who === "ma" ? "Partner 2" : "Partner 1";
+  return "";
 }
 
 function personName(id) {
   const isPersonal = isPersonalRoom();
-  if (id === "ba") return state?.you || (isPersonal ? "Ba" : "Partner 1");
-  if (id === "ma") return state?.them || (isPersonal ? "Ma" : "Partner 2");
+  if (id === "ba") return String(state?.you || "").trim() || (isPersonal ? "Ba" : "You");
+  if (id === "ma") return String(state?.them || "").trim() || (isPersonal ? "Ma" : "Partner");
   return "";
+}
+
+function togetherLabel() {
+  const named = String(state?.togetherName || "").trim();
+  if (named) return named;
+  return isPersonalRoom() ? "Ba" : "Us";
 }
 
 const defaultState = () => {
@@ -741,6 +747,7 @@ const defaultState = () => {
   return {
     you: isPersonal ? "Ba" : "",
     them: isPersonal ? "Ma" : "",
+    togetherName: isPersonal ? "Ba" : "",
     startedOn: "",
     nextDate: "",
     notes: [],
@@ -769,8 +776,9 @@ function contentState(value) {
   const isPersonal = isPersonalRoom();
   const source = value || defaultState();
   return {
-    you: source.you || (isPersonal ? "Ba" : "Partner 1"),
-    them: source.them || (isPersonal ? "Ma" : "Partner 2"),
+    you: source.you || (isPersonal ? "Ba" : ""),
+    them: source.them || (isPersonal ? "Ma" : ""),
+    togetherName: source.togetherName || (isPersonal ? "Ba" : ""),
     startedOn: source.startedOn || "",
     nextDate: source.nextDate || "",
     notes: (source.notes || []).map((note) => ({
@@ -992,6 +1000,20 @@ function dailyHabitsFor(habits, who) {
   return (Array.isArray(habits) ? habits : []).filter((habit) => dailyHabitForWho(habit, who));
 }
 
+function habitFromOf(habit) {
+  const from = String(habit?.from || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : "";
+}
+
+function habitActiveOn(habit, day) {
+  const from = habitFromOf(habit);
+  return !from || !day || from <= day;
+}
+
+function dailyHabitsOnDay(habits, day) {
+  return (Array.isArray(habits) ? habits : []).filter((habit) => habitActiveOn(habit, day));
+}
+
 function reorderDailyHabitsInSlot(habits, slot, orderedIds) {
   const want = dailySlotOf(slot);
   const list = Array.isArray(habits) ? habits : [];
@@ -1016,8 +1038,8 @@ function dailyTickOf(value) {
   return { ba: Boolean(row.ba), ma: Boolean(row.ma) };
 }
 
-function dailyProgressRow(habits, ticks) {
-  const list = Array.isArray(habits) ? habits : [];
+function dailyProgressRow(habits, ticks, day = "") {
+  const list = dailyHabitsOnDay(habits, day);
   const baTotal = dailyHabitsFor(list, "ba").length;
   const maTotal = dailyHabitsFor(list, "ma").length;
   return {
@@ -1056,10 +1078,10 @@ function normalizeDailyProgress(raw, habits, days) {
     };
   });
   Object.keys(days || {}).forEach((day) => {
-    progress[day] = dailyProgressRow(habits, days[day]);
+    progress[day] = dailyProgressRow(habits, days[day], day);
   });
   const today = isoToday();
-  progress[today] = dailyProgressRow(habits, (days || {})[today] || {});
+  progress[today] = dailyProgressRow(habits, (days || {})[today] || {}, today);
   return progress;
 }
 
@@ -1109,7 +1131,7 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
     if (day < floor) {
       return { day, label, ba: null, ma: null, plot: false };
     }
-    const row = progress[day] || dailyProgressRow(daily?.habits || [], (daily?.days || {})[day] || {});
+    const row = progress[day] || dailyProgressRow(daily?.habits || [], (daily?.days || {})[day] || {}, day);
     return {
       day,
       label,
@@ -1151,7 +1173,7 @@ function dailyGraphPoints(daily, range, today = isoToday()) {
       const key = day.slice(0, 7);
       if (!buckets.has(key)) buckets.set(key, { ba: 0, ma: 0, baN: 0, maN: 0 });
       if (day < floor) return;
-      const row = progress[day] || dailyProgressRow(daily?.habits || [], (daily?.days || {})[day] || {});
+      const row = progress[day] || dailyProgressRow(daily?.habits || [], (daily?.days || {})[day] || {}, day);
       const cur = buckets.get(key);
       const baPct = dailyProgressPct(row, "ba");
       const maPct = dailyProgressPct(row, "ma");
@@ -1303,7 +1325,14 @@ function normalizeDaily(value) {
       const id = String(row.id || "").trim();
       const label = String(row.label || "").trim();
       if (!id || !label) return null;
-      return { id, label, slot: dailySlotOf(row.slot), who: dailyWhoOf(row.who) };
+      const from = String(row.from || "").slice(0, 10);
+      return {
+        id,
+        label,
+        slot: dailySlotOf(row.slot),
+        who: dailyWhoOf(row.who),
+        from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : "",
+      };
     })
     .filter(Boolean);
   const days = {};
@@ -1322,10 +1351,13 @@ function normalizeDaily(value) {
   const alreadySeeded = Boolean(source.snacksSeeded);
   const nightSeeded = Boolean(source.nightSeeded);
   let campusSeeded = Boolean(source.campusSeeded);
+  const personal = isPersonalRoom();
   if (!habits.length) {
-    habits = defaultDailyHabits();
-    campusSeeded = true;
-  } else {
+    if (personal) {
+      habits = defaultDailyHabits();
+      campusSeeded = true;
+    }
+  } else if (personal) {
     if (!hasSnacksHabit(habits) && !alreadySeeded) habits = withSnacksHabit(habits);
     if (!hasSleepHabit(habits) && !nightSeeded) habits = withSleepHabit(habits);
     if (!campusSeeded) {
@@ -1526,22 +1558,26 @@ function bindDailyStrip(scroller, viewDay, { recenter = false } = {}) {
   );
 }
 
-function dailyCountFor(habits, ticks, who) {
-  return dailyHabitsFor(habits, who).filter((habit) => Boolean((ticks || {})[habit.id]?.[who])).length;
+function dailyCountFor(habits, ticks, who, day = "") {
+  return dailyHabitsFor(dailyHabitsOnDay(habits, day), who).filter((habit) => Boolean((ticks || {})[habit.id]?.[who])).length;
 }
 
 function dailyStreakFor(daily, who) {
   const habits = daily.habits || [];
-  const mine = dailyHabitsFor(habits, who);
-  if (!mine.length) return 0;
   const cursor = new Date();
   cursor.setHours(12, 0, 0, 0);
   const todayKey = dayKey(cursor.getTime());
-  if (dailyCountFor(habits, daily.days[todayKey] || {}, who) < mine.length) {
+  const mineToday = dailyHabitsFor(dailyHabitsOnDay(habits, todayKey), who);
+  if (!mineToday.length) return 0;
+  if (dailyCountFor(habits, daily.days[todayKey] || {}, who, todayKey) < mineToday.length) {
     cursor.setDate(cursor.getDate() - 1);
   }
   let streak = 0;
-  while (dailyCountFor(habits, daily.days[dayKey(cursor.getTime())] || {}, who) >= mine.length) {
+  while (true) {
+    const key = dayKey(cursor.getTime());
+    const mine = dailyHabitsFor(dailyHabitsOnDay(habits, key), who);
+    if (!mine.length) break;
+    if (dailyCountFor(habits, daily.days[key] || {}, who, key) < mine.length) break;
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -2399,6 +2435,11 @@ let gate = "home";
 let welcomeStep = "choose";
 /** Keeps a verified room code when setup answers are still needed (avoids typing the code twice). */
 let pendingLogin = null;
+let roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
+let familyZoom = 1;
+let cycleSymptomsOpen = false;
+let overviewDaysOpen = false;
+let liveQuote = null;
 let createdInvite = "";
 let inbox = { incoming: [], outgoing: [] };
 let chatLog = [];
@@ -2708,24 +2749,28 @@ function gateView() {
         </div>`
                   : ""
               }
-        <div class="field">
-          <div class="who-pick" role="group" aria-label="${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ba or Ma" : "Partner selection"}">
-            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span>${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ba" : "Partner 1"}</span></button>
-            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span>${String(pendingLogin?.roomId || "").toUpperCase() === "BA-OURS" ? "Ma" : "Partner 2"}</span></button>
-          </div>
-        </div>
         ${
           creating
             ? `<div class="field">
-          <label for="create-you">Your name or short name</label>
-          <input id="create-you" name="createYou" maxlength="28" placeholder="e.g. Alex, Sam" autocomplete="off" />
+          <label for="create-you">Your name</label>
+          <input id="create-you" name="createYou" maxlength="28" placeholder="Your name" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="create-them">Partner's name or short name</label>
-          <input id="create-them" name="createThem" maxlength="28" placeholder="e.g. Jordan, Taylor" autocomplete="off" />
+          <label for="create-them">Their name</label>
+          <input id="create-them" name="createThem" maxlength="28" placeholder="Their name" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="create-title">Name of your relationship</label>
+          <input id="create-title" name="createTitle" maxlength="24" placeholder="Shown under Together" autocomplete="off" />
         </div>`
             : ""
         }
+        <div class="field">
+          <div class="who-pick" role="group" aria-label="Who you are">
+            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span data-who-label="ba"></span></button>
+            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span data-who-label="ma"></span></button>
+          </div>
+        </div>
         ${
           joining
             ? `<div class="field">
@@ -2760,13 +2805,57 @@ function gateView() {
     });
   });
   const updateWhoLabels = () => {
-    const isP = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
-    const baBtn = card.querySelector('[data-who="ba"] span');
-    const maBtn = card.querySelector('[data-who="ma"] span');
-    if (baBtn) baBtn.textContent = isP ? "Ba" : "Partner 1";
-    if (maBtn) maBtn.textContent = isP ? "Ma" : "Partner 2";
+    const roomId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase();
+    const isP = roomId === "BA-OURS";
+    const you = String(card.querySelector("#create-you")?.value || "").trim();
+    const them = String(card.querySelector("#create-them")?.value || "").trim();
+    const names = roomPreview?.names || {};
+    const baBtn = card.querySelector('[data-who-label="ba"]');
+    const maBtn = card.querySelector('[data-who-label="ma"]');
+    if (creating) {
+      if (baBtn) baBtn.textContent = you || them ? (pickedWho === "ba" ? you || "You" : them || "You") : "You";
+      if (maBtn) maBtn.textContent = you || them ? (pickedWho === "ba" ? them || "Them" : you || "Them") : "Them";
+      if (pickedWho === "ba") {
+        if (baBtn) baBtn.textContent = you || "You";
+        if (maBtn) maBtn.textContent = them || "Them";
+      } else {
+        if (baBtn) baBtn.textContent = them || "Them";
+        if (maBtn) maBtn.textContent = you || "You";
+      }
+    } else if (isP) {
+      if (baBtn) baBtn.textContent = names.ba || "Ba";
+      if (maBtn) maBtn.textContent = names.ma || "Ma";
+    } else {
+      if (baBtn) baBtn.textContent = names.ba || "You";
+      if (maBtn) maBtn.textContent = names.ma || "Them";
+    }
   };
-  card.querySelector("#room-id")?.addEventListener("input", updateWhoLabels);
+  const fetchPreview = async () => {
+    if (!joining) return;
+    const roomId = String(card.querySelector("#room-id")?.value || "").trim();
+    const code = String(card.querySelector("#code")?.value || "").replace(/\D/g, "");
+    if (!roomId || code.length < 4) return;
+    try {
+      roomPreview = await previewRoom({ roomId, code });
+      updateWhoLabels();
+    } catch {
+      roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
+      updateWhoLabels();
+    }
+  };
+  card.querySelector("#room-id")?.addEventListener("input", () => {
+    updateWhoLabels();
+    window.clearTimeout(card._previewWait);
+    card._previewWait = window.setTimeout(fetchPreview, 400);
+  });
+  card.querySelector("#code")?.addEventListener("input", () => {
+    window.clearTimeout(card._previewWait);
+    card._previewWait = window.setTimeout(fetchPreview, 400);
+  });
+  card.querySelector("#create-you")?.addEventListener("input", updateWhoLabels);
+  card.querySelector("#create-them")?.addEventListener("input", updateWhoLabels);
+  updateWhoLabels();
+  if (joining) fetchPreview();
   card.querySelector("form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (choosing) return;
@@ -2785,7 +2874,7 @@ function gateView() {
       const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
       const isPersonal = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
       if (!savedWho && who !== "ba" && who !== "ma") {
-        err.textContent = isPersonal ? "Pick Ba or Ma." : "Select who you are (Partner 1 or Partner 2).";
+        err.textContent = "Pick who you are.";
         return;
       }
       const locating = requestLocation();
@@ -2799,15 +2888,33 @@ function gateView() {
       }
       const customYou = String(card.querySelector("#create-you")?.value || "").trim().slice(0, 30);
       const customThem = String(card.querySelector("#create-them")?.value || "").trim().slice(0, 30);
+      const customTitle = String(card.querySelector("#create-title")?.value || "").trim().slice(0, 24);
+      if (creating) {
+        if (customYou) body.youName = customYou;
+        if (customThem) body.themName = customThem;
+        if (customTitle) body.title = customTitle;
+      }
       const entered = creating ? await createRoom(body) : await enterRoom(body);
       pendingLogin = null;
       if (needSetup) localStorage.setItem(SETUP_KEY, "1");
       saveWho(coupleId(entered.username) || who);
       await openSession(entered);
-      if (creating && (customYou || customThem)) {
-        const nextYou = who === "ba" ? (customYou || "Partner 1") : (customThem || "Partner 1");
-        const nextThem = who === "ba" ? (customThem || "Partner 2") : (customYou || "Partner 2");
-        setState({ you: nextYou, them: nextThem }, true);
+      if (creating) {
+        const nextYou = who === "ba" ? customYou : customThem;
+        const nextThem = who === "ba" ? customThem : customYou;
+        setState({
+          you: nextYou || "",
+          them: nextThem || "",
+          togetherName: customTitle || "",
+        }, true);
+      } else if (entered?.names) {
+        const nextYou = entered.names.ba || state.you;
+        const nextThem = entered.names.ma || state.them;
+        setState({
+          you: nextYou,
+          them: nextThem,
+          togetherName: entered.title || state.togetherName || "",
+        }, true);
       }
       await locating;
       welcomeStep = "choose";
@@ -2954,44 +3061,54 @@ function homeSectionIcon(id) {
   return `<svg class="home-ico" viewBox="0 0 24 24" aria-hidden="true">${icons[id] || ""}</svg>`;
 }
 
+const QUOTE_KEY = "ba-quote-v1";
+
+function cachedDailyQuote() {
+  try {
+    const row = JSON.parse(localStorage.getItem(QUOTE_KEY) || "null");
+    if (row?.day === isoToday() && row?.text) return row;
+  } catch {
+    /* ignore */
+  }
+  return liveQuote?.day === isoToday() ? liveQuote : null;
+}
+
+function fallbackDailyQuote() {
+  return { text: "Wherever you go, go with all your heart.", by: "Confucius", day: isoToday() };
+}
+
 function homeDailyQuote() {
-  const quotes = [
-    { text: "The journey of a thousand miles begins with one step.", by: "Lao Tzu" },
-    { text: "Keep your face always toward the sunshine.", by: "Walt Whitman" },
-    { text: "Happiness depends upon ourselves.", by: "Aristotle" },
-    { text: "Wherever you go, go with all your heart.", by: "Confucius" },
-    { text: "What we think, we become.", by: "Buddha" },
-    { text: "Do what you can, with what you have.", by: "Theodore Roosevelt" },
-    { text: "The best way out is always through.", by: "Robert Frost" },
-    { text: "Fortune favors the brave.", by: "Latin proverb" },
-    { text: "No act of kindness is ever wasted.", by: "Aesop" },
-    { text: "It is never too late to be what you might have been.", by: "George Eliot" },
-    { text: "We are what we repeatedly do.", by: "Aristotle" },
-    { text: "Hope is the thing with feathers.", by: "Emily Dickinson" },
-    { text: "Start where you are. Use what you have.", by: "Arthur Ashe" },
-    { text: "Kindness is a language the deaf can hear.", by: "Mark Twain" },
-    { text: "Bloom where you are planted.", by: "Proverb" },
-    { text: "Every day may not be good, but there is something good in every day.", by: "Alice Morse Earle" },
-    { text: "Courage is grace under pressure.", by: "Ernest Hemingway" },
-    { text: "Love is composed of a single soul inhabiting two bodies.", by: "Aristotle" },
-    { text: "Where there is love there is life.", by: "Mahatma Gandhi" },
-    { text: "The only true wisdom is in knowing you know nothing.", by: "Socrates" },
-    { text: "In three words I can sum up everything I’ve learned about life: it goes on.", by: "Robert Frost" },
-    { text: "Don’t go where the path may lead; go instead where there is no path and leave a trail.", by: "Ralph Waldo Emerson" },
-    { text: "The secret of getting ahead is getting started.", by: "Mark Twain" },
-    { text: "There is nothing either good or bad, but thinking makes it so.", by: "Shakespeare" },
-    { text: "To love and be loved is to feel the sun from both sides.", by: "David Viscott" },
-    { text: "A day without laughter is a day wasted.", by: "Charlie Chaplin" },
-    { text: "The only impossible journey is the one you never begin.", by: "Tony Robbins" },
-    { text: "Simplicity is the ultimate sophistication.", by: "Leonardo da Vinci" },
-    { text: "Be still, and know.", by: "Psalm 46" },
-    { text: "Nothing great was ever achieved without enthusiasm.", by: "Ralph Waldo Emerson" },
-    { text: "The future belongs to those who believe in the beauty of their dreams.", by: "Eleanor Roosevelt" },
-  ];
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const day = Math.floor((now - start) / 86400000);
-  return quotes[Math.max(0, day) % quotes.length];
+  return cachedDailyQuote() || fallbackDailyQuote();
+}
+
+function paintHomeQuote(root, quote) {
+  const line = root?.querySelector?.(".home-quote-text");
+  if (!line || !quote?.text) return;
+  line.textContent = `“${quote.text}”`;
+}
+
+async function refreshDailyQuote(root) {
+  const today = isoToday();
+  const cached = cachedDailyQuote();
+  if (cached) {
+    liveQuote = cached;
+    paintHomeQuote(root, cached);
+    return;
+  }
+  try {
+    const row = await loadQuote();
+    const quote = { text: String(row?.text || "").trim(), by: String(row?.by || "").trim(), day: today };
+    if (!quote.text) return;
+    liveQuote = quote;
+    try {
+      localStorage.setItem(QUOTE_KEY, JSON.stringify(quote));
+    } catch {
+      /* ignore */
+    }
+    paintHomeQuote(root, quote);
+  } catch {
+    /* keep fallback */
+  }
 }
 
 function homeView() {
@@ -3017,7 +3134,7 @@ function homeView() {
       <header class="home-brand">
         <div class="home-brand-main">
           <p class="home-kicker">Together</p>
-          <h2 class="home-wordmark">Ba</h2>
+          <h2 class="home-wordmark">${escapeHtml(togetherLabel())}</h2>
           ${
             state.startedOn
               ? `<p class="home-days"><strong>${days}</strong><span>days</span></p>`
@@ -3115,6 +3232,7 @@ function homeView() {
   });
   setChatBadge();
   page.querySelector("[data-settings]").addEventListener("click", () => goTab("settings"));
+  refreshDailyQuote(page);
   return page;
 }
 
@@ -3615,6 +3733,15 @@ function noteWho(note) {
   return who === "ba" ? personName("ba") : who === "ma" ? personName("ma") : "";
 }
 
+function overviewRecordedDays() {
+  const days = new Set();
+  (state.notes || []).forEach((note) => {
+    const day = noteDay(note);
+    if (day) days.add(day);
+  });
+  return [...days].sort().reverse();
+}
+
 function notesForDay(day) {
   return state.notes
     .filter((note) => noteDay(note) === day)
@@ -3804,6 +3931,68 @@ function appCalPickerHtml(name, iso = "", { clearable = false, icon = false, max
       </div>
     </div>
   `;
+}
+
+function appChoiceHtml(name, options, value = "") {
+  const list = Array.isArray(options) ? options : [];
+  const picked = list.find(([id]) => id === value) || list[0] || ["", ""];
+  return `
+    <div class="app-choice" data-choice-name="${escapeHtml(name)}" data-choice-value="${escapeHtml(picked[0] || "")}">
+      <button type="button" class="app-cal-trigger" data-choice-open aria-haspopup="listbox" aria-expanded="false">${escapeHtml(picked[1] || "Choose")}</button>
+      <div class="app-cal-scrim" data-choice-scrim hidden></div>
+      <div class="app-cal-pop app-choice-pop" data-choice-pop hidden>
+        ${list
+          .map(
+            ([id, label]) =>
+              `<button type="button" class="app-choice-opt${id === picked[0] ? " is-on" : ""}" data-choice="${escapeHtml(id)}">${escapeHtml(label)}</button>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function bindAppChoice(root, name, { getValue, setValue } = {}) {
+  const box = root.querySelector(`[data-choice-name="${name}"]`);
+  if (!box) return;
+  const trigger = box.querySelector("[data-choice-open]");
+  const scrim = box.querySelector("[data-choice-scrim]");
+  const pop = box.querySelector("[data-choice-pop]");
+  const close = () => {
+    if (scrim) scrim.hidden = true;
+    if (pop) pop.hidden = true;
+    trigger?.setAttribute("aria-expanded", "false");
+  };
+  const open = () => {
+    if (scrim) scrim.hidden = false;
+    if (pop) pop.hidden = false;
+    trigger?.setAttribute("aria-expanded", "true");
+  };
+  trigger?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (pop && !pop.hidden) close();
+    else open();
+  });
+  scrim?.addEventListener("click", close);
+  box.querySelectorAll("[data-choice]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = btn.dataset.choice || "";
+      const label = btn.textContent || "";
+      box.dataset.choiceValue = id;
+      if (trigger) trigger.textContent = label;
+      box.querySelectorAll("[data-choice]").forEach((item) => item.classList.toggle("is-on", item === btn));
+      close();
+      setValue?.(id);
+    });
+  });
+  const current = getValue?.() || box.dataset.choiceValue;
+  if (current) {
+    const match = [...box.querySelectorAll("[data-choice]")].find((item) => item.dataset.choice === current);
+    if (match && trigger) trigger.textContent = match.textContent;
+  }
 }
 
 function pageScrollY() {
@@ -4511,7 +4700,7 @@ function storyDeleteMenu(page) {
         <button type="button" class="hold-menu-btn is-danger" data-act="delete">Delete</button>
       </div>
       <div class="hold-menu-extra" data-hold-extra hidden>
-        <button type="button" data-act="edit" hidden>Edit</button>
+        <button type="button" data-act="edit" hidden>Rename</button>
         <button type="button" data-act="last-day" hidden>Last day</button>
       </div>
     </div>
@@ -4610,7 +4799,7 @@ function storyDeleteMenu(page) {
   };
 }
 
-function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay }) {
+function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay, kicker, title, label }) {
   let hold = 0;
   let skipClick = false;
   const swallow = (event) => {
@@ -4637,7 +4826,7 @@ function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay }) {
     hold = window.setTimeout(() => {
       skipClick = true;
       navigator.vibrate?.(10);
-      menu.open(card, { onDelete, onEdit, onLastDay });
+      menu.open(card, { onDelete, onEdit, onLastDay, kicker, title, label });
     }, 480);
   });
   const cancelHold = () => window.clearTimeout(hold);
@@ -4928,8 +5117,27 @@ function todayDayView(day) {
               <span class="is-bad">${counts.bad} bad</span>
             </p>
           </div>
-          <div class="overview-jump">${appCalPickerHtml("overview-jump", day, { icon: true })}</div>
+          <div class="overview-jump">
+            <button type="button" class="overview-days-btn" data-overview-days aria-expanded="${overviewDaysOpen}">Notes</button>
+            ${appCalPickerHtml("overview-jump", day, { icon: true })}
+          </div>
         </div>
+        ${
+          overviewDaysOpen
+            ? `<div class="overview-days-list">
+          ${
+            overviewRecordedDays().length
+              ? overviewRecordedDays()
+                  .map(
+                    (iso) =>
+                      `<button type="button" class="overview-day-chip${iso === day ? " is-on" : ""}" data-overview-day="${escapeHtml(iso)}">${escapeHtml(fmt(iso))}</button>`
+                  )
+                  .join("")
+              : `<p class="overview-empty">No recorded days yet.</p>`
+          }
+        </div>`
+            : ""
+        }
       </article>
       ${goodNotes.length ? overviewPanelHtml("good", goodNotes) : ""}
       ${badNotes.length ? overviewPanelHtml("bad", badNotes) : ""}
@@ -4968,8 +5176,21 @@ function todayDayView(day) {
     setIso: (iso) => {
       const next = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : "";
       if (!next || next === day) return;
+      overviewDaysOpen = false;
       openDiary(next);
     },
+  });
+  wrap.querySelector("[data-overview-days]")?.addEventListener("click", () => {
+    overviewDaysOpen = !overviewDaysOpen;
+    render();
+  });
+  wrap.querySelectorAll("[data-overview-day]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.overviewDay || "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
+      overviewDaysOpen = false;
+      openDiary(next);
+    });
   });
   if (!overviewComposing) {
     wrap.querySelector("[data-overview-add]")?.addEventListener("click", () => {
@@ -5171,7 +5392,6 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
   const meta = [when, dateLine].filter(Boolean).join(" · ");
   const badges = [
     item.noYear ? `<span class="memories-badge">Yearly</span>` : "",
-    kept ? `<span class="memories-badge is-kept">Kept</span>` : "",
     years > 0 ? `<span class="memories-badge is-years">${years}y</span>` : "",
   ]
     .filter(Boolean)
@@ -5184,10 +5404,6 @@ function memoryCardHtml(item, { upcoming = null } = {}) {
       </div>
       <h3 class="memories-note-title">${escapeHtml(text)}</h3>
       ${story ? `<p class="memories-note-story">${escapeHtml(story.length > 90 ? `${story.slice(0, 90)}…` : story)}</p>` : ""}
-      <div class="memories-note-actions">
-        <button type="button" data-memory-del ${kept ? "disabled" : ""}>${kept ? "Kept" : "Delete"}</button>
-        <button type="button" data-memory-more>More</button>
-      </div>
     </article>
   `;
 }
@@ -5377,27 +5593,9 @@ function datesView() {
     const id = node.dataset.memory;
     const item = state.dates.find((row) => row.id === id);
     if (!item) return;
-    const actions = node.querySelector(".memories-note-actions");
-    actions?.addEventListener("pointerdown", (event) => event.stopPropagation());
-    actions?.addEventListener("click", (event) => event.stopPropagation());
-    node.querySelector("[data-memory-del]")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (isKeptMemory(item.id)) {
-        showAppToast("Kept memories stay.");
-        return;
-      }
-      menu.open(node, {
-        label: item.text || item.title || "Memory",
-        onDelete: () => deleteMemory(item),
-      });
-    });
-    node.querySelector("[data-memory-more]")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      openSheet(item);
-    });
     let hold = 0;
     node.addEventListener("pointerdown", (event) => {
-      if (event.target.closest(".memories-note-actions")) return;
+      if (event.target.closest("button,input,textarea,a")) return;
       hold = window.setTimeout(() => {
         navigator.vibrate?.(10);
         openSheet(item);
@@ -5885,10 +6083,13 @@ function cycleStats(cycle) {
   const nextEnd = nextStart ? isoAddDays(nextStart, periodLen - 1) : "";
   let cycleDay = 0;
   if (last) {
-    const since = isoDiffDays(last.start, today);
-    if (since >= 0) {
-      cycleDay = (since % cycleLen) + 1;
-      if (nextStart && today >= nextStart) cycleDay = isoDiffDays(nextStart, today) + 1;
+    const ended = periodDayEnded(last) || last.status === COURSE_STATUS_ENDED;
+    const bleedEnd = last.end && last.end >= last.start ? last.end : last.lastLog || "";
+    if (!ended && today >= last.start) {
+      const since = isoDiffDays(last.start, today);
+      if (since >= 0) cycleDay = since + 1;
+    } else if (!ended && bleedEnd && today >= last.start && today <= bleedEnd) {
+      cycleDay = isoDiffDays(last.start, today) + 1;
     }
   }
   const ovulation = nextStart ? isoAddDays(nextStart, -14) : "";
@@ -6311,8 +6512,8 @@ function cycleView() {
     </div>`
     : `<p class="muted">No Meprate yet.</p>`;
   const isPersonal = isPersonalRoom();
-  const gapRows = cycleGapTableRows(cycle);
-  const showGap = isPersonal || gapRows.length > 0;
+  const gapRows = isPersonal ? cycleGapTableRows(cycle) : [];
+  const showGap = isPersonal;
   const gapTableHtml = gapRows.length
     ? `<div class="cycle-gap-table-wrap">
         <table class="cycle-gap-table">
@@ -6343,7 +6544,7 @@ function cycleView() {
         <h3>Summary</h3>
         <dl class="cycle-facts cycle-summary">
           <div class="cycle-fact"><dt>Period start</dt><dd>${escapeHtml(lastLabel)}</dd></div>
-          <div class="cycle-fact"><dt>Day</dt><dd>${stats.cycleDay ? escapeHtml(String(stats.cycleDay)) : "—"}</dd></div>
+          ${stats.cycleDay ? `<div class="cycle-fact"><dt>Day</dt><dd>${escapeHtml(String(stats.cycleDay))}</dd></div>` : ""}
           <div class="cycle-fact"><dt>Fertile window</dt><dd>${escapeHtml(fertileLabel)}</dd></div>
           <div class="cycle-fact"><dt>Next period</dt><dd>${escapeHtml(nextLabel)}</dd></div>
           <div class="cycle-fact"><dt>Days between periods</dt><dd>${escapeHtml(avgLabel)}</dd></div>
@@ -6401,10 +6602,14 @@ function cycleView() {
               )}
             </div>
           </div>
-          <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsRemoving ? " is-removing" : ""}${cycleSymptomsEditing ? " is-editing" : ""}">
+          <div class="cycle-record-block cycle-symptoms-block${cycleSymptomsOpen ? " is-open" : ""}${cycleSymptomsRemoving ? " is-removing" : ""}${cycleSymptomsEditing ? " is-editing" : ""}">
             <div class="cycle-symptoms-head">
-              <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
+              <button type="button" class="cycle-symptoms-toggle-row" data-symptoms-open aria-expanded="${cycleSymptomsOpen}">
+                <span class="cycle-record-label" id="cycle-symptoms-label">Symptoms</span>
+                <span class="cycle-symptoms-caret" aria-hidden="true">${cycleSymptomsOpen ? "▾" : "▸"}</span>
+              </button>
             </div>
+            ${cycleSymptomsOpen ? `
             ${
               cycleSymptomsAdding
                 ? `<form class="cycle-symptom-add" data-symptom-add-form>
@@ -6441,10 +6646,11 @@ function cycleView() {
               </button>`
               }
             </div>
-          </div>
-          <div class="cycle-record-block">
-            <label class="cycle-record-label" for="cycle-note">Notes</label>
-            <textarea id="cycle-note" class="cycle-note" rows="3" maxlength="400" placeholder="Optional">${escapeHtml(cycleDraft.note)}</textarea>
+            <div class="cycle-record-block">
+              <label class="cycle-record-label" for="cycle-note">Notes</label>
+              <textarea id="cycle-note" class="cycle-note" rows="3" maxlength="400" placeholder="Optional">${escapeHtml(cycleDraft.note)}</textarea>
+            </div>
+            ` : ""}
           </div>
           <div class="cycle-record-row cycle-actions-row">
             <span class="cycle-record-label" aria-hidden="true"></span>
@@ -6460,7 +6666,7 @@ function cycleView() {
         <p class="cycle-course-form-title">History</p>
         ${periodHistoryHtml}
       </article>
-      <article class="card cycle-card" data-course-log>
+      ${isPersonal ? `<article class="card cycle-card" data-course-log>
         <h3>Meprate</h3>
         <div class="cycle-record cycle-course-form">
           <div class="cycle-record-row">
@@ -6510,7 +6716,7 @@ function cycleView() {
         <p class="err" data-course-err></p>
         <p class="cycle-course-form-title">History</p>
         ${courseHistoryHtml}
-      </article>
+      </article>` : ""}
       ${
         showGap
           ? `<article class="card cycle-card cycle-gap-card">
@@ -6642,9 +6848,21 @@ function cycleView() {
     cycleSymptomsEditing = false;
     cycleSymptomDraft = "";
   };
+  wrap.querySelector("[data-symptoms-open]")?.addEventListener("click", () => {
+    readDraftDates();
+    readCourseDraftFrom();
+    cycleSymptomsOpen = !cycleSymptomsOpen;
+    if (!cycleSymptomsOpen) {
+      cycleSymptomsAdding = false;
+      cycleSymptomsRemoving = false;
+      cycleSymptomsEditing = false;
+    }
+    render();
+  });
   wrap.querySelector("[data-symptoms-edit]")?.addEventListener("click", () => {
     readDraftDates();
     readCourseDraftFrom();
+    cycleSymptomsOpen = true;
     cycleSymptomsEditing = true;
     cycleSymptomsAdding = false;
     cycleSymptomsRemoving = false;
@@ -6786,7 +7004,7 @@ function cycleView() {
       render();
     });
   });
-  wrap.querySelector("[data-course-save]").addEventListener("click", () => {
+  wrap.querySelector("[data-course-save]")?.addEventListener("click", () => {
     readCourseDraftFrom();
     const start = courseDraft.start;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) {
@@ -6967,8 +7185,8 @@ function usView() {
 
 function familyView() {
   const isPersonal = isPersonalRoom();
-  const partnerAName = state.you || "Partner 1";
-  const partnerBName = state.them || "Partner 2";
+  const partnerAName = personName("ba");
+  const partnerBName = personName("ma");
   const raw = state.familyTree;
   if (!raw?.mandi && !raw?.tudu && !raw?.union) {
     state.familyTree = ensureFamilyTree(null, isPersonal, partnerAName, partnerBName);
@@ -6996,39 +7214,21 @@ function familyView() {
               <input type="text" data-member-name placeholder="e.g. Priya Sharma" maxlength="60" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
             </div>
             <div>
-              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Relationship / Label</label>
-              <select data-member-relation style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
-                <option value="Sibling">Sibling (Brother / Sister)</option>
-                <option value="Father">Father</option>
-                <option value="Mother">Mother</option>
-                <option value="Parent">Parent</option>
-                <option value="Grandfather">Grandfather</option>
-                <option value="Grandmother">Grandmother</option>
-                <option value="Spouse">Spouse / Partner</option>
-                <option value="Child">Child (Son / Daughter)</option>
-                <option value="Uncle">Uncle</option>
-                <option value="Aunt">Aunt</option>
-                <option value="Cousin">Cousin</option>
-                <option value="Niece">Niece</option>
-                <option value="Nephew">Nephew</option>
-                <option value="Relative">Other Relative</option>
-              </select>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Where to add</label>
+              ${appChoiceHtml("member-relation", FAMILY_RELATIONS, "Relative")}
             </div>
             <div>
-              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Family Side</label>
-              <select data-member-side style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
-                <option value="mandi">${escapeHtml(partnerAName)}’s Family Side</option>
-                <option value="tudu">${escapeHtml(partnerBName)}’s Family Side</option>
-                <option value="union">Our Children / Shared</option>
-              </select>
+              <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Family side</label>
+              ${appChoiceHtml("member-side", [
+                ["mandi", `${partnerAName}’s side`],
+                ["tudu", `${partnerBName}’s side`],
+                ["union", "Shared / children"],
+              ], "mandi")}
             </div>
             <div style="display:flex; gap:10px;">
               <div style="flex:1;">
                 <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Gender</label>
-                <select data-member-sex style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
-                  <option value="F">Female</option>
-                  <option value="M">Male</option>
-                </select>
+                ${appChoiceHtml("member-sex", [["F", "Female"], ["M", "Male"]], "F")}
               </div>
               <div style="flex:1;">
                 <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Nickname</label>
@@ -7049,6 +7249,27 @@ function familyView() {
     </div>
   `);
   const memberModal = wrap.querySelector("[data-family-member-modal]");
+  let memberRelation = "Relative";
+  let memberSide = "mandi";
+  let memberSex = "F";
+  bindAppChoice(wrap, "member-relation", {
+    getValue: () => memberRelation,
+    setValue: (id) => {
+      memberRelation = id || "Relative";
+    },
+  });
+  bindAppChoice(wrap, "member-side", {
+    getValue: () => memberSide,
+    setValue: (id) => {
+      memberSide = id || "mandi";
+    },
+  });
+  bindAppChoice(wrap, "member-sex", {
+    getValue: () => memberSex,
+    setValue: (id) => {
+      memberSex = id || "F";
+    },
+  });
   wrap.querySelector('[data-add-member]')?.addEventListener("click", () => {
     memberModal.hidden = false;
     document.body.classList.add("is-hold-menu");
@@ -7056,9 +7277,9 @@ function familyView() {
   });
   wrap.querySelector("[data-member-save]")?.addEventListener("click", () => {
     const name = wrap.querySelector("[data-member-name]")?.value.trim();
-    const relation = wrap.querySelector("[data-member-relation]")?.value;
-    const side = wrap.querySelector("[data-member-side]")?.value;
-    const sex = wrap.querySelector("[data-member-sex]")?.value;
+    const relation = memberRelation;
+    const side = memberSide;
+    const sex = memberSex;
     const nick = wrap.querySelector("[data-member-nick]")?.value.trim();
     const born = wrap.querySelector("[data-member-born]")?.value.trim();
     state.familyTree = addMemberToTree(state.familyTree, { side, relation, name, sex, nick, born });
@@ -7075,23 +7296,19 @@ function familyView() {
   const saveCard = (card) => {
     const id = card.dataset.treeId;
     if (!id) return;
-    const relation = card.querySelector('[data-field="relation"]')?.value.trim() || "";
     const next = {
       mandi: mapPerson(state.familyTree.mandi, id, {
         name: card.querySelector('[data-field="name"]').value,
-        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
       tudu: mapPerson(state.familyTree.tudu, id, {
         name: card.querySelector('[data-field="name"]').value,
-        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
       union: mapPerson(state.familyTree.union, id, {
         name: card.querySelector('[data-field="name"]').value,
-        relation,
         nick: card.querySelector('[data-field="nick"]').value.trim(),
         born: card.querySelector('[data-field="born"]').value.trim(),
       }),
@@ -7144,7 +7361,61 @@ function familyView() {
     watch.observe(chart);
   }
   wrap.querySelector(".chart-scroll")?.addEventListener("scroll", paint, { passive: true });
+  bindFamilyZoom(wrap, paint);
   return wrap;
+}
+
+function bindFamilyZoom(root, paint) {
+  const scroll = root.querySelector("[data-family-scroll]");
+  const chart = root.querySelector("[data-chart]");
+  if (!scroll || !chart) return;
+  const apply = () => {
+    familyZoom = Math.max(0.55, Math.min(2.4, familyZoom));
+    chart.style.transformOrigin = "top center";
+    chart.style.transform = `scale(${familyZoom})`;
+    chart.style.transition = "transform 0.12s ease";
+    requestAnimationFrame(() => paint?.());
+  };
+  apply();
+  root.querySelector("[data-family-zoom-in]")?.addEventListener("click", () => {
+    familyZoom += 0.12;
+    apply();
+  });
+  root.querySelector("[data-family-zoom-out]")?.addEventListener("click", () => {
+    familyZoom -= 0.12;
+    apply();
+  });
+  let pinch = 0;
+  let startZoom = familyZoom;
+  const distance = (event) => {
+    if (event.touches.length < 2) return 0;
+    const a = event.touches[0];
+    const b = event.touches[1];
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  };
+  scroll.addEventListener(
+    "touchstart",
+    (event) => {
+      if (event.touches.length !== 2) return;
+      pinch = distance(event);
+      startZoom = familyZoom;
+      chart.style.transition = "none";
+    },
+    { passive: true }
+  );
+  scroll.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length !== 2 || !pinch) return;
+      event.preventDefault();
+      familyZoom = startZoom * (distance(event) / pinch);
+      apply();
+    },
+    { passive: false }
+  );
+  scroll.addEventListener("touchend", () => {
+    pinch = 0;
+  });
 }
 
 function todoWhoOf(item) {
@@ -7345,14 +7616,18 @@ function todoView() {
     row.querySelector("[data-remove]")?.addEventListener("click", () => {
       setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
     });
-    if (todoEditing) {
-      bindHoldOpen(row, {
-        menu,
-        onDelete: () => {
-          setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
-        },
-      });
-    }
+    bindHoldOpen(row, {
+      menu,
+      kicker: "To Do",
+      title: item.text || "This task",
+      onEdit: () => {
+        todoEditing = true;
+        render();
+      },
+      onDelete: () => {
+        setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
+      },
+    });
     return row;
   };
   shown.forEach((item) => list.append(addRow(item)));
@@ -7492,7 +7767,7 @@ function saveDailyEdits(root, { silent = false } = {}) {
   const composer = (root || document).querySelector("[data-new]");
   const added = String(composer?.value || "").trim();
   if (added && habits.length < DAILY_HABIT_LIMIT) {
-    habits = [...habits, { id: uid(), label: added, slot: dailySlotOf(dailyDraftSlot), who: dailyWhoOf(dailyDraftWho) }];
+    habits = [...habits, { id: uid(), label: added, slot: dailySlotOf(dailyDraftSlot), who: dailyWhoOf(dailyDraftWho), from: isoToday() }];
     if (composer) composer.value = "";
   }
   writeDaily({ habits }, silent);
@@ -7505,11 +7780,11 @@ function dailyView() {
   const viewDay = clampDailyIso(rawView, today);
   dailyViewDay = viewDay;
   const ticks = daily.days[viewDay] || {};
-  const habits = daily.habits;
+  const habits = dailyHabitsOnDay(daily.habits, viewDay);
   const baTotal = dailyHabitsFor(habits, "ba").length;
   const maTotal = dailyHabitsFor(habits, "ma").length;
-  const baDone = dailyCountFor(habits, ticks, "ba");
-  const maDone = dailyCountFor(habits, ticks, "ma");
+  const baDone = dailyCountFor(habits, ticks, "ba", viewDay);
+  const maDone = dailyCountFor(habits, ticks, "ma", viewDay);
   const viewStamp = new Date(`${viewDay}T12:00:00`);
   const weekdayLabel = viewStamp.toLocaleDateString(undefined, { weekday: "long" });
   const dateShort = viewStamp.toLocaleDateString(undefined, {
@@ -7663,7 +7938,7 @@ function dailyView() {
             </section>`
                   )
                   .join("")
-              : `<p class="daily-empty">No daily tasks yet.</p>`
+              : `<p class="daily-empty">No tasks yet. Tap Edit to add your own.</p>`
           }
         </div>
       </article>
@@ -7787,6 +8062,12 @@ function dailyView() {
     });
     bindHoldOpen(row, {
       menu,
+      kicker: "Daily",
+      title: labelInput?.value || "This task",
+      onEdit: () => {
+        labelInput?.focus();
+        labelInput?.select();
+      },
       onDelete: () => {
         writeDaily({ habits: (normalizeDaily(state.daily).habits || []).filter((habit) => habit.id !== id) });
       },
@@ -7843,6 +8124,7 @@ async function exportAllData() {
       username: session?.username || "",
       you: state.you || "",
       them: state.them || "",
+      togetherName: state.togetherName || "",
       startedOn: state.startedOn || "",
       nextDate: state.nextDate || "",
       notes: state.notes || [],
@@ -7885,6 +8167,142 @@ async function exportAllData() {
   }
 }
 
+function pdfEscape(text) {
+  return String(text || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)")
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, (ch) => {
+      const code = ch.charCodeAt(0);
+      return code < 256 ? `\\${code.toString(8).padStart(3, "0")}` : " ";
+    });
+}
+
+function wrapPdfLine(text, width = 88) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  words.forEach((word) => {
+    const next = cur ? `${cur} ${word}` : word;
+    if (next.length > width) {
+      if (cur) lines.push(cur);
+      cur = word;
+    } else cur = next;
+  });
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [""];
+}
+
+function collectPdfLines() {
+  const lines = [];
+  const add = (text = "") => lines.push(String(text));
+  add(`Ba data · ${togetherLabel()}`);
+  add(`Room ${session?.roomId || ""} · ${isoToday()}`);
+  add(`${personName("ba")} & ${personName("ma")}`);
+  if (state.startedOn) add(`Together since ${fmt(state.startedOn)}`);
+  add("");
+  add("Notes");
+  (state.notes || []).forEach((note) => {
+    wrapPdfLine(`${noteDay(note) || ""} ${noteTone(note)} ${String(note.text || "").replace(/\s+/g, " ")}`).forEach(add);
+  });
+  add("");
+  add("Memories");
+  (state.dates || []).forEach((item) => {
+    wrapPdfLine(`${memoryDay(item) || ""} ${item.text || item.title || ""}`).forEach(add);
+    if (item.story) wrapPdfLine(item.story).forEach(add);
+  });
+  add("");
+  add("To Do");
+  (state.todos || []).forEach((item) => add(`${item.done ? "[x]" : "[ ]"} ${item.text || ""}`));
+  add("");
+  add("Daily tasks");
+  ((state.daily && state.daily.habits) || []).forEach((habit) => add(`- ${habit.label} (${habit.slot || ""} ${habit.who || "both"})`));
+  add("");
+  add("Periods");
+  ((state.cycle && state.cycle.periods) || []).forEach((row) => {
+    add(`${row.start || ""}${row.end ? ` – ${row.end}` : ""} ${row.status || ""} ${row.flow || ""}`);
+  });
+  add("");
+  add("Chat");
+  (chatLog || []).slice(-200).forEach((msg) => {
+    if (msg.deleted) return;
+    wrapPdfLine(`${new Date(msg.at || 0).toLocaleString()} ${msg.from || ""}: ${msg.text || ""}`).forEach(add);
+  });
+  return lines;
+}
+
+function buildSimplePdf(lines) {
+  const pageW = 595;
+  const pageH = 842;
+  const margin = 48;
+  const leading = 14;
+  const rowsPerPage = Math.floor((pageH - margin * 2) / leading);
+  const pages = [];
+  for (let i = 0; i < lines.length; i += rowsPerPage) pages.push(lines.slice(i, i + rowsPerPage));
+  if (!pages.length) pages.push([""]);
+  const objs = [];
+  const offsets = [];
+  const push = (body) => {
+    offsets.push(Buffer ? null : 0);
+    objs.push(body);
+  };
+  push("<< /Type /Catalog /Pages 2 0 R >>");
+  const kids = pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ");
+  push(`<< /Type /Pages /Count ${pages.length} /Kids [${kids}] >>`);
+  pages.forEach((pageLines, i) => {
+    const contentId = 4 + i * 2;
+    const pageId = 3 + i * 2;
+    const stream = pageLines
+      .map((line, row) => `BT /F1 11 Tf ${margin} ${pageH - margin - row * leading} Td (${pdfEscape(line)}) Tj ET`)
+      .join("\n");
+    push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    void pageId;
+  });
+  push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  let out = "%PDF-1.4\n";
+  const pos = [0];
+  objs.forEach((body, i) => {
+    pos[i] = out.length;
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n`;
+  out += "0000000000 65535 f \n";
+  pos.forEach((p) => {
+    out += `${String(p).padStart(10, "0")} 00000 n \n`;
+  });
+  out += `trailer << /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return out;
+}
+
+async function exportPdf() {
+  try {
+    showAppToast("Preparing PDF...");
+    if (session?.token && (!chatLog || !chatLog.length)) {
+      try {
+        await syncChat();
+      } catch {
+        /* ignore */
+      }
+    }
+    const pdf = buildSimplePdf(collectPdfLines());
+    const blob = new Blob([pdf], { type: "application/pdf" });
+    const filename = `ba-${session?.roomId || "room"}-${isoToday()}.pdf`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showAppToast("PDF downloaded");
+  } catch (err) {
+    showAppToast("PDF failed: " + (err.message || String(err)));
+  }
+}
+
 function settingsView() {
   const theme = readTheme();
   const sharing = sharingLoc();
@@ -7910,18 +8328,22 @@ function settingsView() {
         <span class="settings-start-label">Relationship start date</span>
         <div class="settings-start-control">${appCalPickerHtml("started-on", startDraft)}</div>
       </div>
-      <div class="settings-card card" style="padding:14px; margin-bottom:12px;">
-        <span class="settings-start-label" style="font-weight:600; margin-bottom:8px; display:block;">Partner Names & Short Names</span>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <div>
-            <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Your Name / Call Sign</label>
-            <input data-setting-you value="${escapeHtml(state.you || "")}" placeholder="e.g. Alex, Sam" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+      <div class="settings-card card settings-names">
+        <span class="settings-start-label">Names</span>
+        <div class="settings-names-fields">
+          <div class="field">
+            <label for="setting-you">Your name</label>
+            <input id="setting-you" data-setting-you value="${escapeHtml(state.you || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ba" : "Your name")}" maxlength="28" />
           </div>
-          <div>
-            <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Partner's Name / Call Sign</label>
-            <input data-setting-them value="${escapeHtml(state.them || "")}" placeholder="e.g. Jordan, Taylor" maxlength="28" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.88rem;" />
+          <div class="field">
+            <label for="setting-them">Their name</label>
+            <input id="setting-them" data-setting-them value="${escapeHtml(state.them || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ma" : "Their name")}" maxlength="28" />
           </div>
-          <button type="button" class="btn rose" data-save-names style="margin-top:4px; font-size:0.82rem; padding:7px 12px; align-self:flex-start;">Save Names</button>
+          <div class="field">
+            <label for="setting-title">Relationship name</label>
+            <input id="setting-title" data-setting-title value="${escapeHtml(state.togetherName || "")}" placeholder="Shown under Together" maxlength="24" />
+          </div>
+          <p class="settings-saved" data-names-saved>Saved</p>
         </div>
       </div>
       ${
@@ -7946,6 +8368,14 @@ function settingsView() {
         <i class="switch ${pushWanted() ? "is-on" : ""}" aria-hidden="true"></i>
       </button>
       <p class="settings-note">Chat and calls show a banner. Poke only vibrates.</p>
+      <button class="settings-row" type="button" data-export-pdf>
+        <span>Download data as PDF</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+          <path d="M14 3v6h6"/>
+        </svg>
+      </button>
+      <p class="settings-note">Save a readable copy of your notes, dates, habits, periods, family, and chat.</p>
       <button class="settings-row" type="button" data-export-data>
         <span>Export all data (Backup JSON)</span>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -8003,16 +8433,48 @@ function settingsView() {
       showAppToast(id);
     }
   });
-  wrap.querySelector("[data-save-names]")?.addEventListener("click", () => {
-    const nextYou = String(wrap.querySelector("[data-setting-you]")?.value || "").trim().slice(0, 30) || "Partner 1";
-    const nextThem = String(wrap.querySelector("[data-setting-them]")?.value || "").trim().slice(0, 30) || "Partner 2";
-    setState({ you: nextYou, them: nextThem }, true);
-    showAppToast("Names saved");
-    render();
+  const markNamesSaved = () => {
+    const note = wrap.querySelector("[data-names-saved]");
+    if (note) {
+      note.textContent = "Saved";
+      note.classList.add("is-on");
+    }
+  };
+  const saveNames = () => {
+    const nextYou = String(wrap.querySelector("[data-setting-you]")?.value || "").trim().slice(0, 30);
+    const nextThem = String(wrap.querySelector("[data-setting-them]")?.value || "").trim().slice(0, 30);
+    const nextTitle = String(wrap.querySelector("[data-setting-title]")?.value || "").trim().slice(0, 24);
+    if (nextYou === (state.you || "") && nextThem === (state.them || "") && nextTitle === (state.togetherName || "")) {
+      markNamesSaved();
+      return;
+    }
+    setState({ you: nextYou, them: nextThem, togetherName: nextTitle }, true);
+    markNamesSaved();
+    if (session?.token && !isPersonalRoom()) {
+      saveRoomProfile(session.token, {
+        names: { ba: nextYou, ma: nextThem },
+        title: nextTitle,
+      }).catch(() => {});
+    }
+  };
+  let namesWait = 0;
+  wrap.querySelectorAll("[data-setting-you],[data-setting-them],[data-setting-title]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const note = wrap.querySelector("[data-names-saved]");
+      if (note) {
+        note.textContent = "Saving…";
+        note.classList.add("is-on");
+      }
+      window.clearTimeout(namesWait);
+      namesWait = window.setTimeout(saveNames, 350);
+    });
+    input.addEventListener("blur", saveNames);
   });
+  markNamesSaved();
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
   wrap.querySelector("[data-export-data]")?.addEventListener("click", () => exportAllData());
+  wrap.querySelector("[data-export-pdf]")?.addEventListener("click", () => exportPdf());
   wrap.querySelector("[data-out]").addEventListener("click", () => logout());
   wrap.querySelector("[data-delete-account]")?.addEventListener("click", () => {
     settingsDeleteOpen = true;
@@ -8089,9 +8551,9 @@ function routineView() {
   const second = selfId() || (first === "ma" ? "ba" : "ma");
   if (routineWho !== "ba" && routineWho !== "ma") routineWho = first;
 
-  const firstName = coupleId(first) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
-  const secondName = coupleId(second) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
-  const currentDisplayName = coupleId(routineWho) === "ma" ? (state.them || "Partner 2") : (state.you || "Partner 1");
+  const firstName = personName(coupleId(first) === "ma" ? "ma" : "ba");
+  const secondName = personName(coupleId(second) === "ma" ? "ma" : "ba");
+  const currentDisplayName = personName(coupleId(routineWho) === "ma" ? "ma" : "ba");
 
   const wrap = el(`
     <div>
@@ -8933,10 +9395,7 @@ function wherePins() {
 }
 
 function pinMark(pin) {
-  const isMa = coupleId(pin.who) === "ma";
-  const custom = isMa ? state.them : state.you;
-  if (custom) return custom.slice(0, 8);
-  return defaultPartnerName(isMa ? "ma" : "ba").slice(0, 8);
+  return personName(coupleId(pin.who) === "ma" ? "ma" : "ba").slice(0, 8);
 }
 
 function followedPin(pins = wherePins()) {

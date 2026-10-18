@@ -50,7 +50,7 @@
   </head>
   <body>
     <h1>Ba privacy policy</h1>
-    <p class="meta">Last updated: 28 September 2026 · App: Ba (<code>com.sonatudu.ba</code>)</p>
+    <p class="meta">Last updated: 19 October 2026 · App: Ba (<code>com.sonatudu.ba</code>)</p>
     <p class="cannot-see">
       <strong>We cannot see any user's data.</strong>
       The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a
@@ -58,10 +58,10 @@
     </p>
 
     <p>
-      Ba is a private room for two people. Partners can choose their own
-      custom names and short names when creating a room or update them at any time in Settings (general rooms default to Partner 1 and Partner 2). Anyone can
-      create a room or join one with a room id and code. There are no ads, no public profiles, and no sale of
-      personal data. A <a href="./manual.html">user manual</a> describes the screens in the app.
+      Ba is a private room for two people. You enter your names and a name for the relationship when
+      creating a room, and you can change them in Settings. Anyone can create a room or join one with a
+      room id and code. There are no ads, no public profiles, and no sale of personal data. A
+      <a href="./manual.html">user manual</a> describes the screens in the app.
     </p>
 
     <h2>Who we are</h2>
@@ -72,26 +72,26 @@
 
     <h2>How you enter</h2>
     <p>
-      You create a room (choose a numeric code, role, and optional custom partner names / call signs) or join
-      with a room id plus that code. Your identity is stored on the phone so you are not asked every time.
-      Do not share the room id or code publicly. Anyone with both can enter the room as one of the two people.
+      You create a room (numeric code, who you are, names, and relationship name) or join with a room id
+      plus that code. After names are saved, Join can show those names so each person picks who they are.
+      Your identity is stored on the phone so you are not asked every time. Do not share the room id or
+      code publicly. Anyone with both can enter the room as one of the two people.
     </p>
 
     <h2>What Ba stores</h2>
     <p>
       <strong>On your device (encrypted before upload):</strong> shared room content such as chat,
-      custom partner names and call signs, overview notes, memories, to-dos, daily habits, periods
-      (including symptoms, cycle notes, and course logs), family tree (with all relationship types and
-      adaptive branches), routines (custom active weekdays, subjects, class slots, mess meals, and notes),
-      and similar journal data. This is encrypted on the device. The people who run Ba cannot see that content
-      for any user. The server keeps ciphertext and cannot read that plaintext. You can also export a complete
-      unencrypted JSON backup of your shared room data and decrypted chat locally at any time from Settings.
+      names, overview notes, memories, to-dos, daily habits, periods (including symptoms and cycle
+      notes), family tree, routines, and similar journal data. This is encrypted on the device. The
+      people who run Ba cannot see that content for any user. The server keeps ciphertext and cannot
+      read that plaintext. You can download a PDF or an unencrypted JSON backup on this device from
+      Settings.
     </p>
     <p>
-      <strong>On the server (needed to run the room):</strong> session tokens, a device id, which partner is
-      signed in, optional live location pins when sharing is on, optional push
-      notification tokens, presence/typing for chat, and short-lived call signaling. These are not
-      part of the encrypted journal blob.
+      <strong>On the server (needed to run the room):</strong> session tokens, a device id, which person is
+      signed in, the display names and relationship title used on Join, optional live location pins
+      when sharing is on, optional push notification tokens, presence/typing for chat, and short-lived
+      call signaling. These are not part of the encrypted journal blob.
     </p>
     <p>
       Local settings on the phone can include theme, location-sharing choice, notification choice,
@@ -150,7 +150,7 @@
       pruning or expiration. Device login sessions do not automatically expire from inactivity and
       remain valid until you explicitly log out or delete the room. Location pins for a device are
       dropped when you log out or turn location sharing off. If the hosting service is reset without
-      durable storage, server-side data may be lost; you can export an unencrypted JSON backup of
+      durable storage, server-side data may be lost; you can download a PDF or JSON backup of
       your room data at any time from Settings to keep your own offline copy.
     </p>
 
@@ -158,7 +158,8 @@
     <p>
       In the app: Settings → Delete account, then enter the <strong>room code</strong> in the
       verification field and tap Delete. The server checks that code before closing the room. That
-      removes your login for this side and closes the shared room for the couple.
+      removes your login for this side and closes the shared room for the couple. Some older rooms
+      keep their stored data and cannot be wiped from Delete account.
     </p>
     <p>
       You can also use the
