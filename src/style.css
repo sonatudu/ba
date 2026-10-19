@@ -2197,11 +2197,13 @@ body.is-daily-sorting {
 
 .chart-g1,
 .chart-g2 {
-  margin-bottom: 64px;
+  margin-bottom: 88px;
 }
 
 .chart-g3 {
-  padding-top: 28px;
+  padding-top: 48px;
+  flex-wrap: wrap;
+  gap: 48px 56px;
 }
 
 .chart-house {
@@ -2221,7 +2223,9 @@ body.is-daily-sorting {
 .chart-g3-house {
   display: flex;
   align-items: flex-start;
-  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 28px 32px;
 }
 
 .chart-g3-house[data-g3-mandi],
@@ -2238,11 +2242,9 @@ body.is-daily-sorting {
 }
 
 .ft-pair.ft-stem {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  width: 100%;
+  display: flex;
+  width: auto;
   column-gap: 28px;
-  justify-items: center;
 }
 
 .ft-pair.ft-stem .is-blood {
@@ -2254,10 +2256,18 @@ body.is-daily-sorting {
   justify-self: start;
 }
 
+.chart-g4 {
+  margin-top: 80px;
+  min-height: 0;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
 .ft-olly {
-  position: absolute;
+  position: relative;
   z-index: 2;
   width: 92px;
+  flex: none;
 }
 
 .ft-unit {
@@ -2271,7 +2281,7 @@ body.is-daily-sorting {
   display: flex;
   justify-content: center;
   gap: 16px;
-  margin-top: 52px;
+  margin-top: 64px;
 }
 
 .ft-card {
@@ -3715,19 +3725,23 @@ html.theme-day .home-tile[data-go="todo"].has-unread {
 
 .overview-days-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   margin-top: 12px;
 }
 
 .overview-day-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
-  border-radius: 999px;
-  padding: 6px 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   cursor: pointer;
 }
 
@@ -5911,6 +5925,65 @@ html.theme-day .map-tools button.is-on {
   border-color: var(--accent);
 }
 
+.edit-ico-btn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.edit-ico-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.routine-table-edit {
+  position: relative;
+}
+
+.routine-table-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 8;
+  min-width: 148px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.routine-table-menu[hidden] {
+  display: none;
+}
+
+.routine-table-menu button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.routine-table-menu button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .routine-icon-btn {
   background: transparent;
   border: none;
@@ -6164,6 +6237,18 @@ html.theme-day .map-tools button.is-on {
 .settings-names {
   padding: 16px 18px;
   margin: 12px 0;
+}
+
+.settings-names-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-names input[readonly] {
+  opacity: 0.92;
+  pointer-events: none;
 }
 
 .settings-names-fields {
@@ -6862,6 +6947,17 @@ button.is-down:not(:disabled):not(.inmap-dot),
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.cycle-symptoms-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.cycle-symptoms-body[hidden] {
+  display: none !important;
 }
 
 .cycle-symptoms-head {
