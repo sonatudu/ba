@@ -1,0 +1,82 @@
+import java.net.InetSocketAddress
+import java.net.Socket
+
+def baRepoRoot = rootProject.projectDir.parentFile
+
+def baPortOpen = { int port ->
+    def socket = new Socket()
+    try {
+        socket.connect(new InetSocketAddress("127.0.0.1", port), 400)
+        return true
+    } catch (Exception ignored) {
+        return false
+    } finally {
+        try { socket.close() } catch (Exception ignored) {}
+    }
+}
+
+def baAdb = {
+    def lp = new Properties()
+    def f = rootProject.file("local.properties")
+    if (f.exists()) lp.load(f.newDataInputStream())
+    def sdk = lp.getProperty("sdk.dir") ?: System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME") ?: ""
+    def fromSdk = sdk ? new File(sdk, "platform-tools/adb") : null
+    if (fromSdk && fromSdk.exists()) return fromSdk.absolutePath
+    return "adb"
+}
+
+def baReverseVite = {
+    def adb = baAdb()
+    try {
+        def proc = [adb, "devices"].execute()
+        proc.waitFor()
+        proc.text.readLines().each { line ->
+            if (!(line.contains("\tdevice") || line.endsWith("device"))) return
+            def serial = line.split(/\s+/)[0]
+            if (!serial || serial == "List") return
+            [adb, "-s", serial, "reverse", "tcp:5173", "tcp:5173"].execute().waitFor()
+        }
+    } catch (Exception ignored) {
+        logger.warn("Ba live reload: could not run adb reverse (is a phone connected?)")
+    }
+}
+
+def baStartVite = {
+    if (baPortOpen(5173)) return
+    def logFile = new File(baRepoRoot, ".vite-android.log")
+    def cmd = """
+        cd '${baRepoRoot.absolutePath}' &&
+        (command -v npm >/dev/null || export PATH="/usr/bin:/usr/local/bin:\$PATH") &&
+        npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+    """.stripIndent()
+    def pb = new ProcessBuilder("bash", "-lc", cmd)
+    pb.directory(baRepoRoot)
+    pb.redirectErrorStream(true)
+    pb.redirectOutput(logFile)
+    pb.start()
+    def waited = 0
+    while (!baPortOpen(5173) && waited < 30000) {
+        Thread.sleep(400)
+        waited += 400
+    }
+    if (!baPortOpen(5173)) {
+        throw new GradleException("Ba live reload: Vite did not start on 127.0.0.1:5173. See ${logFile}")
+    }
+}
+
+tasks.register("startBaLiveReload") {
+    doLast {
+        baStartVite()
+        baReverseVite()
+    }
+}
+
+afterEvaluate {
+    tasks.matching { it.name == "preDebugBuild" }.configureEach {
+        dependsOn "startBaLiveReload"
+    }
+    tasks.matching { it.name == "installDebug" }.configureEach {
+        dependsOn "startBaLiveReload"
+        doLast { baReverseVite() }
+    }
+}

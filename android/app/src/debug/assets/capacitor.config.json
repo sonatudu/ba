@@ -1,0 +1,24 @@
+{
+	"appId": "com.sonatudu.ba",
+	"appName": "Ba",
+	"webDir": "dist",
+	"server": {
+		"url": "http://127.0.0.1:5173",
+		"cleartext": true,
+		"androidScheme": "http"
+	},
+	"android": {
+		"backgroundColor": "#070b16"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 400,
+			"backgroundColor": "#070b16",
+			"showSpinner": false
+		},
+		"StatusBar": {
+			"style": "LIGHT",
+			"backgroundColor": "#070b16"
+		}
+	}
+}

@@ -1,5 +1,6 @@
 node_modules
 dist
+.vite-android.log
 .DS_Store
 android/.gradle
 android/app/build
