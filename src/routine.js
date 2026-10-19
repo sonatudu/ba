@@ -562,9 +562,8 @@ function messHtml(escapeHtml, messHead, messDays, who) {
   return `<div class="tt-scroll"><table class="tt tt-mess"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-export function routineHtml(escapeHtml, who, routineState, displayName = "") {
+export function routineHtml(escapeHtml, who, routineState, _displayName = "") {
   const person = routineState?.[who] || (who === "ma" ? generalRoutine().ma : generalRoutine().ba);
-  const title = displayName ? `${displayName}’s Schedule` : (person.title || "Weekly Schedule");
   const slots = Array.isArray(person.slots) ? person.slots : GENERAL_SLOTS;
   const days = Array.isArray(person.days) ? person.days : emptyDays(slots.length);
   const notes = String(person.notes || "");
@@ -596,7 +595,7 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
               <tr>
                 <th>S.No</th>
                 <th>Title</th>
-                <th>Course / Subj</th>
+                <th>Course code</th>
                 <th>Credits</th>
                 <th>Instructors</th>
                 <th></th>
@@ -635,11 +634,16 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
   return `
     <article class="card routine-card">
       <div class="routine-card-bar">
-        <h3>${escapeHtml(title)}</h3>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
-          <button type="button" class="routine-action-btn" data-act="edit-days">Edit Days</button>
-          <button type="button" class="routine-action-btn" data-act="edit-slots">Edit Slots</button>
+        <h3>Weekly Schedule</h3>
+        <div class="routine-table-edit">
+          <button type="button" class="edit-ico-btn" data-act="table-menu" aria-label="Edit timetable" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+          </button>
+          <div class="routine-table-menu" data-table-menu hidden>
+            <button type="button" data-act="add-course">Add subject</button>
+            <button type="button" data-act="edit-days">Edit days</button>
+            <button type="button" data-act="edit-slots">Edit slots</button>
+          </div>
         </div>
       </div>
       <p class="routine-hint">Tap any cell to add or change class/subject, or slot span.</p>
@@ -649,9 +653,12 @@ export function routineHtml(escapeHtml, who, routineState, displayName = "") {
     <article class="card routine-card routine-notes-card">
       <div class="routine-card-bar">
         <h3>Weekly Notes</h3>
-        <button type="button" class="routine-action-btn" data-act="save-notes">Save Notes</button>
+        <button type="button" class="edit-ico-btn" data-act="edit-notes" aria-label="Edit notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+        </button>
+        <button type="button" class="routine-action-btn" data-act="save-notes" hidden>Save</button>
       </div>
-      <textarea class="routine-notes-area" data-routine-notes placeholder="Reminders, study goals, exam dates, or weekly notes...">${escapeHtml(notes)}</textarea>
+      <textarea class="routine-notes-area" data-routine-notes readonly placeholder="Reminders, study goals, exam dates, or weekly notes...">${escapeHtml(notes)}</textarea>
     </article>
 
     ${coursesSection}

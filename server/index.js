@@ -682,10 +682,15 @@ app.post("/api/room-preview", (req, res) => {
   }
   const code = digitsCode(req.body?.code);
   const roomId = parseRoomId(req.body?.roomId);
-  if (!roomId || !code) return res.status(400).json({ error: "Enter the room id and code." });
-  const room = roomId === COUPLE_ROOM_ID ? ensureCoupleRoom() : readRoom(roomId);
+  if (!code) return res.status(400).json({ error: "Enter the code." });
+  let room = null;
+  if (roomId) {
+    room = roomId === COUPLE_ROOM_ID ? ensureCoupleRoom() : readRoom(roomId);
+  } else if (pairCodeOk(code)) {
+    room = ensureCoupleRoom();
+  }
   if (!room || !roomCodeOk(room, code)) {
-    return res.status(401).json({ error: "That room or code is wrong." });
+    return res.status(401).json({ error: roomId ? "That room or code is wrong." : "Enter the room id and code." });
   }
   const names = roomNamesOf(room);
   res.json({

@@ -720,7 +720,10 @@ function normalizeCycle(value) {
     taken: normalizeCycleTaken(src.taken || src.medTaken),
     courses,
     lastMedName,
-    symptomList: Array.isArray(src.symptomList) ? normalizeSymptomList(src.symptomList) : defaultSymptomList(),
+    symptomList: (() => {
+      const list = Array.isArray(src.symptomList) ? normalizeSymptomList(src.symptomList) : [];
+      return list.length ? list : defaultSymptomList();
+    })(),
   };
 }
 
@@ -2440,6 +2443,10 @@ let familyZoom = 1;
 let cycleSymptomsOpen = false;
 let overviewDaysOpen = false;
 let liveQuote = null;
+let settingsNamesEditing = false;
+let routineNotesEditing = false;
+let routineTableMenuOpen = false;
+let todoRenameId = "";
 let createdInvite = "";
 let inbox = { incoming: [], outgoing: [] };
 let chatLog = [];
@@ -2710,7 +2717,7 @@ async function logout() {
 
 function gateView() {
   const savedWho = readSavedWho() || coupleId(pendingLogin?.who);
-  let pickedWho = savedWho;
+  let pickedWho = joining ? "" : savedWho;
   const joining = welcomeStep === "join";
   const creating = welcomeStep === "create";
   const choosing = !joining && !creating;
@@ -2722,9 +2729,9 @@ function gateView() {
         <h1 class="wordmark">Ba</h1>
         <p class="lede">${
           creating
-            ? "Pick who you are and a 6-digit code. Share the room id from Settings with one other person."
+            ? "Enter your name, your partner's name, a relationship name, and set a 6-digit code. Share the room id from Settings with your partner."
             : joining
-              ? "Enter the room id and code your person shared. Room id can be left blank if you already share a private code."
+              ? "Enter the room id and code. When the names appear, pick yours."
               : "A private room for two. Create a new room, or join with a room id and code."
         }</p>
         <p class="cannot-see">
@@ -2756,8 +2763,8 @@ function gateView() {
           <input id="create-you" name="createYou" maxlength="28" placeholder="Your name" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="create-them">Their name</label>
-          <input id="create-them" name="createThem" maxlength="28" placeholder="Their name" autocomplete="off" />
+          <label for="create-them">Partner's name</label>
+          <input id="create-them" name="createThem" maxlength="28" placeholder="Partner's name" autocomplete="off" />
         </div>
         <div class="field">
           <label for="create-title">Name of your relationship</label>
@@ -2765,22 +2772,22 @@ function gateView() {
         </div>`
             : ""
         }
-        <div class="field">
-          <div class="who-pick" role="group" aria-label="Who you are">
-            <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span data-who-label="ba"></span></button>
-            <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span data-who-label="ma"></span></button>
-          </div>
-        </div>
         ${
           joining
-            ? `<div class="field">
+            ? `<div class="field" data-who-field hidden>
+          <div class="who-pick" role="group" aria-label="Who you are">
+            <button class="who-option" type="button" data-who="ba"><span data-who-label="ba"></span></button>
+            <button class="who-option" type="button" data-who="ma"><span data-who-label="ma"></span></button>
+          </div>
+        </div>
+        <div class="field" data-room-id-field>
           <label for="room-id">Room id</label>
           <input id="room-id" name="roomId" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" value="${escapeHtml(pendingLogin?.roomId || "")}" placeholder="XXXX-XXXX-XX" />
         </div>`
             : ""
         }
         <div class="field">
-          <label for="code">${creating ? "Choose a code" : "Code"}</label>
+          <label for="code">${creating ? "Set a code" : "Code"}</label>
           <input id="code" name="code" inputmode="numeric" autocomplete="off" required maxlength="12" value="${escapeHtml(pendingLogin?.code || "")}" />
         </div>
         <p class="err" data-err></p>
@@ -2805,36 +2812,24 @@ function gateView() {
     });
   });
   const updateWhoLabels = () => {
-    const roomId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase();
-    const isP = roomId === "BA-OURS";
-    const you = String(card.querySelector("#create-you")?.value || "").trim();
-    const them = String(card.querySelector("#create-them")?.value || "").trim();
     const names = roomPreview?.names || {};
+    const baName = String(names.ba || "").trim();
+    const maName = String(names.ma || "").trim();
     const baBtn = card.querySelector('[data-who-label="ba"]');
     const maBtn = card.querySelector('[data-who-label="ma"]');
-    if (creating) {
-      if (baBtn) baBtn.textContent = you || them ? (pickedWho === "ba" ? you || "You" : them || "You") : "You";
-      if (maBtn) maBtn.textContent = you || them ? (pickedWho === "ba" ? them || "Them" : you || "Them") : "Them";
-      if (pickedWho === "ba") {
-        if (baBtn) baBtn.textContent = you || "You";
-        if (maBtn) maBtn.textContent = them || "Them";
-      } else {
-        if (baBtn) baBtn.textContent = them || "Them";
-        if (maBtn) maBtn.textContent = you || "You";
-      }
-    } else if (isP) {
-      if (baBtn) baBtn.textContent = names.ba || "Ba";
-      if (maBtn) maBtn.textContent = names.ma || "Ma";
-    } else {
-      if (baBtn) baBtn.textContent = names.ba || "You";
-      if (maBtn) maBtn.textContent = names.ma || "Them";
-    }
+    if (baBtn) baBtn.textContent = baName;
+    if (maBtn) maBtn.textContent = maName;
+    const whoField = card.querySelector("[data-who-field]");
+    if (whoField) whoField.hidden = !(baName || maName);
+    const roomField = card.querySelector("[data-room-id-field]");
+    const previewId = String(roomPreview?.roomId || pendingLogin?.roomId || "").toUpperCase();
+    if (roomField) roomField.hidden = previewId === "BA-OURS";
   };
   const fetchPreview = async () => {
     if (!joining) return;
-    const roomId = String(card.querySelector("#room-id")?.value || "").trim();
+    const roomId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").trim();
     const code = String(card.querySelector("#code")?.value || "").replace(/\D/g, "");
-    if (!roomId || code.length < 4) return;
+    if (code.length < 4) return;
     try {
       roomPreview = await previewRoom({ roomId, code });
       updateWhoLabels();
@@ -2871,14 +2866,16 @@ function gateView() {
       return;
     }
     try {
-      const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
-      const isPersonal = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
-      if (!savedWho && who !== "ba" && who !== "ma") {
+      const who = creating ? "ba" : coupleId(pickedWho);
+      const isPersonal = String(card.querySelector("#room-id")?.value || roomPreview?.roomId || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
+      if (joining && !savedWho && who !== "ba" && who !== "ma") {
         err.textContent = "Pick who you are.";
         return;
       }
       const locating = requestLocation();
-      const roomId = joining ? String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").trim() : "";
+      const roomId = joining
+        ? String(card.querySelector("#room-id")?.value || roomPreview?.roomId || pendingLogin?.roomId || "").trim()
+        : "";
       const body = { code, deviceId: deviceId() };
       if (who === "ba" || who === "ma") body.who = who;
       if (roomId) body.roomId = roomId;
@@ -2890,6 +2887,7 @@ function gateView() {
       const customThem = String(card.querySelector("#create-them")?.value || "").trim().slice(0, 30);
       const customTitle = String(card.querySelector("#create-title")?.value || "").trim().slice(0, 24);
       if (creating) {
+        body.who = "ba";
         if (customYou) body.youName = customYou;
         if (customThem) body.themName = customThem;
         if (customTitle) body.title = customTitle;
@@ -2900,8 +2898,8 @@ function gateView() {
       saveWho(coupleId(entered.username) || who);
       await openSession(entered);
       if (creating) {
-        const nextYou = who === "ba" ? customYou : customThem;
-        const nextThem = who === "ba" ? customThem : customYou;
+        const nextYou = customYou;
+        const nextThem = customThem;
         setState({
           you: nextYou || "",
           them: nextThem || "",
@@ -2975,7 +2973,6 @@ function goTab(id) {
   }
   if (id === "us") {
     id = "cycle";
-    cycleSettingsOpen = true;
   }
   if (id === "home") {
     goHome();
@@ -4696,7 +4693,7 @@ function storyDeleteMenu(page) {
       <h2 class="hold-menu-title" id="hold-menu-title" data-hold-title>Remove this item?</h2>
       <p class="hold-menu-note" data-hold-note hidden></p>
       <div class="hold-menu-row">
-        <button type="button" class="hold-menu-btn" data-act="cancel">Keep</button>
+        <button type="button" class="hold-menu-btn" data-act="cancel" data-hold-cancel>Keep</button>
         <button type="button" class="hold-menu-btn is-danger" data-act="delete">Delete</button>
       </div>
       <div class="hold-menu-extra" data-hold-extra hidden>
@@ -4716,6 +4713,7 @@ function storyDeleteMenu(page) {
   const extraBox = menu.querySelector("[data-hold-extra]");
   const editBtn = menu.querySelector('[data-act="edit"]');
   const lastDayBtn = menu.querySelector('[data-act="last-day"]');
+  const cancelBtn = menu.querySelector("[data-hold-cancel]");
 
   const labelFromCard = (card) => {
     const raw =
@@ -4758,9 +4756,21 @@ function storyDeleteMenu(page) {
       noteEl.textContent = note;
       noteEl.hidden = !note;
     }
-    if (editBtn) editBtn.hidden = !pendingEdit;
+    if (handlers?.mode === "todo" && pendingEdit && cancelBtn) {
+      cancelBtn.textContent = "Rename";
+      cancelBtn.dataset.act = "edit";
+      cancelBtn.classList.remove("is-danger");
+      if (editBtn) editBtn.hidden = true;
+      if (extraBox) extraBox.hidden = true;
+      if (kickerEl) kickerEl.textContent = kicker || "Task";
+      if (titleEl) titleEl.textContent = title || label || "This task";
+    } else if (cancelBtn) {
+      cancelBtn.textContent = "Keep";
+      cancelBtn.dataset.act = "cancel";
+      if (editBtn) editBtn.hidden = !pendingEdit;
+      if (extraBox) extraBox.hidden = !(pendingEdit || pendingLastDay);
+    }
     if (lastDayBtn) lastDayBtn.hidden = !pendingLastDay;
-    if (extraBox) extraBox.hidden = !(pendingEdit || pendingLastDay);
     ignoreOpen = false;
     menu.hidden = false;
     document.body.classList.add("is-hold-menu");
@@ -4799,7 +4809,7 @@ function storyDeleteMenu(page) {
   };
 }
 
-function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay, kicker, title, label }) {
+function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay, kicker, title, label, mode }) {
   let hold = 0;
   let skipClick = false;
   const swallow = (event) => {
@@ -4826,7 +4836,7 @@ function bindHoldOpen(card, { menu, onOpen, onDelete, onEdit, onLastDay, kicker,
     hold = window.setTimeout(() => {
       skipClick = true;
       navigator.vibrate?.(10);
-      menu.open(card, { onDelete, onEdit, onLastDay, kicker, title, label });
+      menu.open(card, { onDelete, onEdit, onLastDay, kicker, title, label, mode });
     }, 480);
   });
   const cancelHold = () => window.clearTimeout(hold);
@@ -5020,6 +5030,7 @@ function todayEditorView(item) {
             <strong>${escapeHtml(parts.date)}</strong>
           </p>
         </div>
+        <button type="button" class="overview-days-btn" data-note-collapse>Close</button>
       </article>
       <form class="overview-compose is-edit card">
         <div class="overview-tone" role="group" aria-label="Good or bad">
@@ -5054,6 +5065,11 @@ function todayEditorView(item) {
   wrap.querySelector("form").addEventListener("input", () => {
     window.clearTimeout(wait);
     wait = window.setTimeout(save, 400);
+  });
+  wrap.querySelector("[data-note-collapse]")?.addEventListener("click", () => {
+    save();
+    openNoteId = null;
+    render();
   });
   return wrap;
 }
@@ -5118,7 +5134,7 @@ function todayDayView(day) {
             </p>
           </div>
           <div class="overview-jump">
-            <button type="button" class="overview-days-btn" data-overview-days aria-expanded="${overviewDaysOpen}">Notes</button>
+            <button type="button" class="overview-days-btn" data-overview-days aria-expanded="${overviewDaysOpen}">${overviewDaysOpen ? "Hide dates" : "Notes"}</button>
             ${appCalPickerHtml("overview-jump", day, { icon: true })}
           </div>
         </div>
@@ -5447,9 +5463,6 @@ function datesView() {
         </label>
         <div class="memories-add-row">
           <input data-title type="text" maxlength="180" placeholder="Title" enterkeyhint="done" />
-          <button class="memories-save" type="submit" data-save aria-label="Save" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5 10 17.5 19 7"/></svg>
-          </button>
         </div>
         <textarea data-story rows="2" maxlength="4000" placeholder="Story (optional)"></textarea>
         <button type="button" class="compose-done-btn" data-memories-done>Done</button>
@@ -5618,31 +5631,14 @@ function datesView() {
   const titleBox = wrap.querySelector("[data-title]");
   const storyBox = wrap.querySelector("[data-story]");
   const yearlyBox = wrap.querySelector("[data-yearly]");
-  const saveBtn = wrap.querySelector("[data-save]");
-  const syncSave = () => {
-    const ready = Boolean(titleBox.value.trim() && memoryDraftDate);
-    saveBtn.disabled = !ready;
-    saveBtn.classList.toggle("is-ready", ready);
-  };
-  bindAppCalPicker(wrap, "memory-new-date", {
-    getIso: () => memoryDraftDate,
-    setIso: (iso) => {
-      memoryDraftDate = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : memoryDraftDate;
-      syncSave();
-    },
-  });
-  titleBox.addEventListener("input", syncSave);
-  wrap.querySelector("[data-memories-done]")?.addEventListener("click", () => {
-    memoriesComposing = false;
-    memoryDraftDate = isoToday();
-    render();
-  });
-  wrap.querySelector("form").addEventListener("submit", (event) => {
-    event.preventDefault();
+  const saveMemory = () => {
     const text = titleBox.value.trim();
     const story = storyBox.value.trim();
     const date = memoryDraftDate;
-    if (!text || !date) return;
+    if (!text || !date) {
+      showAppToast("Add a title.");
+      return false;
+    }
     const item = {
       id: uid(),
       date,
@@ -5655,8 +5651,21 @@ function datesView() {
     memoryDraftDate = isoToday();
     setState({ dates: [item, ...state.dates] }, true);
     render();
+    return true;
+  };
+  bindAppCalPicker(wrap, "memory-new-date", {
+    getIso: () => memoryDraftDate,
+    setIso: (iso) => {
+      memoryDraftDate = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : memoryDraftDate;
+    },
   });
-  syncSave();
+  wrap.querySelector("[data-memories-done]")?.addEventListener("click", () => {
+    saveMemory();
+  });
+  wrap.querySelector("form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveMemory();
+  });
   requestAnimationFrame(() => titleBox?.focus());
   return wrap;
 }
@@ -6384,38 +6393,9 @@ function cycleCourseMonthView(group) {
   return wrap;
 }
 
-function cycleSettingsView() {
-  const cycle = ensureCycle();
-  const wrap = el(`
-    <div class="cycle-page cycle-settings-page">
-      <article class="card cycle-card">
-        <div class="cycle-set-row">
-          <div class="field">
-            <label for="cycle-len">Days between periods</label>
-            <input id="cycle-len" type="number" inputmode="numeric" min="15" max="60" value="${escapeHtml(String(cycle.cycleLen))}" />
-          </div>
-          <div class="field">
-            <label for="period-len">Period length</label>
-            <input id="period-len" type="number" inputmode="numeric" min="1" max="14" value="${escapeHtml(String(cycle.periodLen))}" />
-          </div>
-        </div>
-      </article>
-    </div>
-  `);
-  const saveLens = () => {
-    const nextCycle = clampCycleLen(wrap.querySelector("#cycle-len").value, cycle.cycleLen);
-    const nextPeriod = clampPeriodLen(wrap.querySelector("#period-len").value, cycle.periodLen);
-    if (nextCycle === cycle.cycleLen && nextPeriod === cycle.periodLen) return;
-    writeCycle({ cycleLen: nextCycle, periodLen: nextPeriod });
-  };
-  wrap.querySelector("#cycle-len").addEventListener("change", saveLens);
-  wrap.querySelector("#period-len").addEventListener("change", saveLens);
-  return wrap;
-}
-
 function cycleView() {
   const cycle = ensureCycle();
-  if (cycleSettingsOpen) return cycleSettingsView();
+  cycleSettingsOpen = false;
   if (periodHistMonth) {
     const group = periodsGroupedByMonth(cycle.periods || []).find((row) => row.key === periodHistMonth);
     if (group) return cyclePeriodMonthView(group);
@@ -6609,18 +6589,17 @@ function cycleView() {
                 <span class="cycle-symptoms-caret" aria-hidden="true">${cycleSymptomsOpen ? "▾" : "▸"}</span>
               </button>
             </div>
-            ${cycleSymptomsOpen ? `
+            <div class="cycle-symptoms-body" ${cycleSymptomsOpen ? "" : "hidden"}>
             ${
               cycleSymptomsAdding
                 ? `<form class="cycle-symptom-add" data-symptom-add-form>
               <input type="text" data-symptom-input maxlength="40" placeholder="Symptom name" value="${escapeHtml(cycleSymptomDraft)}" enterkeyhint="done" autocomplete="off" />
               <button type="submit" class="cycle-symptoms-toggle">Save</button>
-              <button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>
             </form>`
                 : ""
             }
             <div class="cycle-checks" role="group" aria-labelledby="cycle-symptoms-label">
-              ${(cycle.symptomList || [])
+              ${(cycle.symptomList || defaultSymptomList())
                 .map(
                   (row) =>
                     `<label class="cycle-check${cycleSymptomsRemoving ? " is-removable" : ""}"><input type="checkbox" data-sym="${escapeHtml(row.id)}"${
@@ -6639,9 +6618,9 @@ function cycleView() {
                 <button type="button" class="cycle-symptoms-toggle${cycleSymptomsRemoving ? " is-on" : ""}" data-symptoms-remove ${cycleSymptomsAdding ? "disabled" : ""}>
                   Remove
                 </button>
-                ${cycleSymptomsAdding ? "" : `<button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Done</button>`}
+                <button type="button" class="cycle-symptoms-toggle" data-symptoms-done>Save</button>
               </div>`
-                  : `<button type="button" class="cycle-symptoms-edit" data-symptoms-edit aria-label="Edit symptoms" aria-pressed="false">
+                  : `<button type="button" class="edit-ico-btn cycle-symptoms-edit" data-symptoms-edit aria-label="Edit symptoms">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
               </button>`
               }
@@ -6650,7 +6629,7 @@ function cycleView() {
               <label class="cycle-record-label" for="cycle-note">Notes</label>
               <textarea id="cycle-note" class="cycle-note" rows="3" maxlength="400" placeholder="Optional">${escapeHtml(cycleDraft.note)}</textarea>
             </div>
-            ` : ""}
+            </div>
           </div>
           <div class="cycle-record-row cycle-actions-row">
             <span class="cycle-record-label" aria-hidden="true"></span>
@@ -6725,21 +6704,6 @@ function cycleView() {
       </article>`
           : ""
       }
-      <div class="cycle-settings-launch">
-        <button class="back-ico cycle-settings-btn" type="button" data-cycle-settings aria-label="Period settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <g fill="currentColor" transform="translate(12 12)">
-              <path fill-rule="evenodd" d="M0-6.35a6.35 6.35 0 1 1 0 12.7 6.35 6.35 0 0 1 0-12.7zm0 3.2a3.15 3.15 0 1 0 0 6.3 3.15 3.15 0 0 0 0-6.3z"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7" transform="rotate(60)"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7" transform="rotate(120)"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7" transform="rotate(180)"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7" transform="rotate(240)"/>
-              <rect x="-1.15" y="-10.15" width="2.3" height="4.05" rx="0.7" transform="rotate(300)"/>
-            </g>
-          </svg>
-        </button>
-      </div>
     </div>
   `);
   const err = wrap.querySelector("[data-cycle-err]");
@@ -6752,7 +6716,7 @@ function cycleView() {
     cycleDraft.symptoms = cycleSymptomsOf(
       [...wrap.querySelectorAll("[data-sym]:checked")].map((input) => input.dataset.sym)
     );
-    cycleDraft.note = wrap.querySelector("#cycle-note").value.trim();
+    cycleDraft.note = wrap.querySelector("#cycle-note")?.value.trim() || cycleDraft.note || "";
   };
   const readCourseDraftFrom = () => {
     if (!courseDraft) return;
@@ -7120,13 +7084,6 @@ function cycleView() {
       },
     });
   });
-  wrap.querySelector("[data-cycle-settings]")?.addEventListener("click", () => {
-    readDraftDates();
-    readCourseDraftFrom();
-    captureCycleScroll();
-    cycleSettingsOpen = true;
-    render();
-  });
   if (cycleSymptomsAdding) {
     requestAnimationFrame(() => wrap.querySelector("[data-symptom-input]")?.focus());
   }
@@ -7353,7 +7310,7 @@ function familyView() {
       },
     });
   });
-  const paint = () => drawFamilyLines(wrap);
+  const paint = () => drawFamilyLines(wrap, familyZoom);
   requestAnimationFrame(() => requestAnimationFrame(paint));
   const chart = wrap.querySelector("[data-chart]");
   if (chart && typeof ResizeObserver !== "undefined") {
@@ -7371,9 +7328,13 @@ function bindFamilyZoom(root, paint) {
   if (!scroll || !chart) return;
   const apply = () => {
     familyZoom = Math.max(0.55, Math.min(2.4, familyZoom));
-    chart.style.transformOrigin = "top center";
+    chart.style.transformOrigin = "0 0";
     chart.style.transform = `scale(${familyZoom})`;
     chart.style.transition = "transform 0.12s ease";
+    const extraX = Math.max(0, chart.offsetWidth * (familyZoom - 1));
+    const extraY = Math.max(0, chart.offsetHeight * (familyZoom - 1));
+    chart.style.marginRight = `${extraX}px`;
+    chart.style.marginBottom = `${extraY}px`;
     requestAnimationFrame(() => paint?.());
   };
   apply();
@@ -7556,7 +7517,7 @@ function todoView() {
         </button>
       </div>`
       }
-      <button class="daily-edit" type="button" data-todo-edit aria-pressed="${todoEditing}">${todoEditing ? "Done" : "Edit"}</button>
+      ${todoRenameId ? `<button class="daily-edit" type="button" data-todo-edit aria-pressed="true">Done</button>` : ""}
     </div>
   `);
   const list = wrap.querySelector("[data-list]");
@@ -7572,7 +7533,7 @@ function todoView() {
         <button type="button" data-done aria-label="${item.done ? "Not done" : "Done"}"></button>
         <div class="todo-body">
           ${
-            todoEditing
+            todoRenameId === item.id
               ? `<input data-text value="${escapeHtml(item.text || "")}" maxlength="200" aria-label="Task name" />`
               : `<p class="todo-label">${escapeHtml(item.text || "")}</p>`
           }
@@ -7581,13 +7542,7 @@ function todoView() {
             ${who !== "us" ? `<span class="todo-owner">${whoLabel}</span>` : ""}
           </p>` : ""}
         </div>
-        ${
-          todoEditing
-            ? `<button type="button" class="todo-remove" data-remove aria-label="Delete task">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M4 4l8 8M12 4l-8 8"/></svg>
-        </button>`
-            : `<span class="todo-flag" title="${todoPriLabel(pri)}" aria-hidden="true"></span>`
-        }
+        <span class="todo-flag" title="${todoPriLabel(pri)}" aria-hidden="true"></span>
       </article>
     `);
     let wait = 0;
@@ -7604,24 +7559,19 @@ function todoView() {
       window.clearTimeout(wait);
       wait = window.setTimeout(() => {
         const text = event.target.value.trim();
-        if (!text) {
-          setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
-          return;
-        }
+        if (!text) return;
         setState({
           todos: (state.todos || []).map((todo) => (todo.id === item.id ? { ...todo, text } : todo)),
         }, true);
       }, 350);
     });
-    row.querySelector("[data-remove]")?.addEventListener("click", () => {
-      setState({ todos: (state.todos || []).filter((todo) => todo.id !== item.id) });
-    });
     bindHoldOpen(row, {
       menu,
+      mode: "todo",
       kicker: "To Do",
       title: item.text || "This task",
       onEdit: () => {
-        todoEditing = true;
+        todoRenameId = item.id;
         render();
       },
       onDelete: () => {
@@ -7637,8 +7587,8 @@ function todoView() {
       render();
     });
   });
-  wrap.querySelector("[data-todo-edit]").addEventListener("click", () => {
-    todoEditing = !todoEditing;
+  wrap.querySelector("[data-todo-edit]")?.addEventListener("click", () => {
+    todoRenameId = "";
     render();
   });
   if (!todosComposing) {
@@ -8106,67 +8056,6 @@ function dailyView() {
 const PRIVACY_URL = "https://sonatudu.github.io/ba/privacy.html";
 const MANUAL_URL = "https://sonatudu.github.io/ba/manual.html";
 
-async function exportAllData() {
-  try {
-    showAppToast("Preparing backup...");
-    if (session?.token && (!chatLog || !chatLog.length)) {
-      try {
-        await syncChat();
-      } catch {
-        /* ignore */
-      }
-    }
-    const payload = {
-      app: "Ba",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      roomId: session?.roomId || "",
-      username: session?.username || "",
-      you: state.you || "",
-      them: state.them || "",
-      togetherName: state.togetherName || "",
-      startedOn: state.startedOn || "",
-      nextDate: state.nextDate || "",
-      notes: state.notes || [],
-      dates: state.dates || [],
-      moods: state.moods || [],
-      water: state.water || null,
-      mood: state.mood || null,
-      memories: state.memories || [],
-      todos: state.todos || [],
-      daily: state.daily || null,
-      cycle: state.cycle || null,
-      familyTree: state.familyTree || null,
-      routine: state.routine || null,
-      pokes: state.pokes || [],
-      chat: (chatLog || []).map((m) => ({
-        id: m.id,
-        from: m.from,
-        at: m.at,
-        text: m.text || "",
-        replyTo: m.replyTo || null,
-        edited: Boolean(m.edited),
-        deleted: Boolean(m.deleted),
-      })),
-    };
-    const jsonStr = JSON.stringify(payload, null, 2);
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const filename = `ba-backup-${session?.roomId || "room"}-${isoToday()}.json`;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showAppToast("Backup downloaded successfully");
-  } catch (err) {
-    console.error("Export failed:", err);
-    showAppToast("Export failed: " + (err.message || String(err)));
-  }
-}
-
 function pdfEscape(text) {
   return String(text || "")
     .replace(/\\/g, "\\\\")
@@ -8241,9 +8130,7 @@ function buildSimplePdf(lines) {
   for (let i = 0; i < lines.length; i += rowsPerPage) pages.push(lines.slice(i, i + rowsPerPage));
   if (!pages.length) pages.push([""]);
   const objs = [];
-  const offsets = [];
   const push = (body) => {
-    offsets.push(Buffer ? null : 0);
     objs.push(body);
   };
   push("<< /Type /Catalog /Pages 2 0 R >>");
@@ -8287,12 +8174,21 @@ async function exportPdf() {
       }
     }
     const pdf = buildSimplePdf(collectPdfLines());
-    const blob = new Blob([pdf], { type: "application/pdf" });
+    const bytes = new Uint8Array(pdf.length);
+    for (let i = 0; i < pdf.length; i += 1) bytes[i] = pdf.charCodeAt(i) & 0xff;
+    const blob = new Blob([bytes], { type: "application/pdf" });
     const filename = `ba-${session?.roomId || "room"}-${isoToday()}.pdf`;
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      showAppToast("PDF ready");
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -8329,21 +8225,29 @@ function settingsView() {
         <div class="settings-start-control">${appCalPickerHtml("started-on", startDraft)}</div>
       </div>
       <div class="settings-card card settings-names">
-        <span class="settings-start-label">Names</span>
+        <div class="settings-names-head">
+          <span class="settings-start-label">Names</span>
+          ${
+            settingsNamesEditing
+              ? `<button type="button" class="routine-action-btn" data-save-names>Save</button>`
+              : `<button type="button" class="edit-ico-btn" data-edit-names aria-label="Edit names">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+          </button>`
+          }
+        </div>
         <div class="settings-names-fields">
           <div class="field">
             <label for="setting-you">Your name</label>
-            <input id="setting-you" data-setting-you value="${escapeHtml(state.you || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ba" : "Your name")}" maxlength="28" />
+            <input id="setting-you" data-setting-you value="${escapeHtml(state.you || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ba" : "Your name")}" maxlength="28" ${settingsNamesEditing ? "" : "readonly"} />
           </div>
           <div class="field">
-            <label for="setting-them">Their name</label>
-            <input id="setting-them" data-setting-them value="${escapeHtml(state.them || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ma" : "Their name")}" maxlength="28" />
+            <label for="setting-them">Partner's name</label>
+            <input id="setting-them" data-setting-them value="${escapeHtml(state.them || "")}" placeholder="${escapeHtml(isPersonalRoom() ? "Ma" : "Partner's name")}" maxlength="28" ${settingsNamesEditing ? "" : "readonly"} />
           </div>
           <div class="field">
             <label for="setting-title">Relationship name</label>
-            <input id="setting-title" data-setting-title value="${escapeHtml(state.togetherName || "")}" placeholder="Shown under Together" maxlength="24" />
+            <input id="setting-title" data-setting-title value="${escapeHtml(state.togetherName || "")}" placeholder="Shown under Together" maxlength="24" ${settingsNamesEditing ? "" : "readonly"} />
           </div>
-          <p class="settings-saved" data-names-saved>Saved</p>
         </div>
       </div>
       ${
@@ -8376,15 +8280,6 @@ function settingsView() {
         </svg>
       </button>
       <p class="settings-note">Save a readable copy of your notes, dates, habits, periods, family, and chat.</p>
-      <button class="settings-row" type="button" data-export-data>
-        <span>Export all data (Backup JSON)</span>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-      </button>
-      <p class="settings-note">Download an unencrypted backup of all your notes, dates, routines, habits, periods, medicines, family tree, and chat.</p>
       <p class="cannot-see settings-cannot-see">
         <strong>We cannot see any user's data.</strong>
         The people who run Ba cannot read your chat, moods, memories, notes, or anything else in a room. That content is encrypted on the device.
@@ -8433,47 +8328,27 @@ function settingsView() {
       showAppToast(id);
     }
   });
-  const markNamesSaved = () => {
-    const note = wrap.querySelector("[data-names-saved]");
-    if (note) {
-      note.textContent = "Saved";
-      note.classList.add("is-on");
-    }
-  };
-  const saveNames = () => {
+  wrap.querySelector("[data-edit-names]")?.addEventListener("click", () => {
+    settingsNamesEditing = true;
+    render();
+  });
+  wrap.querySelector("[data-save-names]")?.addEventListener("click", () => {
     const nextYou = String(wrap.querySelector("[data-setting-you]")?.value || "").trim().slice(0, 30);
     const nextThem = String(wrap.querySelector("[data-setting-them]")?.value || "").trim().slice(0, 30);
     const nextTitle = String(wrap.querySelector("[data-setting-title]")?.value || "").trim().slice(0, 24);
-    if (nextYou === (state.you || "") && nextThem === (state.them || "") && nextTitle === (state.togetherName || "")) {
-      markNamesSaved();
-      return;
-    }
     setState({ you: nextYou, them: nextThem, togetherName: nextTitle }, true);
-    markNamesSaved();
     if (session?.token && !isPersonalRoom()) {
       saveRoomProfile(session.token, {
         names: { ba: nextYou, ma: nextThem },
         title: nextTitle,
       }).catch(() => {});
     }
-  };
-  let namesWait = 0;
-  wrap.querySelectorAll("[data-setting-you],[data-setting-them],[data-setting-title]").forEach((input) => {
-    input.addEventListener("input", () => {
-      const note = wrap.querySelector("[data-names-saved]");
-      if (note) {
-        note.textContent = "Saving…";
-        note.classList.add("is-on");
-      }
-      window.clearTimeout(namesWait);
-      namesWait = window.setTimeout(saveNames, 350);
-    });
-    input.addEventListener("blur", saveNames);
+    settingsNamesEditing = false;
+    showAppToast("Names saved");
+    render();
   });
-  markNamesSaved();
   wrap.querySelector("[data-share-loc]").addEventListener("click", () => toggleShareLocation());
   wrap.querySelector("[data-push]").addEventListener("click", () => togglePush());
-  wrap.querySelector("[data-export-data]")?.addEventListener("click", () => exportAllData());
   wrap.querySelector("[data-export-pdf]")?.addEventListener("click", () => exportPdf());
   wrap.querySelector("[data-out]").addEventListener("click", () => logout());
   wrap.querySelector("[data-delete-account]")?.addEventListener("click", () => {
@@ -8665,7 +8540,7 @@ function routineView() {
           <h2 class="hold-menu-title">Add Course</h2>
           <div style="margin-top: 12px; display:flex; flex-direction:column; gap:8px;">
             <input type="text" data-course-title placeholder="Course Title (e.g. Genetics)" maxlength="100" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
-            <input type="text" data-course-code placeholder="Course No. (e.g. GPB 211)" maxlength="40" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
+            <input type="text" data-course-code placeholder="Course code (e.g. GPB 211)" maxlength="40" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
             <input type="text" data-course-credits placeholder="Credits (e.g. 3 (2–1))" maxlength="30" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
             <input type="text" data-course-instructor placeholder="Instructor(s)" maxlength="100" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
           </div>
@@ -8755,8 +8630,22 @@ function routineView() {
     render();
   });
 
+  const tableMenu = wrap.querySelector("[data-table-menu]");
+  wrap.querySelector('[data-act="table-menu"]')?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!tableMenu) return;
+    tableMenu.hidden = !tableMenu.hidden;
+    event.currentTarget.setAttribute("aria-expanded", tableMenu.hidden ? "false" : "true");
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!tableMenu || tableMenu.hidden) return;
+    if (event.target.closest("[data-table-menu], [data-act='table-menu']")) return;
+    tableMenu.hidden = true;
+  }, { once: true });
+
   const daysModal = wrap.querySelector("[data-routine-days-modal]");
-  wrap.querySelector('[data-act="edit-days"]')?.addEventListener("click", () => {
+  wrap.querySelectorAll('[data-act="edit-days"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
     const person = state.routine[routineWho];
     const activeDays = new Set((person?.days || []).map((d) => d.day));
     daysModal.querySelectorAll("[data-day-checkbox]").forEach((cb) => {
@@ -8764,6 +8653,7 @@ function routineView() {
     });
     daysModal.hidden = false;
     document.body.classList.add("is-hold-menu");
+    });
   });
 
   daysModal?.querySelectorAll("[data-days-preset]").forEach((btn) => {
@@ -8796,12 +8686,14 @@ function routineView() {
 
   const slotsModal = wrap.querySelector("[data-routine-slots-modal]");
   const slotsText = wrap.querySelector("[data-slots-text]");
-  wrap.querySelector('[data-act="edit-slots"]')?.addEventListener("click", () => {
+  wrap.querySelectorAll('[data-act="edit-slots"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
     const person = state.routine[routineWho];
     slotsText.value = (person?.slots || []).join("\n");
     slotsModal.hidden = false;
     document.body.classList.add("is-hold-menu");
     setTimeout(() => slotsText.focus(), 50);
+    });
   });
 
   wrap.querySelector("[data-slots-save]")?.addEventListener("click", () => {
@@ -8824,9 +8716,22 @@ function routineView() {
       setState({ routine: state.routine }, true);
     }
   };
-  wrap.querySelector('[data-act="save-notes"]')?.addEventListener("click", () => {
+  const saveNotesBtn = wrap.querySelector('[data-act="save-notes"]');
+  const editNotesBtn = wrap.querySelector('[data-act="edit-notes"]');
+  if (notesArea) {
+    notesArea.readOnly = !routineNotesEditing;
+    if (saveNotesBtn) saveNotesBtn.hidden = !routineNotesEditing;
+    if (editNotesBtn) editNotesBtn.hidden = routineNotesEditing;
+  }
+  editNotesBtn?.addEventListener("click", () => {
+    routineNotesEditing = true;
+    render();
+  });
+  saveNotesBtn?.addEventListener("click", () => {
     saveNotes();
+    routineNotesEditing = false;
     showAppToast("Notes saved");
+    render();
   });
   notesArea?.addEventListener("blur", saveNotes);
 
@@ -10385,7 +10290,6 @@ function pageTitle() {
       return when.toLocaleDateString(undefined, { month: "long", day: "numeric" });
     }
   }
-  if (tab === "cycle" && cycleSettingsOpen) return "Period settings";
   if (tab === "cycle" && periodHistMonth) {
     return monthLabelForKey(periodHistMonth) || periodHistMonth;
   }
