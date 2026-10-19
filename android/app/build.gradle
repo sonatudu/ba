@@ -68,6 +68,7 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+apply from: 'ba-live-reload.gradle'
 
 try {
     def servicesJSON = file('google-services.json')
