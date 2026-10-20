@@ -2165,6 +2165,9 @@ body.is-daily-sorting {
 .chart-lines line {
   stroke: var(--tree-line);
   stroke-width: 1.6;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  shape-rendering: crispEdges;
 }
 
 .family-zoom-bar {
@@ -5886,6 +5889,48 @@ html.theme-day .map-tools button.is-on {
   margin-bottom: 10px;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.routine-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-subject-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.routine-subject-chip {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.routine-subject-chip.is-on,
+.routine-subject-chip:active {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--accent) 16%, var(--paper));
+}
+
+.routine-course-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
 }
 
 .routine-action-btn {

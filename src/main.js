@@ -20,6 +20,7 @@ import {
   updateMessCell,
   addCourse,
   removeCourse,
+  updateCourse,
   WEEKDAYS,
 } from "./routine.js";
 
@@ -2446,7 +2447,9 @@ let overviewDaysOpen = false;
 let liveQuote = null;
 let settingsNamesEditing = false;
 let routineNotesEditing = false;
+let routineCoursesEditing = false;
 let routineTableMenuOpen = false;
+let pendingPlaceSubject = "";
 let todoRenameId = "";
 let createdInvite = "";
 let inbox = { incoming: [], outgoing: [] };
@@ -2829,14 +2832,13 @@ function gateView() {
     const names = joinNames();
     card.querySelector("[data-who-field]")?.remove();
     if (!joinNamesReady) return;
-    const baLabel = names.ba || "Created the room";
-    const maLabel = names.ma || "Invited";
+    if (!names.ba && !names.ma) return;
     const whoField = el(`
       <div class="field" data-who-field>
         <p class="who-pick-label">Who you are</p>
         <div class="who-pick" role="group" aria-label="Who you are">
-          <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span data-who-label="ba">${escapeHtml(baLabel)}</span></button>
-          <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span data-who-label="ma">${escapeHtml(maLabel)}</span></button>
+          <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"${names.ba ? "" : " hidden"}><span data-who-label="ba">${escapeHtml(names.ba)}</span></button>
+          <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"${names.ma ? "" : " hidden"}><span data-who-label="ma">${escapeHtml(names.ma)}</span></button>
         </div>
       </div>
     `);
@@ -2881,6 +2883,11 @@ function gateView() {
         }
         joinNamesReady = true;
         hideRoomIdIfPersonal();
+        const names = joinNames();
+        if (!names.ba && !names.ma) {
+          err.textContent = "This room has no names yet. Ask the person who created it to save names in Settings.";
+          return;
+        }
         if (!pickedWho && (savedWho === "ba" || savedWho === "ma")) pickedWho = savedWho;
         showJoinWho();
         err.textContent = "";
@@ -7326,7 +7333,7 @@ function familyView() {
       },
     });
   });
-  const paint = () => drawFamilyLines(wrap, familyZoom);
+  const paint = () => drawFamilyLines(wrap);
   requestAnimationFrame(() => requestAnimationFrame(paint));
   const chart = wrap.querySelector("[data-chart]");
   if (chart && typeof ResizeObserver !== "undefined") {
@@ -8455,7 +8462,7 @@ function routineView() {
           <button type="button" data-who="${second}" ${routineWho === second ? 'class="active"' : ""}>${escapeHtml(secondName)}</button>
         </div>
       </article>
-      ${routineHtml(escapeHtml, routineWho, state.routine, currentDisplayName)}
+      ${routineHtml(escapeHtml, routineWho, state.routine, currentDisplayName, { coursesEditing: routineCoursesEditing })}
 
       <div class="hold-menu" data-routine-cell-modal hidden>
         <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
@@ -8467,11 +8474,7 @@ function routineView() {
               <label style="font-size: 0.78rem; font-weight:600; color:var(--ink-soft);">Subject / Activity</label>
               <button type="button" class="routine-action-btn" data-act="cell-add-course" style="font-size:0.75rem; padding:3px 8px;">+ Add New Subject</button>
             </div>
-            <div data-cell-quick-wrap style="margin-bottom:8px; display:none;">
-              <select data-cell-quick-subject style="width:100%; box-sizing:border-box; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
-                <option value="">— Pick from saved subjects —</option>
-              </select>
-            </div>
+            <div data-cell-quick-wrap class="routine-subject-chips" style="margin-bottom:8px; display:none;"></div>
             <input type="text" data-cell-text placeholder="e.g. Mathematics, Gym, Free" maxlength="120" style="width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.9rem;" />
           </div>
           <div style="margin-top: 12px; display:flex; align-items:center; justify-content:space-between;">
@@ -8570,10 +8573,41 @@ function routineView() {
     </div>
   `);
 
-  wrap.querySelectorAll("[data-who]").forEach((button) => {
+  wrap.querySelectorAll(".routine-switch [data-who]").forEach((button) => {
     button.addEventListener("click", () => {
       routineWho = button.dataset.who;
       render();
+    });
+  });
+
+  wrap.querySelectorAll("[data-place-subject]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      pendingPlaceSubject = chip.dataset.placeSubject || chip.textContent.trim();
+      wrap.querySelectorAll("[data-place-subject]").forEach((item) => item.classList.toggle("is-on", item === chip));
+      showAppToast("Tap a weekly slot to place it");
+    });
+  });
+
+  wrap.querySelector('[data-act="edit-courses"]')?.addEventListener("click", () => {
+    routineCoursesEditing = true;
+    render();
+  });
+  wrap.querySelector('[data-act="save-courses"]')?.addEventListener("click", () => {
+    const person = state.routine[routineWho];
+    wrap.querySelectorAll("[data-course-field]").forEach((input) => {
+      const idx = Number(input.dataset.courseIdx);
+      updateCourse(person, idx, { [input.dataset.courseField]: input.value });
+    });
+    routineCoursesEditing = false;
+    setState({ routine: state.routine }, true);
+    showAppToast("Subjects saved");
+    render();
+  });
+  wrap.querySelectorAll("[data-course-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const person = state.routine[routineWho];
+      updateCourse(person, Number(input.dataset.courseIdx), { [input.dataset.courseField]: input.value });
+      setState({ routine: state.routine }, true);
     });
   });
 
@@ -8608,19 +8642,29 @@ function routineView() {
 
       const subjects = getRoutineSubjects(person);
       const quickWrap = cellModal.querySelector("[data-cell-quick-wrap]");
-      const select = cellModal.querySelector("[data-cell-quick-subject]");
-      if (quickWrap && select) {
+      if (quickWrap) {
         if (subjects.length > 0) {
-          quickWrap.style.display = "block";
-          select.innerHTML = `<option value="">— Pick from saved subjects —</option>${subjects.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}`;
-          select.onchange = (e) => {
-            if (e.target.value) {
-              cellInput.value = e.target.value;
-            }
-          };
+          quickWrap.style.display = "flex";
+          quickWrap.innerHTML = subjects
+            .map((s) => `<button type="button" class="routine-subject-chip" data-cell-pick="${escapeHtml(s)}">${escapeHtml(s)}</button>`)
+            .join("");
+          quickWrap.querySelectorAll("[data-cell-pick]").forEach((chip) => {
+            chip.addEventListener("click", () => {
+              cellInput.value = chip.dataset.cellPick || chip.textContent;
+            });
+          });
         } else {
           quickWrap.style.display = "none";
+          quickWrap.innerHTML = "";
         }
+      }
+
+      if (pendingPlaceSubject) {
+        updateRoutineCell(person, dayIdx, cellIdx, pendingPlaceSubject, 1);
+        pendingPlaceSubject = "";
+        setState({ routine: state.routine }, true);
+        render();
+        return;
       }
 
       cellModal.hidden = false;
@@ -8831,8 +8875,10 @@ function routineView() {
         courseInstructorInput?.value.trim() || "",
         "",
       ]);
+      pendingPlaceSubject = title;
       document.body.classList.remove("is-hold-menu");
       setState({ routine: state.routine }, true);
+      showAppToast("Tap a weekly slot to place it");
       render();
     }
   });

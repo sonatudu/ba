@@ -278,12 +278,14 @@ export function generalRoutine() {
       title: "Weekly Schedule",
       slots: [...GENERAL_SLOTS],
       days: emptyDays(GENERAL_SLOTS.length),
+      courses: [],
       notes: "",
     },
     ma: {
       title: "Weekly Schedule",
       slots: [...GENERAL_SLOTS],
       days: emptyDays(GENERAL_SLOTS.length),
+      courses: [],
       notes: "",
     },
   };
@@ -496,6 +498,16 @@ export function removeCourse(personData, index) {
   personData.courses.splice(index, 1);
 }
 
+export function updateCourse(personData, index, patch = {}) {
+  if (!personData?.courses?.[index]) return;
+  const row = [...personData.courses[index]];
+  if (patch.title != null) row[1] = String(patch.title || "").trim();
+  if (patch.code != null) row[2] = String(patch.code || "").trim();
+  if (patch.credits != null) row[3] = String(patch.credits || "").trim();
+  if (patch.instructor != null) row[4] = String(patch.instructor || "").trim();
+  personData.courses[index] = row;
+}
+
 export function weekdayName() {
   return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
 }
@@ -562,34 +574,67 @@ function messHtml(escapeHtml, messHead, messDays, who) {
   return `<div class="tt-scroll"><table class="tt tt-mess"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-export function routineHtml(escapeHtml, who, routineState, _displayName = "") {
+const PENCIL_ICO = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>`;
+
+export function routineHtml(escapeHtml, who, routineState, _displayName = "", { coursesEditing = false } = {}) {
   const person = routineState?.[who] || (who === "ma" ? generalRoutine().ma : generalRoutine().ba);
   const slots = Array.isArray(person.slots) ? person.slots : GENERAL_SLOTS;
   const days = Array.isArray(person.days) ? person.days : emptyDays(slots.length);
   const notes = String(person.notes || "");
+  const subjects = getRoutineSubjects(person);
 
   let coursesSection = "";
   const coursesList = Array.isArray(person.courses) ? person.courses : [];
-  if (coursesList.length > 0) {
-    const rows = coursesList.map(
+  const courseRows = coursesList
+    .map(
       (row, idx) => `
         <tr data-course-idx="${idx}">
           <td>${escapeHtml(row[0] || String(idx + 1))}</td>
-          <td>${escapeHtml(row[1] || "")}</td>
-          <td>${escapeHtml(row[2] || "")}</td>
-          <td>${escapeHtml(row[3] || "")}</td>
-          <td><strong>${escapeHtml(row[4] || "")}</strong>${row[5] ? `<br>${escapeHtml(row[5])}` : ""}</td>
-          <td style="text-align:right; width:44px;"><button type="button" class="routine-icon-btn is-danger" data-remove-course="${idx}" aria-label="Delete course" title="Delete course">×</button></td>
+          <td>${
+            coursesEditing
+              ? `<input class="routine-course-input" data-course-field="title" data-course-idx="${idx}" value="${escapeHtml(row[1] || "")}" maxlength="100" />`
+              : escapeHtml(row[1] || "")
+          }</td>
+          <td>${
+            coursesEditing
+              ? `<input class="routine-course-input" data-course-field="code" data-course-idx="${idx}" value="${escapeHtml(row[2] || "")}" maxlength="40" />`
+              : escapeHtml(row[2] || "")
+          }</td>
+          <td>${
+            coursesEditing
+              ? `<input class="routine-course-input" data-course-field="credits" data-course-idx="${idx}" value="${escapeHtml(row[3] || "")}" maxlength="30" />`
+              : escapeHtml(row[3] || "")
+          }</td>
+          <td>${
+            coursesEditing
+              ? `<input class="routine-course-input" data-course-field="instructor" data-course-idx="${idx}" value="${escapeHtml(row[4] || "")}" maxlength="100" />`
+              : `<strong>${escapeHtml(row[4] || "")}</strong>${row[5] ? `<br>${escapeHtml(row[5])}` : ""}`
+          }</td>
+          ${
+            coursesEditing
+              ? `<td style="text-align:right; width:44px;"><button type="button" class="routine-icon-btn is-danger" data-remove-course="${idx}" aria-label="Delete subject">Delete</button></td>`
+              : ""
+          }
         </tr>`
-    ).join("");
+    )
+    .join("");
 
-    coursesSection = `
-      <article class="card routine-card">
+  coursesSection = `
+      <article class="card routine-card${coursesEditing ? " is-editing" : ""}">
         <div class="routine-card-bar">
           <h3>Subjects & Courses</h3>
-          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
+          ${
+            coursesEditing
+              ? `<div class="routine-card-actions">
+            <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
+            <button type="button" class="routine-action-btn" data-act="save-courses">Save</button>
+          </div>`
+              : `<button type="button" class="edit-ico-btn" data-act="edit-courses" aria-label="Edit subjects">${PENCIL_ICO}</button>`
+          }
         </div>
-        <div class="tt-scroll">
+        ${
+          coursesList.length
+            ? `<div class="tt-scroll">
           <table class="tt tt-courses">
             <thead>
               <tr>
@@ -598,25 +643,20 @@ export function routineHtml(escapeHtml, who, routineState, _displayName = "") {
                 <th>Course code</th>
                 <th>Credits</th>
                 <th>Instructors</th>
-                <th></th>
+                ${coursesEditing ? "<th></th>" : ""}
               </tr>
             </thead>
-            <tbody>${rows}</tbody>
+            <tbody>${courseRows}</tbody>
           </table>
-        </div>
+        </div>`
+            : `<p class="routine-hint" style="margin-top:6px;">${
+                coursesEditing
+                  ? "Tap <strong>+ Add Subject</strong> to list a class, then place it on the weekly schedule."
+                  : "Tap the pencil to add subjects. Then tap a weekly slot to place them."
+              }</p>`
+        }
       </article>
     `;
-  } else {
-    coursesSection = `
-      <article class="card routine-card">
-        <div class="routine-card-bar">
-          <h3>Subjects & Courses</h3>
-          <button type="button" class="routine-action-btn" data-act="add-course">+ Add Subject</button>
-        </div>
-        <p class="routine-hint" style="margin-top:6px;">No subjects added yet. Tap <strong>+ Add Subject</strong> to list your subjects/courses and quickly pick them in your weekly schedule.</p>
-      </article>
-    `;
-  }
 
   let messSection = "";
   if (Array.isArray(person.messDays) && person.messDays.length > 0 && Array.isArray(person.messHead)) {
@@ -640,13 +680,24 @@ export function routineHtml(escapeHtml, who, routineState, _displayName = "") {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
           </button>
           <div class="routine-table-menu" data-table-menu hidden>
-            <button type="button" data-act="add-course">Add subject</button>
             <button type="button" data-act="edit-days">Edit days</button>
             <button type="button" data-act="edit-slots">Edit slots</button>
           </div>
         </div>
       </div>
-      <p class="routine-hint">Tap any cell to add or change class/subject, or slot span.</p>
+      <p class="routine-hint">Tap any cell to place a subject or change the slot. Subjects you add can be picked here.</p>
+      ${
+        subjects.length
+          ? `<div class="routine-subject-chips" data-subject-chips>
+          ${subjects
+            .map(
+              (s) =>
+                `<button type="button" class="routine-subject-chip" data-place-subject="${escapeHtml(s)}">${escapeHtml(s)}</button>`
+            )
+            .join("")}
+        </div>`
+          : ""
+      }
       ${gridHtml(escapeHtml, slots, days, who)}
     </article>
 
