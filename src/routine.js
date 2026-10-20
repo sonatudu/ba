@@ -518,7 +518,7 @@ function slotHead(escapeHtml, slot) {
   return `<span>${escapeHtml(start)}</span><span>${escapeHtml(end)}</span>`;
 }
 
-function gridHtml(escapeHtml, slots, days, who) {
+function gridHtml(escapeHtml, slots, days, who, canEdit) {
   const today = weekdayName();
   const head = slots.map((slot) => `<th>${slotHead(escapeHtml, slot)}</th>`).join("");
   const body = days
@@ -532,7 +532,11 @@ function gridHtml(escapeHtml, slots, days, who) {
             .map((part) => escapeHtml(part.trim()))
             .filter(Boolean)
             .join("<br>");
-          return `<td colspan="${span}" class="tt-cell-interactive ${free ? "tt-free" : "tt-busy"}" data-routine-cell="true" data-who="${who}" data-day-idx="${dayIdx}" data-cell-idx="${cellIdx}">${free ? "—" : label}</td>`;
+          const cls = `${canEdit ? "tt-cell-interactive " : ""}${free ? "tt-free" : "tt-busy"}`;
+          const attrs = canEdit
+            ? ` data-routine-cell="true" data-who="${who}" data-day-idx="${dayIdx}" data-cell-idx="${cellIdx}"`
+            : "";
+          return `<td colspan="${span}" class="${cls}"${attrs}>${free ? "—" : label}</td>`;
         })
         .join("");
       return `<tr class="${row.day === today ? "tt-today" : ""}"><th>${escapeHtml(row.day)}</th>${cells}</tr>`;
@@ -576,12 +580,11 @@ function messHtml(escapeHtml, messHead, messDays, who) {
 
 const PENCIL_ICO = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>`;
 
-export function routineHtml(escapeHtml, who, routineState, _displayName = "", { coursesEditing = false } = {}) {
+export function routineHtml(escapeHtml, who, routineState, _displayName = "", { coursesEditing = false, scheduleEditing = false } = {}) {
   const person = routineState?.[who] || (who === "ma" ? generalRoutine().ma : generalRoutine().ba);
   const slots = Array.isArray(person.slots) ? person.slots : GENERAL_SLOTS;
   const days = Array.isArray(person.days) ? person.days : emptyDays(slots.length);
   const notes = String(person.notes || "");
-  const subjects = getRoutineSubjects(person);
 
   let coursesSection = "";
   const coursesList = Array.isArray(person.courses) ? person.courses : [];
@@ -651,8 +654,8 @@ export function routineHtml(escapeHtml, who, routineState, _displayName = "", { 
         </div>`
             : `<p class="routine-hint" style="margin-top:6px;">${
                 coursesEditing
-                  ? "Tap <strong>+ Add Subject</strong> to list a class, then place it on the weekly schedule."
-                  : "Tap the pencil to add subjects. Then tap a weekly slot to place them."
+                  ? "Tap <strong>+ Add Subject</strong> to list a class. Then use the Weekly Schedule pencil to put it in a slot."
+                  : "Tap the pencil to add subjects. Then tap the Weekly Schedule pencil to put them in slots."
               }</p>`
         }
       </article>
@@ -672,33 +675,25 @@ export function routineHtml(escapeHtml, who, routineState, _displayName = "", { 
   }
 
   return `
-    <article class="card routine-card">
+    <article class="card routine-card${scheduleEditing ? " is-editing" : ""}">
       <div class="routine-card-bar">
         <h3>Weekly Schedule</h3>
-        <div class="routine-table-edit">
-          <button type="button" class="edit-ico-btn" data-act="table-menu" aria-label="Edit timetable" aria-expanded="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
-          </button>
-          <div class="routine-table-menu" data-table-menu hidden>
-            <button type="button" data-act="edit-days">Edit days</button>
-            <button type="button" data-act="edit-slots">Edit slots</button>
-          </div>
-        </div>
+        ${
+          scheduleEditing
+            ? `<div class="routine-card-actions">
+            <button type="button" class="routine-action-btn" data-act="edit-days">Edit days</button>
+            <button type="button" class="routine-action-btn" data-act="edit-slots">Edit slots</button>
+            <button type="button" class="routine-action-btn" data-act="save-schedule">Save</button>
+          </div>`
+            : `<button type="button" class="edit-ico-btn" data-act="edit-schedule" aria-label="Edit timetable">${PENCIL_ICO}</button>`
+        }
       </div>
-      <p class="routine-hint">Tap any cell to place a subject or change the slot. Subjects you add can be picked here.</p>
-      ${
-        subjects.length
-          ? `<div class="routine-subject-chips" data-subject-chips>
-          ${subjects
-            .map(
-              (s) =>
-                `<button type="button" class="routine-subject-chip" data-place-subject="${escapeHtml(s)}">${escapeHtml(s)}</button>`
-            )
-            .join("")}
-        </div>`
-          : ""
-      }
-      ${gridHtml(escapeHtml, slots, days, who)}
+      <p class="routine-hint">${
+        scheduleEditing
+          ? "Tap a slot in the table to set or change the class."
+          : "Tap the pencil to edit days, time slots, and classes in the table."
+      }</p>
+      ${gridHtml(escapeHtml, slots, days, who, scheduleEditing)}
     </article>
 
     <article class="card routine-card routine-notes-card">

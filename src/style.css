@@ -2165,9 +2165,7 @@ body.is-daily-sorting {
 .chart-lines line {
   stroke: var(--tree-line);
   stroke-width: 1.6;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  shape-rendering: crispEdges;
+  stroke-linecap: round;
 }
 
 .family-zoom-bar {
@@ -5893,7 +5891,9 @@ html.theme-day .map-tools button.is-on {
 
 .routine-card-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -6478,6 +6478,16 @@ html.theme-day .settings-row .switch.is-on {
   line-height: 1.4;
   color: var(--ink-soft);
   opacity: 0.85;
+}
+
+.settings-version {
+  align-self: center;
+  width: 100%;
+  margin: 16px 0 6px;
+  text-align: center;
+  font-size: var(--fs-label);
+  line-height: 1.4;
+  color: var(--ink-soft);
 }
 
 .settings-cannot-see {
