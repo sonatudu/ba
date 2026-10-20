@@ -25,7 +25,9 @@ async function request(path, { method = "GET", token, body } = {}) {
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.error || "Request failed.");
+    const err = new Error(
+      data.error || (res.status >= 500 ? "Can't reach the room." : "Request failed.")
+    );
     err.needSetup = Boolean(data.needSetup);
     throw err;
   }
