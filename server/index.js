@@ -25,7 +25,9 @@ mkdirSync(sessionsDir, { recursive: true });
 mkdirSync(requestsDir, { recursive: true });
 mkdirSync(tileDiskDir, { recursive: true });
 console.log(`[ba] data directory: ${dataDir}`);
-await syncFromOciToDisk(dataDir, fsPromises);
+syncFromOciToDisk(dataDir, fsPromises).catch((err) => {
+  console.error("[oci] boot sync failed:", err?.message || err);
+});
 
 const PORT = Number(process.env.PORT || 8787);
 const SESSION_MS = 1000 * 60 * 60 * 24 * 30;

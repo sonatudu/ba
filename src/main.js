@@ -2828,13 +2828,15 @@ function gateView() {
   const showJoinWho = () => {
     const names = joinNames();
     card.querySelector("[data-who-field]")?.remove();
-    if (!joinNamesReady || !(names.ba || names.ma)) return;
+    if (!joinNamesReady) return;
+    const baLabel = names.ba || "Created the room";
+    const maLabel = names.ma || "Invited";
     const whoField = el(`
       <div class="field" data-who-field>
         <p class="who-pick-label">Who you are</p>
         <div class="who-pick" role="group" aria-label="Who you are">
-          <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"${names.ba ? "" : " hidden"}><span data-who-label="ba">${escapeHtml(names.ba)}</span></button>
-          <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"${names.ma ? "" : " hidden"}><span data-who-label="ma">${escapeHtml(names.ma)}</span></button>
+          <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"><span data-who-label="ba">${escapeHtml(baLabel)}</span></button>
+          <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"><span data-who-label="ma">${escapeHtml(maLabel)}</span></button>
         </div>
       </div>
     `);
@@ -2879,16 +2881,13 @@ function gateView() {
         }
         joinNamesReady = true;
         hideRoomIdIfPersonal();
-        const names = joinNames();
-        if (names.ba || names.ma) {
-          if (!pickedWho && (savedWho === "ba" || savedWho === "ma")) pickedWho = savedWho;
-          showJoinWho();
-          err.textContent = "";
-          return;
-        }
+        if (!pickedWho && (savedWho === "ba" || savedWho === "ma")) pickedWho = savedWho;
+        showJoinWho();
+        err.textContent = "";
+        return;
       }
       const who = creating ? "ba" : coupleId(pickedWho) || coupleId(pendingLogin?.who);
-      if (joining && (joinNames().ba || joinNames().ma) && who !== "ba" && who !== "ma") {
+      if (joining && who !== "ba" && who !== "ma") {
         err.textContent = "Pick who you are.";
         return;
       }
