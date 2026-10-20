@@ -2734,7 +2734,7 @@ function gateView() {
           creating
             ? "Enter your name, your partner's name, a relationship name, and set a 6-digit code. Share the room id from Settings with your partner."
             : joining
-              ? "Enter the room id and code. When the names appear, pick yours."
+              ? "Enter the room id and code, then tap Open. Your names appear only after that."
               : "A private room for two. Create a new room, or join with a room id and code."
         }</p>
         <p class="cannot-see">
@@ -2778,6 +2778,7 @@ function gateView() {
         ${
           joining
             ? `<div class="field" data-who-field hidden>
+          <p class="who-pick-label">Who you are</p>
           <div class="who-pick" role="group" aria-label="Who you are">
             <button class="who-option" type="button" data-who="ba"><span data-who-label="ba"></span></button>
             <button class="who-option" type="button" data-who="ma"><span data-who-label="ma"></span></button>
@@ -2801,10 +2802,12 @@ function gateView() {
       </form>
     </div>
   `);
+  let joinNamesReady = false;
   card.querySelectorAll("[data-welcome]").forEach((button) => {
     button.addEventListener("click", () => {
       welcomeStep = button.dataset.welcome === "create" ? "create" : button.dataset.welcome === "join" ? "join" : "choose";
       pendingLogin = null;
+      roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
       render();
     });
   });
@@ -2814,50 +2817,41 @@ function gateView() {
       card.querySelectorAll("[data-who]").forEach((item) => item.classList.toggle("picked", item === button));
     });
   });
-  const updateWhoLabels = () => {
+  const joinNames = () => {
     const names = roomPreview?.names || {};
-    const baName = String(names.ba || "").trim();
-    const maName = String(names.ma || "").trim();
+    return {
+      ba: String(names.ba || "").trim(),
+      ma: String(names.ma || "").trim(),
+    };
+  };
+  const updateWhoLabels = () => {
+    const names = joinNames();
     const baBtn = card.querySelector('[data-who-label="ba"]');
     const maBtn = card.querySelector('[data-who-label="ma"]');
-    if (baBtn) baBtn.textContent = baName;
-    if (maBtn) maBtn.textContent = maName;
+    if (baBtn) baBtn.textContent = names.ba;
+    if (maBtn) maBtn.textContent = names.ma;
     const whoField = card.querySelector("[data-who-field]");
-    if (whoField) whoField.hidden = !(baName || maName);
+    if (whoField) whoField.hidden = !(joinNamesReady && (names.ba || names.ma));
     const roomField = card.querySelector("[data-room-id-field]");
-    const previewId = String(roomPreview?.roomId || pendingLogin?.roomId || "").toUpperCase();
-    if (roomField) roomField.hidden = previewId === "BA-OURS";
+    const typedId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase();
+    const previewId = String(roomPreview?.roomId || "").toUpperCase();
+    if (roomField) roomField.hidden = typedId === "BA-OURS" || previewId === "BA-OURS";
   };
-  const fetchPreview = async () => {
-    if (!joining) return;
-    const roomId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").trim();
-    const code = String(card.querySelector("#code")?.value || "").replace(/\D/g, "");
-    if (code.length < 4) return;
-    try {
-      roomPreview = await previewRoom({ roomId, code });
-      updateWhoLabels();
-    } catch {
-      roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
-      updateWhoLabels();
-    }
-  };
-  card.querySelector("#room-id")?.addEventListener("input", () => {
+  const forgetJoinNames = () => {
+    joinNamesReady = false;
+    pickedWho = "";
+    roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
+    card.querySelectorAll("[data-who]").forEach((item) => item.classList.remove("picked"));
     updateWhoLabels();
-    window.clearTimeout(card._previewWait);
-    card._previewWait = window.setTimeout(fetchPreview, 400);
-  });
-  card.querySelector("#code")?.addEventListener("input", () => {
-    window.clearTimeout(card._previewWait);
-    card._previewWait = window.setTimeout(fetchPreview, 400);
-  });
-  card.querySelector("#create-you")?.addEventListener("input", updateWhoLabels);
-  card.querySelector("#create-them")?.addEventListener("input", updateWhoLabels);
+  };
+  card.querySelector("#room-id")?.addEventListener("input", forgetJoinNames);
+  card.querySelector("#code")?.addEventListener("input", forgetJoinNames);
   updateWhoLabels();
-  if (joining) fetchPreview();
   card.querySelector("form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (choosing) return;
     const err = card.querySelector("[data-err]");
+    const submitBtn = card.querySelector('button[type="submit"]');
     err.textContent = "";
     const code = String(card.querySelector("#code")?.value || pendingLogin?.code || "").replace(/\D/g, "");
     if (!code) {
@@ -2869,16 +2863,30 @@ function gateView() {
       return;
     }
     try {
-      const who = creating ? "ba" : coupleId(pickedWho);
-      const isPersonal = String(card.querySelector("#room-id")?.value || roomPreview?.roomId || pendingLogin?.roomId || "").toUpperCase() === "BA-OURS";
-      if (joining && !savedWho && who !== "ba" && who !== "ma") {
+      const roomId = joining
+        ? String(card.querySelector("#room-id")?.value || roomPreview?.roomId || pendingLogin?.roomId || "").trim()
+        : "";
+      if (joining && !joinNamesReady && !needSetup) {
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          roomPreview = await previewRoom({ roomId, code });
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+        joinNamesReady = true;
+        updateWhoLabels();
+        const names = joinNames();
+        if (names.ba || names.ma) {
+          err.textContent = "";
+          return;
+        }
+      }
+      const who = creating ? "ba" : coupleId(pickedWho) || coupleId(pendingLogin?.who);
+      if (joining && (joinNames().ba || joinNames().ma) && who !== "ba" && who !== "ma") {
         err.textContent = "Pick who you are.";
         return;
       }
       const locating = requestLocation();
-      const roomId = joining
-        ? String(card.querySelector("#room-id")?.value || roomPreview?.roomId || pendingLogin?.roomId || "").trim()
-        : "";
       const body = { code, deviceId: deviceId() };
       if (who === "ba" || who === "ma") body.who = who;
       if (roomId) body.roomId = roomId;
