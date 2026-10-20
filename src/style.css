@@ -2595,7 +2595,14 @@ body.is-daily-sorting {
     0 4px 12px color-mix(in srgb, var(--rose-deep) 22%, transparent);
 }
 
-.html-cannot-see,
+.html-cannot-see {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
 .cannot-see {
   margin: 12px 0 16px;
   padding: 12px 14px;
@@ -2609,16 +2616,11 @@ body.is-daily-sorting {
   line-height: 1.45;
 }
 
-.html-cannot-see strong,
 .cannot-see strong {
   display: block;
   margin-bottom: 4px;
   color: color-mix(in srgb, var(--gold) 20%, var(--ink));
   font-size: var(--fs-body);
-}
-
-#app:not(:empty) + .html-cannot-see {
-  display: none;
 }
 
 .setup-card .cannot-see {

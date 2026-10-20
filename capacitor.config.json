@@ -2,9 +2,10 @@
   "appId": "com.sonatudu.ba",
   "appName": "Ba",
   "webDir": "dist",
-  "android": {
-    "backgroundColor": "#070b16"
-  },
+	"android": {
+		"backgroundColor": "#070b16",
+		"webContentsDebuggingEnabled": true
+	},
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 400,

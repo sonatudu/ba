@@ -2501,7 +2501,9 @@ let dailyEditing = false;
 let dailyGraphRange = "week";
 let dailyStripScrollLeft = null;
 let dailyStripRecenter = false;
-const root = document.getElementById("app") || document.body;
+function getRoot() {
+  return document.getElementById("app") || document.body;
+}
 
 async function persist() {
   if (!session?.token || !session.roomId || !spaceKey) return;
@@ -2718,10 +2720,10 @@ async function logout() {
 
 function gateView() {
   const savedWho = readSavedWho() || coupleId(pendingLogin?.who);
-  let pickedWho = joining ? "" : savedWho;
   const joining = welcomeStep === "join";
   const creating = welcomeStep === "create";
   const choosing = !joining && !creating;
+  let pickedWho = joining ? "" : savedWho;
   const needSetup = joining && Boolean(pendingLogin?.needSetup);
   const card = el(`
     <div class="setup">
@@ -10344,6 +10346,7 @@ function appView() {
 }
 
 function render() {
+  const root = getRoot();
   if (!root) return;
   document.querySelectorAll("body > .app-cal-pop, body > .app-cal-scrim").forEach((node) => node.remove());
   document.body.classList.remove("is-hold-menu");
@@ -10371,6 +10374,14 @@ function render() {
 }
 
 async function boot() {
+  try {
+    render();
+  } catch (error) {
+    const el = getRoot();
+    if (el) {
+      el.textContent = String(error && error.message ? error.message : error);
+    }
+  }
   try {
     await Promise.race([initNative(), new Promise((resolve) => window.setTimeout(resolve, 800))]);
   } catch {
