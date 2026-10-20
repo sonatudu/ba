@@ -2702,6 +2702,10 @@ body.is-daily-sorting {
   margin-bottom: 16px;
 }
 
+.who-option[hidden] {
+  display: none !important;
+}
+
 .who-option {
   display: block;
   width: 100%;
