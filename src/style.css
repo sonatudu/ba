@@ -2688,6 +2688,13 @@ body.is-daily-sorting {
   line-height: 1.45;
 }
 
+.who-pick-label {
+  margin: 0 0 8px;
+  font-size: var(--fs-label);
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
 .who-pick {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2741,6 +2748,10 @@ body.is-daily-sorting {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.field[hidden] {
+  display: none !important;
 }
 
 .field label {
