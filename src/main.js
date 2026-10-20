@@ -2448,8 +2448,7 @@ let liveQuote = null;
 let settingsNamesEditing = false;
 let routineNotesEditing = false;
 let routineCoursesEditing = false;
-let routineTableMenuOpen = false;
-let pendingPlaceSubject = "";
+let routineScheduleEditing = false;
 let todoRenameId = "";
 let createdInvite = "";
 let inbox = { incoming: [], outgoing: [] };
@@ -8309,7 +8308,7 @@ function settingsView() {
       </p>
       <a class="settings-link" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
-      <p class="settings-note">Ba ${escapeHtml(APP_VERSION)}</p>
+      <p class="settings-version">Ba ${escapeHtml(APP_VERSION)}</p>
       <button class="settings-out" type="button" data-out>Log out</button>
       ${
         settingsDeleteOpen
@@ -8462,7 +8461,7 @@ function routineView() {
           <button type="button" data-who="${second}" ${routineWho === second ? 'class="active"' : ""}>${escapeHtml(secondName)}</button>
         </div>
       </article>
-      ${routineHtml(escapeHtml, routineWho, state.routine, currentDisplayName, { coursesEditing: routineCoursesEditing })}
+      ${routineHtml(escapeHtml, routineWho, state.routine, currentDisplayName, { coursesEditing: routineCoursesEditing, scheduleEditing: routineScheduleEditing })}
 
       <div class="hold-menu" data-routine-cell-modal hidden>
         <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
@@ -8580,12 +8579,13 @@ function routineView() {
     });
   });
 
-  wrap.querySelectorAll("[data-place-subject]").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      pendingPlaceSubject = chip.dataset.placeSubject || chip.textContent.trim();
-      wrap.querySelectorAll("[data-place-subject]").forEach((item) => item.classList.toggle("is-on", item === chip));
-      showAppToast("Tap a weekly slot to place it");
-    });
+  wrap.querySelector('[data-act="edit-schedule"]')?.addEventListener("click", () => {
+    routineScheduleEditing = true;
+    render();
+  });
+  wrap.querySelector('[data-act="save-schedule"]')?.addEventListener("click", () => {
+    routineScheduleEditing = false;
+    render();
   });
 
   wrap.querySelector('[data-act="edit-courses"]')?.addEventListener("click", () => {
@@ -8659,14 +8659,6 @@ function routineView() {
         }
       }
 
-      if (pendingPlaceSubject) {
-        updateRoutineCell(person, dayIdx, cellIdx, pendingPlaceSubject, 1);
-        pendingPlaceSubject = "";
-        setState({ routine: state.routine }, true);
-        render();
-        return;
-      }
-
       cellModal.hidden = false;
       document.body.classList.add("is-hold-menu");
       setTimeout(() => cellInput.focus(), 50);
@@ -8690,19 +8682,6 @@ function routineView() {
     setState({ routine: state.routine }, true);
     render();
   });
-
-  const tableMenu = wrap.querySelector("[data-table-menu]");
-  wrap.querySelector('[data-act="table-menu"]')?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (!tableMenu) return;
-    tableMenu.hidden = !tableMenu.hidden;
-    event.currentTarget.setAttribute("aria-expanded", tableMenu.hidden ? "false" : "true");
-  });
-  document.addEventListener("pointerdown", (event) => {
-    if (!tableMenu || tableMenu.hidden) return;
-    if (event.target.closest("[data-table-menu], [data-act='table-menu']")) return;
-    tableMenu.hidden = true;
-  }, { once: true });
 
   const daysModal = wrap.querySelector("[data-routine-days-modal]");
   wrap.querySelectorAll('[data-act="edit-days"]').forEach((btn) => {
@@ -8875,10 +8854,9 @@ function routineView() {
         courseInstructorInput?.value.trim() || "",
         "",
       ]);
-      pendingPlaceSubject = title;
       document.body.classList.remove("is-hold-menu");
       setState({ routine: state.routine }, true);
-      showAppToast("Tap a weekly slot to place it");
+      showAppToast(routineScheduleEditing ? "Tap a weekly slot to place it" : "Subject saved. Tap the schedule pencil, then a slot.");
       render();
     }
   });

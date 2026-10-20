@@ -457,15 +457,13 @@ function rel(chart, node) {
   const box = chart.getBoundingClientRect();
   const face = node.querySelector(".ft-face") || node;
   const r = face.getBoundingClientRect();
-  const sx = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 1;
-  const sy = chart.offsetHeight > 0 ? box.height / chart.offsetHeight : 1;
-  const zx = sx > 0.01 ? sx : 1;
-  const zy = sy > 0.01 ? sy : 1;
+  const s = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 1;
+  const z = s > 0.05 ? s : 1;
   return {
-    x: (r.left - box.left + r.width / 2) / zx,
-    y: (r.top - box.top + r.height / 2) / zy,
-    top: (r.top - box.top) / zy,
-    bottom: (r.bottom - box.top) / zy,
+    x: (r.left - box.left + r.width / 2) / z,
+    y: (r.top - box.top + r.height / 2) / z,
+    top: (r.top - box.top) / z,
+    bottom: (r.bottom - box.top) / z,
   };
 }
 
@@ -505,18 +503,8 @@ export function drawFamilyLines(root) {
   svg.setAttribute("width", String(w));
   svg.setAttribute("height", String(h));
   const lines = [];
-  const snap = (n) => Math.round(Number(n)) + 0.5;
-  const seg = (x1, y1, x2, y2) => {
-    x1 = snap(x1);
-    y1 = snap(y1);
-    x2 = snap(x2);
-    y2 = snap(y2);
-    if (Math.abs(x2 - x1) < 1 && Math.abs(y2 - y1) < 1) return;
-    if (Math.abs(x2 - x1) >= 1 && Math.abs(y2 - y1) >= 1) {
-      seg(x1, y1, x1, y2);
-      seg(x1, y2, x2, y2);
-      return;
-    }
+  const add = (x1, y1, x2, y2) => {
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return;
     lines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
   };
   const join = (pair) => {
@@ -525,19 +513,19 @@ export function drawFamilyLines(root) {
     if (!info) return null;
     if (info.pts.length >= 2) {
       const y = (info.pts[0].y + info.pts[1].y) / 2;
-      seg(info.pts[0].x, y, info.pts[1].x, y);
+      add(info.pts[0].x, y, info.pts[1].x, y);
     }
     return info;
   };
-  const fork = (originX, originY, targets, gap = 42) => {
+  const fork = (originX, originY, targets) => {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const kidTop = Math.min(...kids.map((pt) => (Number.isFinite(pt.top) ? pt.top : pt.y)));
-    const barY = originY < kidTop - 12 ? originY + Math.max(16, (kidTop - originY) * 0.4) : originY + gap;
-    seg(originX, originY, originX, barY);
+    const barY = (originY + kidTop) / 2;
+    add(originX, originY, originX, barY);
     const xs = [originX, ...kids.map((pt) => pt.x)];
-    seg(Math.min(...xs), barY, Math.max(...xs), barY);
-    kids.forEach((pt) => seg(pt.x, barY, pt.x, Number.isFinite(pt.top) ? pt.top : pt.y));
+    add(Math.min(...xs), barY, Math.max(...xs), barY);
+    kids.forEach((pt) => add(pt.x, barY, pt.x, Number.isFinite(pt.top) ? pt.top : pt.y));
   };
   const mandi1 = join(chart.querySelector('[data-pair="mandi-g1"]'));
   const tudu1 = join(chart.querySelector('[data-pair="tudu-g1"]'));
@@ -546,9 +534,7 @@ export function drawFamilyLines(root) {
   if (mandi1 && mandi2) fork(mandi1.midX, mandi1.bottom, [{ x: mandi2.bloodX, y: mandi2.bloodY, top: mandi2.top }]);
   if (tudu1 && tudu2) fork(tudu1.midX, tudu1.bottom, [{ x: tudu2.bloodX, y: tudu2.bloodY, top: tudu2.top }]);
   const hang = (parent, units) => {
-    const infos = units
-      .map((unit) => join(unit.querySelector("[data-pair]")))
-      .filter(Boolean);
+    const infos = units.map((unit) => join(unit.querySelector("[data-pair]"))).filter(Boolean);
     if (!parent || !infos.length) return;
     fork(
       parent.midX,
@@ -562,10 +548,9 @@ export function drawFamilyLines(root) {
     const a = rel(chart, khu);
     const b = rel(chart, bhutku);
     const y = (a.y + b.y) / 2;
-    seg(a.x, y, b.x, y);
+    add(a.x, y, b.x, y);
     if (childCards.length) {
-      const childPts = childCards.map((card) => rel(chart, card));
-      fork((a.x + b.x) / 2, Math.max(a.bottom, b.bottom), childPts, 36);
+      fork((a.x + b.x) / 2, Math.max(a.bottom, b.bottom), childCards.map((card) => rel(chart, card)));
     }
   }
   [...chart.querySelectorAll("[data-unit]")].forEach((unit) => {
@@ -573,8 +558,11 @@ export function drawFamilyLines(root) {
     const kids = unit.querySelector("[data-kids]");
     const parent = pair ? pairPoints(chart, pair) : null;
     if (!parent || !kids) return;
-    const childPts = [...kids.querySelectorAll(".ft-card")].map((card) => rel(chart, card));
-    fork(parent.midX, parent.bottom, childPts, 36);
+    fork(
+      parent.midX,
+      parent.bottom,
+      [...kids.querySelectorAll(".ft-card")].map((card) => rel(chart, card))
+    );
   });
   svg.innerHTML = lines.join("");
 }
