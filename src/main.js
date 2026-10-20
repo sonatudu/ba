@@ -2777,14 +2777,7 @@ function gateView() {
         }
         ${
           joining
-            ? `<div class="field" data-who-field hidden>
-          <p class="who-pick-label">Who you are</p>
-          <div class="who-pick" role="group" aria-label="Who you are">
-            <button class="who-option" type="button" data-who="ba"><span data-who-label="ba"></span></button>
-            <button class="who-option" type="button" data-who="ma"><span data-who-label="ma"></span></button>
-          </div>
-        </div>
-        <div class="field" data-room-id-field>
+            ? `<div class="field" data-room-id-field>
           <label for="room-id">Room id</label>
           <input id="room-id" name="roomId" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" value="${escapeHtml(pendingLogin?.roomId || "")}" placeholder="XXXX-XXXX-XX" />
         </div>`
@@ -2811,12 +2804,6 @@ function gateView() {
       render();
     });
   });
-  card.querySelectorAll("[data-who]").forEach((button) => {
-    button.addEventListener("click", () => {
-      pickedWho = button.dataset.who === "ma" ? "ma" : "ba";
-      card.querySelectorAll("[data-who]").forEach((item) => item.classList.toggle("picked", item === button));
-    });
-  });
   const joinNames = () => {
     const names = roomPreview?.names || {};
     return {
@@ -2824,29 +2811,46 @@ function gateView() {
       ma: String(names.ma || "").trim(),
     };
   };
-  const updateWhoLabels = () => {
-    const names = joinNames();
-    const baBtn = card.querySelector('[data-who-label="ba"]');
-    const maBtn = card.querySelector('[data-who-label="ma"]');
-    if (baBtn) baBtn.textContent = names.ba;
-    if (maBtn) maBtn.textContent = names.ma;
-    const whoField = card.querySelector("[data-who-field]");
-    if (whoField) whoField.hidden = !(joinNamesReady && (names.ba || names.ma));
+  const bindJoinWhoButtons = (whoField) => {
+    whoField.querySelectorAll("[data-who]").forEach((button) => {
+      button.addEventListener("click", () => {
+        pickedWho = button.dataset.who === "ma" ? "ma" : "ba";
+        whoField.querySelectorAll("[data-who]").forEach((item) => item.classList.toggle("picked", item === button));
+      });
+    });
+  };
+  const hideRoomIdIfPersonal = () => {
     const roomField = card.querySelector("[data-room-id-field]");
     const typedId = String(card.querySelector("#room-id")?.value || pendingLogin?.roomId || "").toUpperCase();
     const previewId = String(roomPreview?.roomId || "").toUpperCase();
     if (roomField) roomField.hidden = typedId === "BA-OURS" || previewId === "BA-OURS";
   };
+  const showJoinWho = () => {
+    const names = joinNames();
+    card.querySelector("[data-who-field]")?.remove();
+    if (!joinNamesReady || !(names.ba || names.ma)) return;
+    const whoField = el(`
+      <div class="field" data-who-field>
+        <p class="who-pick-label">Who you are</p>
+        <div class="who-pick" role="group" aria-label="Who you are">
+          <button class="who-option${pickedWho === "ba" ? " picked" : ""}" type="button" data-who="ba"${names.ba ? "" : " hidden"}><span data-who-label="ba">${escapeHtml(names.ba)}</span></button>
+          <button class="who-option${pickedWho === "ma" ? " picked" : ""}" type="button" data-who="ma"${names.ma ? "" : " hidden"}><span data-who-label="ma">${escapeHtml(names.ma)}</span></button>
+        </div>
+      </div>
+    `);
+    card.querySelector("[data-err]")?.before(whoField);
+    bindJoinWhoButtons(whoField);
+  };
   const forgetJoinNames = () => {
     joinNamesReady = false;
     pickedWho = "";
     roomPreview = { roomId: "", names: { ba: "", ma: "" }, title: "" };
-    card.querySelectorAll("[data-who]").forEach((item) => item.classList.remove("picked"));
-    updateWhoLabels();
+    card.querySelector("[data-who-field]")?.remove();
+    hideRoomIdIfPersonal();
   };
   card.querySelector("#room-id")?.addEventListener("input", forgetJoinNames);
   card.querySelector("#code")?.addEventListener("input", forgetJoinNames);
-  updateWhoLabels();
+  hideRoomIdIfPersonal();
   card.querySelector("form").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (choosing) return;
@@ -2874,9 +2878,11 @@ function gateView() {
           if (submitBtn) submitBtn.disabled = false;
         }
         joinNamesReady = true;
-        updateWhoLabels();
+        hideRoomIdIfPersonal();
         const names = joinNames();
         if (names.ba || names.ma) {
+          if (!pickedWho && (savedWho === "ba" || savedWho === "ma")) pickedWho = savedWho;
+          showJoinWho();
           err.textContent = "";
           return;
         }
