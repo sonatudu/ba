@@ -4,6 +4,7 @@ import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
+import { APP_VERSION } from "./appVersion.js";
 import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadQuote, loadSignals, logoutCloud, pingPresence, previewRoom, readChat, registerPushToken, removeChat, clearChat, saveCloud, saveRoomProfile, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
 import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, FAMILY_RELATIONS, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
@@ -8286,6 +8287,7 @@ function settingsView() {
       </p>
       <a class="settings-link" href="${MANUAL_URL}" target="_blank" rel="noopener noreferrer">User manual</a>
       <a class="settings-link" href="${PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Privacy policy</a>
+      <p class="settings-note">Ba ${escapeHtml(APP_VERSION)}</p>
       <button class="settings-out" type="button" data-out>Log out</button>
       ${
         settingsDeleteOpen

@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
@@ -13,6 +14,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        bypassWebViewCache();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 "ba_push",
@@ -25,6 +27,14 @@ public class MainActivity extends BridgeActivity {
         if (BuildConfig.DEBUG) {
             new Handler(Looper.getMainLooper()).postDelayed(this::loadDebugLiveUi, 250);
         }
+    }
+
+    private void bypassWebViewCache() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        WebView web = getBridge().getWebView();
+        web.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+        web.clearCache(true);
+        web.clearHistory();
     }
 
     private void loadDebugLiveUi() {
