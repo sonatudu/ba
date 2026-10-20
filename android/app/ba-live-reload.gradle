@@ -1,4 +1,6 @@
+import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.Socket
 
 def baRepoRoot = rootProject.projectDir.parentFile
@@ -14,6 +16,28 @@ def baPortOpen = { int port ->
         try { socket.close() } catch (Exception ignored) {}
     }
 }
+
+def baLanIp = {
+    def found = []
+    NetworkInterface.networkInterfaces.each { ni ->
+        try {
+            if (!ni.up || ni.loopback) return
+            ni.inetAddresses.each { addr ->
+                if (!(addr instanceof Inet4Address) || addr.isLoopbackAddress()) return
+                def ip = addr.hostAddress
+                if (ip.startsWith("172.17.") || ip.startsWith("172.18.")) return
+                found << ip
+            }
+        } catch (Exception ignored) {}
+    }
+    found.find { it.startsWith("192.168.") } ?: found.find { it.startsWith("10.") } ?: found[0] ?: "127.0.0.1"
+}
+
+def baLiveUrl = "http://${baLanIp()}:5173"
+
+android.buildTypes.debug.buildConfigField "String", "BA_LIVE_URL", "\"${baLiveUrl}\""
+android.buildTypes.release.buildConfigField "String", "BA_LIVE_URL", "\"\""
+android.buildTypes.release.buildConfigField "String", "BA_LOCAL_LIVE_URL", "\"\""
 
 def baAdb = {
     def lp = new Properties()
@@ -31,14 +55,32 @@ def baReverseVite = {
         def proc = [adb, "devices"].execute()
         proc.waitFor()
         proc.text.readLines().each { line ->
-            if (!(line.contains("\tdevice") || line.endsWith("device"))) return
+            if (!line.contains("\tdevice")) return
             def serial = line.split(/\s+/)[0]
             if (!serial || serial == "List") return
             [adb, "-s", serial, "reverse", "tcp:5173", "tcp:5173"].execute().waitFor()
+            logger.lifecycle("Ba live reload: adb reverse on ${serial} -> ${baLiveUrl}")
         }
-    } catch (Exception ignored) {
-        logger.warn("Ba live reload: could not run adb reverse (is a phone connected?)")
+    } catch (Exception err) {
+        logger.warn("Ba live reload: adb reverse failed: ${err.message}")
     }
+}
+
+def baWriteCapConfig = { File dir ->
+    if (!dir.exists()) dir.mkdirs()
+    def cfg = new File(dir, "capacitor.config.json")
+    cfg.text = """{
+	"appId": "com.sonatudu.ba",
+	"appName": "Ba",
+	"webDir": "dist",
+	"server": {
+		"url": "${baLiveUrl}",
+		"cleartext": true,
+		"androidScheme": "http"
+	},
+	"android": { "backgroundColor": "#070b16" }
+}
+"""
 }
 
 def baStartVite = {
@@ -47,7 +89,7 @@ def baStartVite = {
     def cmd = """
         cd '${baRepoRoot.absolutePath}' &&
         (command -v npm >/dev/null || export PATH="/usr/bin:/usr/local/bin:\$PATH") &&
-        npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+        npm run dev -- --host 0.0.0.0 --port 5173 --strictPort
     """.stripIndent()
     def pb = new ProcessBuilder("bash", "-lc", cmd)
     pb.directory(baRepoRoot)
@@ -60,23 +102,30 @@ def baStartVite = {
         waited += 400
     }
     if (!baPortOpen(5173)) {
-        throw new GradleException("Ba live reload: Vite did not start on 127.0.0.1:5173. See ${logFile}")
+        throw new GradleException("Ba live reload: Vite did not start on port 5173. See ${logFile}")
     }
 }
 
 tasks.register("startBaLiveReload") {
     doLast {
+        logger.lifecycle("Ba live reload URL: ${baLiveUrl}")
         baStartVite()
         baReverseVite()
+        baWriteCapConfig(new File(project.projectDir, "src/debug/assets"))
     }
 }
 
 afterEvaluate {
-    tasks.matching { it.name == "preDebugBuild" }.configureEach {
-        dependsOn "startBaLiveReload"
+    ["preDebugBuild", "assembleDebug", "installDebug", "mergeDebugAssets"].each { name ->
+        tasks.matching { it.name == name }.configureEach { dependsOn "startBaLiveReload" }
+    }
+    tasks.matching { it.name == "mergeDebugAssets" }.configureEach {
+        doLast {
+            def dir = outputDir.asFile.get()
+            baWriteCapConfig(dir)
+        }
     }
     tasks.matching { it.name == "installDebug" }.configureEach {
-        dependsOn "startBaLiveReload"
         doLast { baReverseVite() }
     }
 }

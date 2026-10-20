@@ -20,6 +20,11 @@ android {
         aaptOptions {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+        buildConfigField "String", "BA_LIVE_URL", "\"\""
+        buildConfigField "String", "BA_LOCAL_LIVE_URL", "\"\""
+    }
+    buildFeatures {
+        buildConfig true
     }
     signingConfigs {
         release {
@@ -32,6 +37,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField "String", "BA_LOCAL_LIVE_URL", "\"http://127.0.0.1:5173\""
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
