@@ -3,7 +3,7 @@ import { notifyPartner, savePushToken, tokenCount, withPushTokens, pushConfigure
 import { relative } from "path";
 import { promises as fsPromises } from "fs";
 import cors from "cors";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual, webcrypto } from "crypto";
 import express from "express";
 import { spawn } from "child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "fs";
@@ -516,6 +516,44 @@ function roomNamesOf(room) {
   return { ba: cleanName(names.ba), ma: cleanName(names.ma) };
 }
 
+function b64ToBytes(value) {
+  return Uint8Array.from(Buffer.from(String(value || ""), "base64"));
+}
+
+async function namesFromRoomBlob(room) {
+  if (!room?.id || !room.kdfSalt || !room.iv || !room.blob) return null;
+  try {
+    const saltHex = String(room.kdfSalt);
+    const salt = new Uint8Array(saltHex.match(/.{2}/g).map((hex) => Number.parseInt(hex, 16)));
+    const material = await webcrypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(String(room.id)),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    const key = await webcrypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["decrypt"]
+    );
+    const opened = await webcrypto.subtle.decrypt(
+      { name: "AES-GCM", iv: b64ToBytes(room.iv) },
+      key,
+      b64ToBytes(room.blob)
+    );
+    const payload = JSON.parse(new TextDecoder().decode(opened));
+    return {
+      ba: cleanName(payload?.you),
+      ma: cleanName(payload?.them),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function emptyRoom(id, extra = {}) {
   return {
     id,
@@ -677,7 +715,7 @@ app.post("/api/rooms", (req, res) => {
   res.json({ token, username: who, ...publicRoom(room, who) });
 });
 
-app.post("/api/room-preview", (req, res) => {
+app.post("/api/room-preview", async (req, res) => {
   const ip = req.ip || "local";
   if (!rateLimit(`preview:${ip}`, 40, 60 * 60 * 1000)) {
     return res.status(429).json({ error: "Too many tries. Wait a bit." });
@@ -694,7 +732,15 @@ app.post("/api/room-preview", (req, res) => {
   if (!room || !roomCodeOk(room, code)) {
     return res.status(401).json({ error: roomId ? "That room or code is wrong." : "Enter the room id and code." });
   }
-  const names = roomNamesOf(room);
+  let names = roomNamesOf(room);
+  if (!names.ba && !names.ma) {
+    const fromBlob = await namesFromRoomBlob(room);
+    if (fromBlob && (fromBlob.ba || fromBlob.ma)) {
+      names = fromBlob;
+      room.names = { ba: fromBlob.ba, ma: fromBlob.ma };
+      writeRoom(room);
+    }
+  }
   res.json({
     roomId: room.id,
     names: room.id === COUPLE_ROOM_ID ? { ba: names.ba || "Ba", ma: names.ma || "Ma" } : names,
