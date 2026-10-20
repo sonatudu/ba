@@ -6,12 +6,32 @@ export default defineConfig({
   base: process.env.BASE || "./",
   plugins: [
     {
-      name: "no-crossorigin",
-      transformIndexHtml(html) {
-        return html.replace(/ crossorigin/g, "");
+      name: "webview-classic-script",
+      transformIndexHtml: {
+        order: "post",
+        handler(html) {
+          return html
+            .replace(/ crossorigin(="[^"]*")?/g, "")
+            .replace(/<script type="module" src=/g, "<script defer src=");
+        },
       },
     },
   ],
+  build: {
+    // Android WebView often skips type=module (CORS on https://localhost).
+    // One classic IIFE file runs the same as a normal <script defer>.
+    modulePreload: false,
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        format: "iife",
+        inlineDynamicImports: true,
+        entryFileNames: "assets/ba.js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: "assets/[name][extname]",
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,

@@ -26,6 +26,16 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      html, body { margin: 0; background: #070b16; color: #eaf0ff; }
+      .html-cannot-see {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
@@ -40,6 +50,17 @@
         Room content is encrypted on the device. JavaScript is required to open Ba.
       </p>
     </noscript>
+    <script>
+      window.setTimeout(function () {
+        var el = document.getElementById("app");
+        if (!el || el.childElementCount) return;
+        el.innerHTML =
+          '<div style="padding:28px 22px;font-family:system-ui,sans-serif;color:#eaf0ff">' +
+          '<p style="font-size:1.35rem;font-weight:700;margin:0 0 10px">Ba</p>' +
+          "<p style=\"margin:0;line-height:1.45;opacity:.92\">The room did not open. Close the app and open it again.</p>" +
+          "</div>";
+      }, 2500);
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

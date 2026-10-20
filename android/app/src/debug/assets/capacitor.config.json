@@ -3,7 +3,8 @@
 	"appName": "Ba",
 	"webDir": "dist",
 	"android": {
-		"backgroundColor": "#070b16"
+		"backgroundColor": "#070b16",
+		"webContentsDebuggingEnabled": true
 	},
 	"plugins": {
 		"SplashScreen": {
