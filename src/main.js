@@ -7351,7 +7351,7 @@ function familyView() {
     lineRaf = requestAnimationFrame(() => {
       lineRaf = 0;
       if (!wrap.isConnected) return;
-      drawFamilyLines(wrap);
+      drawFamilyLines(wrap, familyZoom);
     });
   };
   requestAnimationFrame(() => requestAnimationFrame(paint));
@@ -8492,33 +8492,27 @@ function routineView() {
 
       <div class="hold-menu" data-routine-cell-modal hidden>
         <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
-        <div class="hold-menu-card" role="dialog" aria-modal="true">
+        <div class="hold-menu-card is-slot" role="dialog" aria-modal="true">
           <p class="hold-menu-kicker" data-cell-kicker>Edit Schedule Slot</p>
           <h2 class="hold-menu-title" data-cell-title>Monday • Slot</h2>
-          <div style="margin-top: 14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-              <label style="font-size: 0.78rem; font-weight:600; color:var(--ink-soft);">Subject / Activity</label>
-              <button type="button" class="routine-action-btn" data-act="cell-add-course" style="font-size:0.75rem; padding:3px 8px;">+ Add New Subject</button>
-            </div>
-            <div data-cell-quick-wrap class="routine-subject-chips" style="margin-bottom:8px; display:none;"></div>
-            <input type="text" data-cell-text placeholder="e.g. Mathematics, Gym, Free" maxlength="120" style="width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.9rem;" />
-          </div>
-          <div style="margin-top: 12px; display:flex; align-items:center; justify-content:space-between;">
-            <label style="font-size: 0.78rem; font-weight:600; color:var(--ink-soft);">Span</label>
-            <select data-cell-span style="padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:0.85rem;">
+          <label class="slot-field-label" for="slot-subject">Subject</label>
+          <input id="slot-subject" type="text" data-cell-text placeholder="Type the class name" maxlength="120" class="slot-subject-input" />
+          <p class="slot-pick-label" data-cell-list-label hidden>Or tap one</p>
+          <div data-cell-quick-wrap class="slot-pick-list" hidden></div>
+          <div class="slot-span-row">
+            <label for="slot-span">Span</label>
+            <select id="slot-span" data-cell-span>
               <option value="1">1 slot</option>
               <option value="2">2 slots</option>
               <option value="3">3 slots</option>
               <option value="4">4 slots</option>
             </select>
           </div>
-          <div class="hold-menu-row" style="margin-top: 16px;">
+          <div class="hold-menu-row">
             <button type="button" class="hold-menu-btn" data-modal-close>Cancel</button>
-            <button type="button" class="hold-menu-btn" style="background:var(--accent, #6ea8ff); color:#fff; border-color:transparent;" data-cell-save>Save</button>
+            <button type="button" class="hold-menu-btn slot-save" data-cell-save>Save</button>
           </div>
-          <div style="margin-top: 8px;">
-            <button type="button" class="hold-menu-btn is-danger" style="width:100%;" data-cell-clear>Clear (Set Free)</button>
-          </div>
+          <button type="button" class="hold-menu-btn is-danger slot-clear" data-cell-clear>Clear (Set Free)</button>
         </div>
       </div>
 
@@ -8669,19 +8663,28 @@ function routineView() {
 
       const subjects = getRoutineSubjects(person);
       const quickWrap = cellModal.querySelector("[data-cell-quick-wrap]");
+      const listLabel = cellModal.querySelector("[data-cell-list-label]");
       if (quickWrap) {
         if (subjects.length > 0) {
-          quickWrap.style.display = "flex";
+          quickWrap.hidden = false;
+          if (listLabel) listLabel.hidden = false;
+          const current = cellInput.value.trim();
           quickWrap.innerHTML = subjects
-            .map((s) => `<button type="button" class="routine-subject-chip" data-cell-pick="${escapeHtml(s)}">${escapeHtml(s)}</button>`)
+            .map(
+              (s) =>
+                `<button type="button" class="slot-pick-item${s === current ? " is-on" : ""}" data-cell-pick="${escapeHtml(s)}">${escapeHtml(s)}</button>`
+            )
             .join("");
-          quickWrap.querySelectorAll("[data-cell-pick]").forEach((chip) => {
-            chip.addEventListener("click", () => {
-              cellInput.value = chip.dataset.cellPick || chip.textContent;
+          quickWrap.querySelectorAll("[data-cell-pick]").forEach((row) => {
+            row.addEventListener("click", () => {
+              cellInput.value = row.dataset.cellPick || row.textContent;
+              quickWrap.querySelectorAll("[data-cell-pick]").forEach((item) => item.classList.toggle("is-on", item === row));
             });
           });
+          quickWrap.scrollTop = 0;
         } else {
-          quickWrap.style.display = "none";
+          quickWrap.hidden = true;
+          if (listLabel) listLabel.hidden = true;
           quickWrap.innerHTML = "";
         }
       }
