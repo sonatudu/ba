@@ -2953,11 +2953,7 @@ function gateView() {
       welcomeStep = "choose";
       render();
     } catch (error) {
-      const onPages = /\.github\.io$/i.test(location.hostname);
-      err.textContent =
-        onPages && /Can't reach|not connected/i.test(String(error.message || ""))
-          ? "This GitHub Pages link needs a hosted Ba server. Deploy the API (see render.yaml), set the VITE_API_URL secret, then redeploy Pages."
-          : error.message;
+      err.textContent = error.message;
       if (error.needSetup) {
         const who = coupleId(pickedWho) || readSavedWho() || coupleId(pendingLogin?.who);
         const roomId = String(card.querySelector("#room-id")?.value || "").trim();

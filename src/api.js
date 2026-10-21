@@ -1,4 +1,4 @@
-export const API_BASE = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+export const API_BASE = String(import.meta.env.VITE_API_URL || "https://ba-sonatudu.duckdns.org").replace(/\/$/, "");
 
 async function request(path, { method = "GET", token, body } = {}) {
   const headers = { "Content-Type": "application/json" };
