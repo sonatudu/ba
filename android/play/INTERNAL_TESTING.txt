@@ -28,4 +28,4 @@ Ba — signed AAB + internal testing
    /home/sona/ba-upload.jks + the passwords
    Losing them means you cannot update this Play listing with the same upload key.
 
-Version in this project: versionCode 68, versionName 1.6.21
+Version in this project: versionCode 69, versionName 1.6.22
