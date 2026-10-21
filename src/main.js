@@ -3991,13 +3991,25 @@ function bindAppChoice(root, name, { getValue, setValue } = {}) {
   const scrim = box.querySelector("[data-choice-scrim]");
   const pop = box.querySelector("[data-choice-pop]");
   const close = () => {
-    if (scrim) scrim.hidden = true;
-    if (pop) pop.hidden = true;
+    if (scrim) {
+      scrim.hidden = true;
+      box.appendChild(scrim);
+    }
+    if (pop) {
+      pop.hidden = true;
+      box.appendChild(pop);
+    }
     trigger?.setAttribute("aria-expanded", "false");
   };
   const open = () => {
-    if (scrim) scrim.hidden = false;
-    if (pop) pop.hidden = false;
+    if (scrim) {
+      document.body.appendChild(scrim);
+      scrim.hidden = false;
+    }
+    if (pop) {
+      document.body.appendChild(pop);
+      pop.hidden = false;
+    }
     trigger?.setAttribute("aria-expanded", "true");
   };
   trigger?.addEventListener("click", (event) => {
