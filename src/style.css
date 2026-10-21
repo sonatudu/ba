@@ -2150,7 +2150,24 @@ body.is-daily-sorting {
   min-width: max-content;
   width: 100%;
   box-sizing: border-box;
-  padding: 28px 48px 220px;
+  padding: 20px 32px 120px;
+}
+
+.chart-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px 56px;
+  align-items: start;
+  position: relative;
+  z-index: 1;
+}
+
+.chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+  min-width: 0;
 }
 
 .chart-lines {
@@ -2188,52 +2205,12 @@ body.is-daily-sorting {
   cursor: pointer;
 }
 
-.chart-row {
-  display: flex;
-  justify-content: center;
-  align-items: start;
-  gap: clamp(64px, 10vw, 160px);
-  position: relative;
-  z-index: 1;
-}
-
-.chart-g1,
-.chart-g2 {
-  margin-bottom: 88px;
-}
-
-.chart-g3 {
-  padding-top: 48px;
-  flex-wrap: wrap;
-  gap: 48px 56px;
-}
-
-.chart-house {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.chart-g2 .chart-house {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  min-width: 0;
-}
-
 .chart-g3-house {
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 28px 32px;
-}
-
-.chart-g3-house[data-g3-mandi],
-.chart-g3-house[data-g3-tudu] {
-  justify-content: center;
-  flex: 1;
+  gap: 24px 28px;
 }
 
 .ft-pair {
@@ -2258,11 +2235,20 @@ body.is-daily-sorting {
   justify-self: start;
 }
 
-.chart-g4 {
-  margin-top: 80px;
-  min-height: 0;
-  gap: 28px;
-  flex-wrap: wrap;
+.chart-union-kids {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  position: absolute;
+  left: 50%;
+  top: auto;
+  z-index: 2;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.chart-union-kids.is-placed {
+  margin: 0;
 }
 
 .ft-olly {
@@ -2270,6 +2256,7 @@ body.is-daily-sorting {
   z-index: 2;
   width: 92px;
   flex: none;
+  pointer-events: auto;
 }
 
 .ft-unit {
@@ -2283,7 +2270,7 @@ body.is-daily-sorting {
   display: flex;
   justify-content: center;
   gap: 16px;
-  margin-top: 64px;
+  margin-top: 36px;
 }
 
 .ft-card {

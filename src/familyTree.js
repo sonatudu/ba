@@ -417,6 +417,14 @@ export function familyTreeHtml(escapeHtml, tree) {
   const tuduG1 = source.tudu;
   const tuduG2 = tuduG1?.kids?.[0];
   const houses = houseUnits(source);
+  const unionKids = (houses.children || [])
+    .map(
+      (child, idx) => `
+            <div class="ft-olly" data-child-idx="${idx}" data-olly-id="${escapeHtml(child.id)}">
+              ${cardHtml(escapeHtml, child, "blood")}
+            </div>`
+    )
+    .join("");
   return `
     <div class="family-zoom-bar">
       <button type="button" class="family-zoom-btn" data-family-zoom-out aria-label="Zoom out">−</button>
@@ -425,29 +433,23 @@ export function familyTreeHtml(escapeHtml, tree) {
     <div class="chart-scroll" data-family-scroll>
       <div class="chart" data-chart>
         <svg class="chart-lines" data-tree-lines></svg>
-        <div class="chart-row chart-g1">
-          <div class="chart-house">${pairHtml(escapeHtml, mandiG1?.a, mandiG1?.b, "mandi-g1")}</div>
-          <div class="chart-house">${pairHtml(escapeHtml, tuduG1?.a, tuduG1?.b, "tudu-g1")}</div>
-        </div>
-        <div class="chart-row chart-g2">
-          <div class="chart-house">${pairHtml(escapeHtml, mandiG2?.a, mandiG2?.b, "mandi-g2", { a: "blood", b: "inlaw", stem: true })}</div>
-          <div class="chart-house">${pairHtml(escapeHtml, tuduG2?.a, tuduG2?.b, "tudu-g2", { a: "blood", b: "inlaw", stem: true })}</div>
-        </div>
-        <div class="chart-row chart-g3">
-          <div class="chart-house chart-g3-house" data-g3-mandi>
-            ${houses.mandi.map((unit, index) => unitHtml(escapeHtml, unit, `mandi-g3-${index}`)).join("")}
-          </div>
-          <div class="chart-house chart-g3-house" data-g3-tudu>
-            ${houses.tudu.map((unit, index) => unitHtml(escapeHtml, unit, `tudu-g3-${index}`)).join("")}
-          </div>
-        </div>
-        <div class="chart-row chart-g4" data-union-kids>
-          ${(houses.children || []).map((child, idx) => `
-            <div class="ft-olly" data-child-idx="${idx}" data-olly-id="${escapeHtml(child.id)}">
-              ${cardHtml(escapeHtml, child, "blood")}
+        <div class="chart-cols">
+          <div class="chart-col" data-col="mandi">
+            ${pairHtml(escapeHtml, mandiG1?.a, mandiG1?.b, "mandi-g1")}
+            ${pairHtml(escapeHtml, mandiG2?.a, mandiG2?.b, "mandi-g2", { a: "blood", b: "inlaw", stem: true })}
+            <div class="chart-g3-house" data-g3-mandi>
+              ${houses.mandi.map((unit, index) => unitHtml(escapeHtml, unit, `mandi-g3-${index}`)).join("")}
             </div>
-          `).join("")}
+          </div>
+          <div class="chart-col" data-col="tudu">
+            ${pairHtml(escapeHtml, tuduG1?.a, tuduG1?.b, "tudu-g1")}
+            ${pairHtml(escapeHtml, tuduG2?.a, tuduG2?.b, "tudu-g2", { a: "blood", b: "inlaw", stem: true })}
+            <div class="chart-g3-house" data-g3-tudu>
+              ${houses.tudu.map((unit, index) => unitHtml(escapeHtml, unit, `tudu-g3-${index}`)).join("")}
+            </div>
+          </div>
         </div>
+        <div class="chart-union-kids" data-union-kids>${unionKids}</div>
       </div>
     </div>
   `;
@@ -490,11 +492,39 @@ function pairPoints(chart, pair, z = 1) {
   };
 }
 
+function stemOf(info) {
+  if (!info) return null;
+  const couple = (info.pts || []).length >= 2;
+  return {
+    x: info.midX,
+    y: info.y,
+    top: couple ? info.y : info.top,
+  };
+}
+
+function placeUnionKids(chart, z) {
+  const row = chart.querySelector("[data-union-kids]");
+  if (!row || !row.children.length) return;
+  const khu = chart.querySelector("[data-khu] .ft-card");
+  const bhutku = chart.querySelector("[data-bhutku] .ft-card");
+  const a = khu ? rel(chart, khu, z) : null;
+  const b = bhutku ? rel(chart, bhutku, z) : null;
+  if (!a && !b) return;
+  const midX = a && b ? (a.x + b.x) / 2 : (a || b).x;
+  const bottom = Math.max(a?.bottom || 0, b?.bottom || 0);
+  row.style.left = `${midX}px`;
+  row.style.top = `${bottom + 28}px`;
+  row.classList.add("is-placed");
+  const need = bottom + 28 + row.offsetHeight + 48;
+  if (need > chart.offsetHeight) chart.style.minHeight = `${need}px`;
+}
+
 export function drawFamilyLines(root, scale = 1) {
   const chart = root.querySelector("[data-chart]");
   const svg = root.querySelector("[data-tree-lines]");
   if (!chart || !svg) return;
   const z = Number(scale) > 0 ? Number(scale) : 1;
+  placeUnionKids(chart, z);
   const khu = chart.querySelector("[data-khu] .ft-card");
   const bhutku = chart.querySelector("[data-bhutku] .ft-card");
   const childCards = [...chart.querySelectorAll("[data-union-kids] .ft-card")];
@@ -535,27 +565,28 @@ export function drawFamilyLines(root, scale = 1) {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const kidTop = Math.min(...kids.map((pt) => (Number.isFinite(pt.top) ? pt.top : pt.y)));
-    let barY = originY + Math.max(16, (kidTop - originY) / 2);
-    if (!(barY > originY && barY < kidTop)) barY = (originY + kidTop) / 2;
+    const aligned = kids.every((pt) => Math.abs(pt.x - originX) < 10);
+    if (kids.length === 1 && aligned) {
+      add(originX, originY, originX, kidTop);
+      return;
+    }
+    let barY = originY + Math.max(18, (kidTop - originY) / 2);
+    if (!(barY > originY && barY < kidTop - 4)) barY = (originY + kidTop) / 2;
     add(originX, originY, originX, barY);
-    const xs = [originX, ...kids.map((pt) => pt.x)];
-    add(Math.min(...xs), barY, Math.max(...xs), barY);
-    kids.forEach((pt) => add(pt.x, barY, pt.x, Number.isFinite(pt.top) ? pt.top : pt.y));
+    const xs = kids.map((pt) => (Math.abs(pt.x - originX) < 10 ? originX : pt.x));
+    add(Math.min(originX, ...xs), barY, Math.max(originX, ...xs), barY);
+    kids.forEach((pt, i) => add(xs[i], barY, xs[i], Number.isFinite(pt.top) ? pt.top : pt.y));
   };
   const mandi1 = join(chart.querySelector('[data-pair="mandi-g1"]'));
   const tudu1 = join(chart.querySelector('[data-pair="tudu-g1"]'));
   const mandi2 = join(chart.querySelector('[data-pair="mandi-g2"]'));
   const tudu2 = join(chart.querySelector('[data-pair="tudu-g2"]'));
-  if (mandi1 && mandi2) fork(mandi1.midX, mandi1.bottom, [{ x: mandi2.bloodX, y: mandi2.bloodY, top: mandi2.top }]);
-  if (tudu1 && tudu2) fork(tudu1.midX, tudu1.bottom, [{ x: tudu2.bloodX, y: tudu2.bloodY, top: tudu2.top }]);
+  if (mandi1 && mandi2) fork(mandi1.midX, mandi1.bottom, [stemOf(mandi2)]);
+  if (tudu1 && tudu2) fork(tudu1.midX, tudu1.bottom, [stemOf(tudu2)]);
   const hang = (parent, units) => {
     const infos = units.map((unit) => join(unit.querySelector("[data-pair]"))).filter(Boolean);
     if (!parent || !infos.length) return;
-    fork(
-      parent.midX,
-      parent.bottom,
-      infos.map((info) => ({ x: info.bloodX, y: info.bloodY ?? info.y, top: info.top }))
-    );
+    fork(parent.midX, parent.bottom, infos.map(stemOf));
   };
   hang(mandi2, [...chart.querySelectorAll('[data-side="mandi"]')]);
   hang(tudu2, [...chart.querySelectorAll('[data-side="tudu"]')]);
@@ -567,6 +598,9 @@ export function drawFamilyLines(root, scale = 1) {
     if (childCards.length) {
       fork((a.x + b.x) / 2, Math.max(a.bottom, b.bottom), childCards.map((card) => rel(chart, card, z)));
     }
+  } else if (childCards.length && (khu || bhutku)) {
+    const p = rel(chart, khu || bhutku, z);
+    fork(p.x, p.bottom, childCards.map((card) => rel(chart, card, z)));
   }
   [...chart.querySelectorAll("[data-unit]")].forEach((unit) => {
     const pair = unit.querySelector("[data-pair]");
