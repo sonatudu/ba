@@ -3022,6 +3022,116 @@ body.is-hold-menu {
   animation: hold-menu-in 160ms ease-out;
 }
 
+.hold-menu-card.is-slot {
+  width: min(22.5rem, 100%);
+  max-height: min(88dvh, 36rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.slot-field-label,
+.slot-pick-label {
+  margin: 14px 0 6px;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.slot-subject-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.slot-pick-list {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  max-height: min(42dvh, 18rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+}
+
+.slot-pick-list[hidden],
+.slot-pick-label[hidden] {
+  display: none !important;
+}
+
+.slot-pick-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  padding: 13px 14px;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.slot-pick-item:last-child {
+  border-bottom: 0;
+}
+
+.slot-pick-item.is-on,
+.slot-pick-item:active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.slot-span-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 2px;
+  color: var(--ink-soft);
+  font-size: var(--fs-label);
+  font-weight: 650;
+}
+
+.slot-span-row select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.hold-menu-btn.slot-save {
+  background: var(--accent, #6ea8ff);
+  color: #fff;
+  border-color: transparent;
+}
+
+.hold-menu-btn.slot-clear {
+  width: 100%;
+  margin-top: 8px;
+}
+
 @keyframes hold-menu-in {
   from {
     opacity: 0;
