@@ -7399,14 +7399,6 @@ function bindFamilyZoom(root, paint) {
     requestAnimationFrame(() => paint?.());
   };
   apply();
-  root.querySelector("[data-family-zoom-in]")?.addEventListener("click", () => {
-    familyZoom += 0.12;
-    apply();
-  });
-  root.querySelector("[data-family-zoom-out]")?.addEventListener("click", () => {
-    familyZoom -= 0.12;
-    apply();
-  });
   let pinch = 0;
   let startZoom = familyZoom;
   const distance = (event) => {

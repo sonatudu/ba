@@ -2168,6 +2168,7 @@ body.is-daily-sorting {
   align-items: center;
   gap: 48px;
   min-width: 0;
+  overflow: visible;
 }
 
 .chart-lines {
@@ -2186,31 +2187,13 @@ body.is-daily-sorting {
   stroke-linejoin: miter;
 }
 
-.family-zoom-bar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin: 0 0 8px;
-}
-
-.family-zoom-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
 .chart-g3-house {
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 24px 28px;
+  gap: 24px 108px;
+  overflow: visible;
 }
 
 .ft-pair {
@@ -2221,18 +2204,17 @@ body.is-daily-sorting {
 }
 
 .ft-pair.ft-stem {
+  position: relative;
   display: flex;
-  width: auto;
-  column-gap: 28px;
-}
-
-.ft-pair.ft-stem .is-blood {
-  grid-column: 2;
+  justify-content: center;
+  width: 92px;
+  overflow: visible;
 }
 
 .ft-pair.ft-stem .is-inlaw {
-  grid-column: 3;
-  justify-self: start;
+  position: absolute;
+  left: calc(100% + 28px);
+  top: 0;
 }
 
 .chart-union-kids {
@@ -2264,6 +2246,7 @@ body.is-daily-sorting {
   flex-direction: column;
   align-items: center;
   min-width: 92px;
+  overflow: visible;
 }
 
 .ft-kids {
