@@ -2204,6 +2204,18 @@ body.is-daily-sorting {
   width: max-content;
 }
 
+.ft-pair.ft-stem {
+  position: relative;
+  width: 92px;
+  overflow: visible;
+}
+
+.ft-pair.ft-stem .is-inlaw {
+  position: absolute;
+  left: calc(100% + 28px);
+  top: 0;
+}
+
 .chart-union-kids {
   display: flex;
   justify-content: center;
