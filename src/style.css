@@ -3283,6 +3283,11 @@ body.is-hold-menu {
 .home-links .home-tile:nth-child(8) { animation-delay: 250ms; }
 .home-links .home-tile:nth-child(9) { animation-delay: 280ms; }
 
+.home.is-settled,
+.home.is-settled .home-tile {
+  animation: none;
+}
+
 @keyframes home-tile-in {
   from {
     opacity: 0;

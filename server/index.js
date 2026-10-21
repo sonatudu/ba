@@ -863,6 +863,11 @@ app.get("/api/data", (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
   if (!auth.room) return res.status(404).json({ error: "Create a room with your partner first." });
+  const updatedAt = Number(auth.room.updatedAt || 0);
+  const since = Number(req.query.since || 0);
+  if (since && updatedAt && since === updatedAt) {
+    return res.json({ unchanged: true, updatedAt });
+  }
   res.json({
     username: auth.user.username,
     ...publicRoom(auth.room, auth.user.username),
