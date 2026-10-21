@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ba — Feedback</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1.25rem 3rem;
+        line-height: 1.6;
+        color: #eaf0ff;
+        background: #070b16;
+      }
+      h1 {
+        font-size: 1.6rem;
+        letter-spacing: -0.02em;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 1.75rem;
+        letter-spacing: -0.01em;
+      }
+      a {
+        color: #9cc4ff;
+      }
+      .meta {
+        color: #9aa6c3;
+        font-size: 0.92rem;
+      }
+      label {
+        display: block;
+        margin: 0.85rem 0 0.3rem;
+        font-weight: 650;
+        font-size: 0.92rem;
+      }
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #2a3550;
+        border-radius: 10px;
+        background: #0d1424;
+        color: #eaf0ff;
+        font: inherit;
+      }
+      textarea {
+        min-height: 8.5rem;
+        resize: vertical;
+      }
+      button {
+        margin-top: 1rem;
+        padding: 0.65rem 1.1rem;
+        border: 0;
+        border-radius: 999px;
+        background: #6ea8ff;
+        color: #071018;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .note {
+        color: #9aa6c3;
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ba feedback</h1>
+    <p class="meta">For closed testers and anyone using Ba (<code>com.sonatudu.ba</code>)</p>
+    <p>
+      Tell us what broke, what was confusing, or what you want next. Do not send your room id, room
+      code, or private messages.
+    </p>
+    <p>
+      You can also email
+      <a href="mailto:tudus0602@gmail.com?subject=Ba%20feedback">tudus0602@gmail.com</a>.
+    </p>
+
+    <form id="feedback-form">
+      <label for="fb-name">Your name (optional)</label>
+      <input id="fb-name" name="name" maxlength="80" autocomplete="name" />
+
+      <label for="fb-email">Your email (optional)</label>
+      <input id="fb-email" name="email" type="email" maxlength="120" autocomplete="email" />
+
+      <label for="fb-message">Feedback</label>
+      <textarea id="fb-message" name="message" required maxlength="4000" placeholder="What happened? What did you expect?"></textarea>
+
+      <button type="submit">Open email to send</button>
+    </form>
+    <p class="note">This opens your email app with the message filled in. Nothing is stored on this page.</p>
+
+    <h2>Links</h2>
+    <p>
+      <a href="./manual.html">User manual</a> ·
+      <a href="./privacy.html">Privacy policy</a>
+    </p>
+    <script>
+      document.getElementById("feedback-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = document.getElementById("fb-name").value.trim();
+        const email = document.getElementById("fb-email").value.trim();
+        const message = document.getElementById("fb-message").value.trim();
+        if (!message) return;
+        const lines = [];
+        if (name) lines.push("Name: " + name);
+        if (email) lines.push("Email: " + email);
+        if (lines.length) lines.push("");
+        lines.push(message);
+        const body = encodeURIComponent(lines.join("\n"));
+        window.location.href = "mailto:tudus0602@gmail.com?subject=" + encodeURIComponent("Ba feedback") + "&body=" + body;
+      });
+    </script>
+  </body>
+</html>
