@@ -62,8 +62,10 @@ export function loadMe(token) {
   return request("/api/me", { token });
 }
 
-export function loadCloud(token) {
-  return request("/api/data", { token });
+export function loadCloud(token, since = 0) {
+  const stamp = Number(since) || 0;
+  const q = stamp ? `?since=${stamp}` : "";
+  return request(`/api/data${q}`, { token });
 }
 
 export function saveCloud(token, body) {

@@ -1767,34 +1767,46 @@ function chatDayLabel(ms) {
   return fmt(day);
 }
 
+let chatLoopGen = 0;
 function stopChatLoop() {
+  chatLoopGen += 1;
+  window.clearTimeout(chatTimer);
   window.clearInterval(chatTimer);
   chatTimer = 0;
 }
 
 function chatPollMs() {
-  if (document.hidden) return 5000;
-  if (tab === "chat" || tab === "where" || callState) return 700;
-  return 1500;
+  if (document.hidden) return 8000;
+  if (callState) return 1200;
+  if (tab === "chat") return 2200;
+  if (tab === "where") return 3500;
+  return 5000;
+}
+
+let syncBusy = false;
+async function runSyncTick() {
+  if (syncBusy || !session?.token || !session.roomId) return;
+  syncBusy = true;
+  try {
+    await syncChat().catch(() => {});
+    if (tab === "where") await syncPlaces().catch(() => {});
+    await syncCloud().catch(() => {});
+    pingPresence(session.token);
+    await pullSignals().catch(() => {});
+  } finally {
+    syncBusy = false;
+  }
 }
 
 function startChatLoop() {
   stopChatLoop();
   if (!session?.token || !session.roomId) return;
-  syncChat().catch(() => {});
-  syncCloud().catch(() => {});
-  syncPlaces().catch(() => {});
-  pingPresence(session.token);
-  pullSignals().catch(() => {});
-  const tick = () => {
-    chatTimer = window.setTimeout(() => {
-      syncChat().catch(() => {});
-      syncCloud().catch(() => {});
-      syncPlaces().catch(() => {});
-      pingPresence(session.token);
-      pullSignals().catch(() => {});
-      tick();
-    }, chatPollMs());
+  const gen = chatLoopGen;
+  const tick = async () => {
+    if (gen !== chatLoopGen) return;
+    await runSyncTick();
+    if (gen !== chatLoopGen) return;
+    chatTimer = window.setTimeout(tick, chatPollMs());
   };
   tick();
 }
@@ -1976,7 +1988,6 @@ async function syncChat() {
       if (chatStickBottom) pinChatToLatest(thread);
     }
     refreshChatChrome();
-    fitChatViewport();
   } else {
     chatUnread = unreadFromMessages(next, Math.max(serverRead, chatSeenAt));
     setChatBadge();
@@ -2445,6 +2456,7 @@ let familyZoom = 1;
 let cycleSymptomsOpen = false;
 let overviewDaysOpen = false;
 let liveQuote = null;
+let homeSettled = false;
 let settingsNamesEditing = false;
 let routineNotesEditing = false;
 let routineCoursesEditing = false;
@@ -2525,7 +2537,7 @@ function schedulePersist() {
   saveTimer = window.setTimeout(() => {
     saveTimer = 0;
     persist().catch((error) => console.error(error));
-  }, 250);
+  }, 900);
 }
 
 function setState(patch, silent = false) {
@@ -2575,7 +2587,8 @@ function typingInApp() {
 async function syncCloud() {
   if (!session?.token || !session.roomId || !spaceKey) return;
   if (saveTimer || persisting || typingInApp()) return;
-  const payload = await loadCloud(session.token);
+  const payload = await loadCloud(session.token, lastCloudAt);
+  if (payload?.unchanged) return;
   // Local writes may have started while the fetch was in flight — never clobber them.
   if (saveTimer || persisting || typingInApp()) return;
   const stamp = Number(payload.updatedAt || 0);
@@ -3047,7 +3060,6 @@ function goTab(id) {
   markSectionSeen(id);
   if (history.state?.ba === "section") history.replaceState({ ba: "section", tab: id }, "");
   else history.pushState({ ba: "section", tab: id }, "");
-  persist().catch(() => {});
   render();
   startChatLoop();
 }
@@ -3149,7 +3161,7 @@ function homeView() {
     ["family", "Family"],
   ];
   const page = el(`
-    <div class="home">
+    <div class="home${homeSettled ? " is-settled" : ""}">
       <header class="home-brand">
         <div class="home-brand-main">
           <p class="home-kicker">Together</p>
@@ -3252,6 +3264,9 @@ function homeView() {
   setChatBadge();
   page.querySelector("[data-settings]").addEventListener("click", () => goTab("settings"));
   refreshDailyQuote(page);
+  requestAnimationFrame(() => {
+    homeSettled = true;
+  });
   return page;
 }
 
@@ -3307,7 +3322,6 @@ async function pullSignals() {
     if (sig.kind === "poke") {
       pokeVibrate(true);
       markPokeIncoming();
-      if (tab === "home") render();
     } else if (sig.kind === "offer" && callState !== "live") {
       pendingOffer = sig.data;
       callVideo = Boolean(sig.video);
@@ -3528,7 +3542,6 @@ function settleHome() {
   document.body.classList.remove("map-full");
   settingsDeleteOpen = false;
   tab = "home";
-  persist().catch(() => {});
   render();
   startChatLoop();
 }
@@ -7332,11 +7345,25 @@ function familyView() {
       },
     });
   });
-  const paint = () => drawFamilyLines(wrap);
+  let lineRaf = 0;
+  const paint = () => {
+    if (lineRaf) return;
+    lineRaf = requestAnimationFrame(() => {
+      lineRaf = 0;
+      if (!wrap.isConnected) return;
+      drawFamilyLines(wrap);
+    });
+  };
   requestAnimationFrame(() => requestAnimationFrame(paint));
   const chart = wrap.querySelector("[data-chart]");
   if (chart && typeof ResizeObserver !== "undefined") {
-    const watch = new ResizeObserver(paint);
+    const watch = new ResizeObserver(() => {
+      if (!wrap.isConnected) {
+        watch.disconnect();
+        return;
+      }
+      paint();
+    });
     watch.observe(chart);
   }
   wrap.querySelector(".chart-scroll")?.addEventListener("scroll", paint, { passive: true });
@@ -8910,7 +8937,8 @@ async function syncPlaces() {
   if (!session?.token || !session.roomId) return;
   const next = await loadPlaces(session.token);
   applyPlaces(next);
-  if (tab === "where") markSectionSeen("where");
+  if (tab !== "where") return;
+  markSectionSeen("where");
   drawWhereMap();
 }
 
@@ -10233,8 +10261,8 @@ function startGeoWatch() {
   if (!navigator.geolocation) return;
   if (!geoWatch) {
     geoWatch = navigator.geolocation.watchPosition(pushPlace, onGeoWatchError, {
-      enableHighAccuracy: true,
-      maximumAge: 800,
+      enableHighAccuracy: tab === "where",
+      maximumAge: 15000,
       timeout: 12000,
     });
   }
@@ -10242,11 +10270,11 @@ function startGeoWatch() {
     geoTick = window.setInterval(() => {
       if (!session?.token || !sharingLoc() || !navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(pushPlace, () => {}, {
-        enableHighAccuracy: true,
-        maximumAge: 2000,
+        enableHighAccuracy: tab === "where",
+        maximumAge: 20000,
         timeout: 8000,
       });
-    }, 8000);
+    }, 20000);
   }
 }
 
@@ -10257,8 +10285,8 @@ function startGeoShare() {
   startGeoWatch();
   if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pushPlace, () => {}, {
-        enableHighAccuracy: true,
-        maximumAge: 800,
+        enableHighAccuracy: tab === "where",
+        maximumAge: 15000,
         timeout: 8000,
       });
   }
@@ -10470,7 +10498,7 @@ function watchClientBuild() {
     } catch {
       /* ignore */
     }
-    window.setTimeout(tick, 2500);
+    window.setTimeout(tick, document.hidden ? 60000 : 30000);
   };
   tick();
 }
