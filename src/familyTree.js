@@ -336,14 +336,12 @@ const FACE = `<span class="ft-face" aria-hidden="true"><svg viewBox="0 0 24 24">
 function cardHtml(escapeHtml, person, role = "") {
   if (!person) return "";
   const roleClass = role ? ` is-${role}` : "";
-  const nick = String(person.nick || "").trim();
-  const born = String(person.born || "").trim();
   return `
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
       ${FACE}
       <input data-field="name" value="${escapeHtml(person.name || "")}" placeholder="Name" />
-      ${nick ? `<input data-field="nick" value="${escapeHtml(nick)}" />` : `<input data-field="nick" value="" hidden />`}
-      ${born ? `<input data-field="born" value="${escapeHtml(born)}" />` : `<input data-field="born" value="" hidden />`}
+      <input data-field="nick" value="${escapeHtml(String(person.nick || "").trim())}" hidden />
+      <input data-field="born" value="${escapeHtml(String(person.born || "").trim())}" hidden />
     </article>
   `;
 }
