@@ -2317,10 +2317,7 @@ body.is-daily-sorting {
 
 .ft-card [data-field="nick"],
 .ft-card [data-field="born"] {
-  color: var(--ink-soft);
-  font-size: 0.6rem;
-  min-height: 0.85em;
-  line-height: 1.2;
+  display: none;
 }
 
 .ft-card input::placeholder {
