@@ -458,14 +458,17 @@ export function familyTreeHtml(escapeHtml, tree) {
 function rel(chart, node, z = 1) {
   const box = chart.getBoundingClientRect();
   const face = node.querySelector(".ft-face") || node;
+  const card = node.closest?.(".ft-card") || node;
   const r = face.getBoundingClientRect();
+  const c = card.getBoundingClientRect();
   const measured = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 0;
   const scale = measured > 0.05 ? measured : z > 0 ? z : 1;
   return {
     x: (r.left - box.left + r.width / 2) / scale,
     y: (r.top - box.top + r.height / 2) / scale,
     top: (r.top - box.top) / scale,
-    bottom: (r.bottom - box.top) / scale,
+    bottom: (c.bottom - box.top) / scale,
+    faceBottom: (r.bottom - box.top) / scale,
   };
 }
 
@@ -489,6 +492,7 @@ function pairPoints(chart, pair, z = 1) {
     y: pts[0].y,
     top: Math.min(...pts.map((pt) => pt.top)),
     bottom: Math.max(...pts.map((pt) => pt.bottom)),
+    bar: (pts[0].y + pts[pts.length - 1].y) / 2,
   };
 }
 
@@ -513,9 +517,9 @@ function placeUnionKids(chart, z) {
   const midX = a && b ? (a.x + b.x) / 2 : (a || b).x;
   const bottom = Math.max(a?.bottom || 0, b?.bottom || 0);
   row.style.left = `${midX}px`;
-  row.style.top = `${bottom + 28}px`;
+  row.style.top = `${bottom + 40}px`;
   row.classList.add("is-placed");
-  const need = bottom + 28 + row.offsetHeight + 48;
+  const need = bottom + 40 + row.offsetHeight + 48;
   if (need > chart.offsetHeight) chart.style.minHeight = `${need}px`;
 }
 
@@ -561,6 +565,12 @@ export function drawFamilyLines(root, scale = 1) {
     }
     return info;
   };
+  const drop = (parent, targets) => {
+    if (!parent) return;
+    const from = Number.isFinite(parent.bar) ? parent.bar : parent.y;
+    add(parent.midX, from, parent.midX, parent.bottom);
+    fork(parent.midX, parent.bottom, targets);
+  };
   const fork = (originX, originY, targets) => {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
@@ -570,8 +580,8 @@ export function drawFamilyLines(root, scale = 1) {
       add(originX, originY, originX, kidTop);
       return;
     }
-    let barY = originY + Math.max(18, (kidTop - originY) / 2);
-    if (!(barY > originY && barY < kidTop - 4)) barY = (originY + kidTop) / 2;
+    let barY = originY + Math.max(14, (kidTop - originY) * 0.45);
+    if (!(barY > originY && barY < kidTop - 8)) barY = originY + Math.max(8, (kidTop - originY) / 2);
     add(originX, originY, originX, barY);
     const xs = kids.map((pt) => (Math.abs(pt.x - originX) < 10 ? originX : pt.x));
     add(Math.min(originX, ...xs), barY, Math.max(originX, ...xs), barY);
@@ -581,12 +591,12 @@ export function drawFamilyLines(root, scale = 1) {
   const tudu1 = join(chart.querySelector('[data-pair="tudu-g1"]'));
   const mandi2 = join(chart.querySelector('[data-pair="mandi-g2"]'));
   const tudu2 = join(chart.querySelector('[data-pair="tudu-g2"]'));
-  if (mandi1 && mandi2) fork(mandi1.midX, mandi1.bottom, [stemOf(mandi2)]);
-  if (tudu1 && tudu2) fork(tudu1.midX, tudu1.bottom, [stemOf(tudu2)]);
+  drop(mandi1, [stemOf(mandi2)]);
+  drop(tudu1, [stemOf(tudu2)]);
   const hang = (parent, units) => {
     const infos = units.map((unit) => join(unit.querySelector("[data-pair]"))).filter(Boolean);
     if (!parent || !infos.length) return;
-    fork(parent.midX, parent.bottom, infos.map(stemOf));
+    drop(parent, infos.map(stemOf));
   };
   hang(mandi2, [...chart.querySelectorAll('[data-side="mandi"]')]);
   hang(tudu2, [...chart.querySelectorAll('[data-side="tudu"]')]);
@@ -596,10 +606,14 @@ export function drawFamilyLines(root, scale = 1) {
     const y = (a.y + b.y) / 2;
     add(a.x, y, b.x, y);
     if (childCards.length) {
-      fork((a.x + b.x) / 2, Math.max(a.bottom, b.bottom), childCards.map((card) => rel(chart, card, z)));
+      const midX = (a.x + b.x) / 2;
+      const under = Math.max(a.bottom, b.bottom);
+      add(midX, y, midX, under);
+      fork(midX, under, childCards.map((card) => rel(chart, card, z)));
     }
   } else if (childCards.length && (khu || bhutku)) {
     const p = rel(chart, khu || bhutku, z);
+    add(p.x, p.y, p.x, p.bottom);
     fork(p.x, p.bottom, childCards.map((card) => rel(chart, card, z)));
   }
   [...chart.querySelectorAll("[data-unit]")].forEach((unit) => {
@@ -607,9 +621,8 @@ export function drawFamilyLines(root, scale = 1) {
     const kids = unit.querySelector("[data-kids]");
     const parent = pair ? pairPoints(chart, pair, z) : null;
     if (!parent || !kids) return;
-    fork(
-      parent.midX,
-      parent.bottom,
+    drop(
+      parent,
       [...kids.querySelectorAll(".ft-card")].map((card) => rel(chart, card, z))
     );
   });
