@@ -468,23 +468,21 @@ function rel(chart, node, z = 1) {
   };
 }
 
-function bloodCard(pair) {
-  return pair?.querySelector(".ft-card.is-blood") || pair?.querySelector(".ft-card");
-}
-
 function pairPoints(chart, pair, z = 1) {
   if (!pair) return null;
   const cards = [...pair.querySelectorAll(".ft-card")];
   if (!cards.length) return null;
   const pts = cards.map((card) => rel(chart, card, z));
   const midX = pts.reduce((sum, pt) => sum + pt.x, 0) / pts.length;
-  const blood = bloodCard(pair);
-  const bloodPt = blood ? rel(chart, blood, z) : pts[0];
+  const marked = pair.querySelector(".ft-card.is-blood");
+  const bloodPt = marked ? rel(chart, marked, z) : null;
+  const bloodX = bloodPt ? bloodPt.x : midX;
   return {
     pts,
     midX,
-    bloodX: bloodPt.x,
-    bloodY: bloodPt.y,
+    bloodX,
+    originX: bloodX,
+    bloodY: bloodPt ? bloodPt.y : pts[0].y,
     y: pts[0].y,
     top: Math.min(...pts.map((pt) => pt.top)),
     bottom: Math.max(...pts.map((pt) => pt.bottom)),
@@ -564,14 +562,15 @@ export function drawFamilyLines(root, scale = 1) {
   const drop = (parent, targets) => {
     if (!parent) return;
     const from = Number.isFinite(parent.bar) ? parent.bar : parent.y;
-    add(parent.midX, from, parent.midX, parent.bottom);
-    fork(parent.midX, parent.bottom, targets);
+    const x = Number.isFinite(parent.originX) ? parent.originX : parent.midX;
+    add(x, from, x, parent.bottom);
+    fork(x, parent.bottom, targets);
   };
   const fork = (originX, originY, targets) => {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const kidTop = Math.min(...kids.map((pt) => (Number.isFinite(pt.top) ? pt.top : pt.y)));
-    const aligned = kids.every((pt) => Math.abs(pt.x - originX) < 10);
+    const aligned = kids.every((pt) => Math.abs(pt.x - originX) < 14);
     if (kids.length === 1 && aligned) {
       add(originX, originY, originX, kidTop);
       return;
@@ -579,7 +578,7 @@ export function drawFamilyLines(root, scale = 1) {
     let barY = originY + Math.max(14, (kidTop - originY) * 0.45);
     if (!(barY > originY && barY < kidTop - 8)) barY = originY + Math.max(8, (kidTop - originY) / 2);
     add(originX, originY, originX, barY);
-    const xs = kids.map((pt) => (Math.abs(pt.x - originX) < 10 ? originX : pt.x));
+    const xs = kids.map((pt) => (Math.abs(pt.x - originX) < 14 ? originX : pt.x));
     add(Math.min(originX, ...xs), barY, Math.max(originX, ...xs), barY);
     kids.forEach((pt, i) => add(xs[i], barY, xs[i], Number.isFinite(pt.top) ? pt.top : pt.y));
   };
