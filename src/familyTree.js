@@ -354,8 +354,9 @@ function pairHtml(escapeHtml, a, b, key, roles = {}) {
     b && { person: b, role: roles.b || "" },
   ].filter(Boolean);
   if (!people.length) return "";
+  const stem = roles.stem ? " ft-stem" : "";
   const cards = people.map(({ person, role }) => cardHtml(escapeHtml, person, role)).join("");
-  return `<div class="ft-pair" data-pair="${escapeHtml(key)}">${cards}</div>`;
+  return `<div class="ft-pair${stem}" data-pair="${escapeHtml(key)}">${cards}</div>`;
 }
 
 function peopleOf(kids) {
@@ -400,7 +401,7 @@ function houseUnits(tree) {
 function unitHtml(escapeHtml, unit, key) {
   const kids = (unit.kids || []).map((kid) => cardHtml(escapeHtml, kid, "blood")).join("");
   const mark = unit.join ? (unit.side === "mandi" ? " data-khu" : " data-bhutku") : "";
-  const roles = unit.b ? { a: "blood", b: "inlaw" } : { a: "blood" };
+  const roles = unit.b ? { a: "blood", b: "inlaw", stem: true } : { a: "blood" };
   return `
     <div class="ft-branch ft-unit" data-unit="${escapeHtml(key)}" data-side="${unit.side}"${mark}>
       ${pairHtml(escapeHtml, unit.a, unit.b, key, roles)}
@@ -420,7 +421,7 @@ function sideHtml(escapeHtml, root, side) {
       ${g2 ? `
         <div class="ft-offspring">
           <div class="ft-branch" data-branch="${escapeHtml(side)}-g2">
-            ${pairHtml(escapeHtml, g2.a, g2.b, `${side}-g2`, { a: "blood", b: "inlaw" })}
+            ${pairHtml(escapeHtml, g2.a, g2.b, `${side}-g2`, { a: "blood", b: "inlaw", stem: true })}
             ${g3 ? `<div class="ft-offspring">${g3}</div>` : ""}
           </div>
         </div>` : ""}
@@ -486,7 +487,6 @@ function pairPoints(chart, pair) {
     bar: (left.y + right.y) / 2,
     y: left.y,
     top: Math.min(...pts.map((pt) => pt.top)),
-    coupleTop: Math.min(...pts.map((pt) => pt.top)),
     bottom: Math.max(...pts.map((pt) => pt.bottom)),
   };
 }
@@ -496,23 +496,33 @@ function childAnchor(chart, child) {
   if (child.classList.contains("ft-card")) return rel(chart, child);
   const pair = child.querySelector(":scope > [data-pair]");
   if (pair) {
-    const info = pairPoints(chart, pair);
-    if (!info) return null;
-    const left = info.pts[0];
-    const right = info.pts[info.pts.length - 1];
-    return {
-      x: info.midX,
-      leftX: left.x,
-      rightX: right.x,
-      y: info.y,
-      bar: info.bar,
-      top: info.coupleTop || info.top,
-      bottom: info.bottom,
-      couple: info.pts.length >= 2,
-    };
+    const blood = pair.querySelector(":scope > .ft-card.is-blood") || pair.querySelector(":scope > .ft-card");
+    return blood ? rel(chart, blood) : null;
   }
   const card = child.querySelector(":scope > .ft-card, .ft-card");
   return card ? rel(chart, card) : null;
+}
+
+function alignCenterTo(chart, node, targetX) {
+  if (!node || !Number.isFinite(targetX)) return;
+  node.style.position = "relative";
+  node.style.left = "0px";
+  const box = chart.getBoundingClientRect();
+  const r = node.getBoundingClientRect();
+  const sx = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 1;
+  const scaleX = sx > 0.05 ? sx : 1;
+  const center = (r.left - box.left + r.width / 2) / scaleX;
+  node.style.left = `${targetX - center}px`;
+}
+
+function placeOffspring(chart) {
+  [...chart.querySelectorAll(".ft-branch")].forEach((branch) => {
+    const pair = branch.querySelector(":scope > [data-pair]");
+    const offspring = branch.querySelector(":scope > .ft-offspring");
+    if (!pair || !offspring || !pair.classList.contains("ft-stem")) return;
+    const info = pairPoints(chart, pair);
+    if (info?.pts?.length >= 2) alignCenterTo(chart, offspring, info.midX);
+  });
 }
 
 function placeUnionKids(chart) {
@@ -536,6 +546,7 @@ export function drawFamilyLines(root) {
   const chart = root.querySelector("[data-chart]");
   const svg = root.querySelector("[data-tree-lines]");
   if (!chart || !svg) return;
+  placeOffspring(chart);
   placeUnionKids(chart);
   placeUnionKids(chart);
   const w = Math.max(chart.scrollWidth, chart.offsetWidth, 1);
@@ -569,20 +580,14 @@ export function drawFamilyLines(root) {
     if (info.pts.length >= 2) add(info.pts[0].x, info.bar, info.pts[info.pts.length - 1].x, info.bar);
     return info;
   };
-  const endY = (pt) => {
-    if (pt.couple && Number.isFinite(pt.bar)) return pt.bar;
-    return Number.isFinite(pt.top) ? pt.top : pt.y;
-  };
+  const endY = (pt) => (Number.isFinite(pt.top) ? pt.top : pt.y);
   const fork = (originX, originY, targets) => {
     const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(endY(pt)));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const kidY = Math.min(...kids.map(endY));
     if (!(kidY > originY + 1)) return;
-    const only = kids.length === 1 ? kids[0] : null;
-    const hitsCouple =
-      only?.couple && Number.isFinite(only.leftX) && Number.isFinite(only.rightX) && originX >= only.leftX && originX <= only.rightX;
-    if (only && (hitsCouple || Math.abs(only.x - originX) <= 12)) {
-      add(originX, originY, originX, endY(only));
+    if (kids.length === 1 && Math.abs(kids[0].x - originX) <= 12) {
+      add(originX, originY, originX, endY(kids[0]));
       return;
     }
     let barY = originY + (kidY - originY) * 0.5;
