@@ -297,6 +297,22 @@ export function addMemberToTree(tree, { side = "mandi", relation = "Relative", n
   return next;
 }
 
+export function findPerson(tree, id) {
+  const scan = (node) => {
+    if (!node || !id) return null;
+    if (node.kind === "person") return node.id === id ? node : null;
+    if (node.kind === "group") {
+      for (const kid of node.kids || []) {
+        const hit = scan(kid);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    return scan(node.a) || scan(node.b) || (node.kids || []).reduce((hit, kid) => hit || scan(kid), null);
+  };
+  return scan(tree?.mandi) || scan(tree?.tudu) || scan(tree?.union);
+}
+
 export function mapPerson(node, id, patch) {
   if (!node) return node;
   if (node.kind === "person") return node.id === id ? { ...node, ...patch } : node;
@@ -339,9 +355,7 @@ function cardHtml(escapeHtml, person, role = "") {
   return `
     <article class="ft-card ${person.sex === "F" ? "is-f" : "is-m"}${person.link ? " is-link" : ""}${roleClass}" data-role="${escapeHtml(role)}" data-tree-id="${escapeHtml(person.id)}" data-locked="${person.locked ? "1" : "0"}">
       ${FACE}
-      <input data-field="name" value="${escapeHtml(person.name || "")}" placeholder="Name" />
-      <input data-field="nick" value="${escapeHtml(String(person.nick || "").trim())}" hidden />
-      <input data-field="born" value="${escapeHtml(String(person.born || "").trim())}" hidden />
+      <p class="ft-name${person.name ? "" : " is-placeholder"}">${escapeHtml(person.name || "Name")}</p>
     </article>
   `;
 }
