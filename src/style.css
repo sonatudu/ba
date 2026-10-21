@@ -2147,35 +2147,27 @@ body.is-daily-sorting {
 
 .chart {
   position: relative;
-  min-width: max-content;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   box-sizing: border-box;
   padding: 20px 32px 120px;
 }
 
 .chart-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px 56px;
-  align-items: start;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 72px;
+  width: max-content;
+  min-width: 100%;
   position: relative;
   z-index: 1;
 }
 
-.chart-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 48px;
-  min-width: 0;
-  overflow: visible;
-}
-
 .chart-lines {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  left: 0;
+  top: 0;
   pointer-events: none;
   overflow: visible;
 }
@@ -2187,13 +2179,21 @@ body.is-daily-sorting {
   stroke-linejoin: miter;
 }
 
-.chart-g3-house {
+.ft-branch {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+}
+
+.ft-offspring {
+  display: flex;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 24px 108px;
-  overflow: visible;
+  align-items: flex-start;
+  gap: 36px;
+  margin-top: 48px;
+  width: max-content;
 }
 
 .ft-pair {
@@ -2201,20 +2201,7 @@ body.is-daily-sorting {
   justify-content: center;
   align-items: flex-start;
   gap: 48px;
-}
-
-.ft-pair.ft-stem {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  width: 92px;
-  overflow: visible;
-}
-
-.ft-pair.ft-stem .is-inlaw {
-  position: absolute;
-  left: calc(100% + 28px);
-  top: 0;
+  width: max-content;
 }
 
 .chart-union-kids {
@@ -2227,6 +2214,10 @@ body.is-daily-sorting {
   z-index: 2;
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.chart-union-kids:not(.is-placed) {
+  visibility: hidden;
 }
 
 .chart-union-kids.is-placed {
@@ -2242,18 +2233,7 @@ body.is-daily-sorting {
 }
 
 .ft-unit {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   min-width: 92px;
-  overflow: visible;
-}
-
-.ft-kids {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 52px;
 }
 
 .ft-card {

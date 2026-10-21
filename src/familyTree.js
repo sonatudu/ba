@@ -354,9 +354,8 @@ function pairHtml(escapeHtml, a, b, key, roles = {}) {
     b && { person: b, role: roles.b || "" },
   ].filter(Boolean);
   if (!people.length) return "";
-  const stem = roles.stem ? " ft-stem" : "";
   const cards = people.map(({ person, role }) => cardHtml(escapeHtml, person, role)).join("");
-  return `<div class="ft-pair${stem}" data-pair="${escapeHtml(key)}">${cards}</div>`;
+  return `<div class="ft-pair" data-pair="${escapeHtml(key)}">${cards}</div>`;
 }
 
 function peopleOf(kids) {
@@ -401,21 +400,36 @@ function houseUnits(tree) {
 function unitHtml(escapeHtml, unit, key) {
   const kids = (unit.kids || []).map((kid) => cardHtml(escapeHtml, kid, "blood")).join("");
   const mark = unit.join ? (unit.side === "mandi" ? " data-khu" : " data-bhutku") : "";
-  const roles = unit.b ? { a: "blood", b: "inlaw", stem: true } : { a: "blood" };
+  const roles = unit.b ? { a: "blood", b: "inlaw" } : { a: "blood" };
   return `
-    <div class="ft-unit" data-unit="${escapeHtml(key)}" data-side="${unit.side}"${mark}>
+    <div class="ft-branch ft-unit" data-unit="${escapeHtml(key)}" data-side="${unit.side}"${mark}>
       ${pairHtml(escapeHtml, unit.a, unit.b, key, roles)}
-      ${kids ? `<div class="ft-kids" data-kids="${escapeHtml(key)}">${kids}</div>` : ""}
+      ${kids ? `<div class="ft-offspring" data-kids="${escapeHtml(key)}">${kids}</div>` : ""}
+    </div>
+  `;
+}
+
+function sideHtml(escapeHtml, root, side) {
+  if (!root) return "";
+  const g2 = root.kids?.[0];
+  const units = (g2?.kids || []).map((kid) => kidUnit(kid, side)).filter(Boolean);
+  const g3 = units.map((unit, index) => unitHtml(escapeHtml, unit, `${side}-g3-${index}`)).join("");
+  return `
+    <div class="ft-branch" data-col="${escapeHtml(side)}" data-branch="${escapeHtml(side)}-g1">
+      ${pairHtml(escapeHtml, root.a, root.b, `${side}-g1`)}
+      ${g2 ? `
+        <div class="ft-offspring">
+          <div class="ft-branch" data-branch="${escapeHtml(side)}-g2">
+            ${pairHtml(escapeHtml, g2.a, g2.b, `${side}-g2`, { a: "blood", b: "inlaw" })}
+            ${g3 ? `<div class="ft-offspring">${g3}</div>` : ""}
+          </div>
+        </div>` : ""}
     </div>
   `;
 }
 
 export function familyTreeHtml(escapeHtml, tree) {
   const source = tree || defaultFamilyTree();
-  const mandiG1 = source.mandi;
-  const mandiG2 = mandiG1?.kids?.[0];
-  const tuduG1 = source.tudu;
-  const tuduG2 = tuduG1?.kids?.[0];
   const houses = houseUnits(source);
   const unionKids = (houses.children || [])
     .map(
@@ -430,20 +444,8 @@ export function familyTreeHtml(escapeHtml, tree) {
       <div class="chart" data-chart>
         <svg class="chart-lines" data-tree-lines></svg>
         <div class="chart-cols">
-          <div class="chart-col" data-col="mandi">
-            ${pairHtml(escapeHtml, mandiG1?.a, mandiG1?.b, "mandi-g1")}
-            ${pairHtml(escapeHtml, mandiG2?.a, mandiG2?.b, "mandi-g2", { a: "blood", b: "inlaw", stem: true })}
-            <div class="chart-g3-house" data-g3-mandi>
-              ${houses.mandi.map((unit, index) => unitHtml(escapeHtml, unit, `mandi-g3-${index}`)).join("")}
-            </div>
-          </div>
-          <div class="chart-col" data-col="tudu">
-            ${pairHtml(escapeHtml, tuduG1?.a, tuduG1?.b, "tudu-g1")}
-            ${pairHtml(escapeHtml, tuduG2?.a, tuduG2?.b, "tudu-g2", { a: "blood", b: "inlaw", stem: true })}
-            <div class="chart-g3-house" data-g3-tudu>
-              ${houses.tudu.map((unit, index) => unitHtml(escapeHtml, unit, `tudu-g3-${index}`)).join("")}
-            </div>
-          </div>
+          ${sideHtml(escapeHtml, source.mandi, "mandi")}
+          ${sideHtml(escapeHtml, source.tudu, "tudu")}
         </div>
         <div class="chart-union-kids" data-union-kids>${unionKids}</div>
       </div>
@@ -451,98 +453,63 @@ export function familyTreeHtml(escapeHtml, tree) {
   `;
 }
 
-function rel(chart, node, z = 1) {
+function rel(chart, node) {
+  if (!chart || !node) return null;
   const box = chart.getBoundingClientRect();
-  const face = node.querySelector(".ft-face") || node;
+  const face = node.querySelector?.(".ft-face") || node;
   const card = node.closest?.(".ft-card") || node;
   const r = face.getBoundingClientRect();
   const c = card.getBoundingClientRect();
-  const measured = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 0;
-  const scale = measured > 0.05 ? measured : z > 0 ? z : 1;
+  const sx = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 1;
+  const sy = chart.offsetHeight > 0 ? box.height / chart.offsetHeight : 1;
+  const scaleX = sx > 0.05 ? sx : 1;
+  const scaleY = sy > 0.05 ? sy : 1;
   return {
-    x: (r.left - box.left + r.width / 2) / scale,
-    y: (r.top - box.top + r.height / 2) / scale,
-    top: (r.top - box.top) / scale,
-    bottom: (c.bottom - box.top) / scale,
-    faceBottom: (r.bottom - box.top) / scale,
+    x: (r.left - box.left + r.width / 2) / scaleX,
+    y: (r.top - box.top + r.height / 2) / scaleY,
+    top: (r.top - box.top) / scaleY,
+    bottom: (c.bottom - box.top) / scaleY,
   };
 }
 
-function chartScale(chart, z = 1) {
-  const box = chart.getBoundingClientRect();
-  const measured = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 0;
-  return measured > 0.05 ? measured : z > 0 ? z : 1;
-}
-
-function alignCenterTo(chart, node, targetX, z = 1) {
-  if (!node || !Number.isFinite(targetX)) return;
-  node.style.position = "relative";
-  node.style.left = "0px";
-  const box = chart.getBoundingClientRect();
-  const r = node.getBoundingClientRect();
-  const scale = chartScale(chart, z);
-  const center = (r.left - box.left + r.width / 2) / scale;
-  node.style.left = `${targetX - center}px`;
-}
-
-function pairPoints(chart, pair, z = 1) {
+function pairPoints(chart, pair) {
   if (!pair) return null;
-  const cards = [...pair.querySelectorAll(".ft-card")];
+  const cards = [...pair.querySelectorAll(":scope > .ft-card")];
   if (!cards.length) return null;
-  const pts = cards.map((card) => rel(chart, card, z));
-  const midX = pts.reduce((sum, pt) => sum + pt.x, 0) / pts.length;
-  const marked = pair.querySelector(".ft-card.is-blood");
-  const bloodPt = marked ? rel(chart, marked, z) : null;
-  const bloodX = bloodPt ? bloodPt.x : midX;
+  const pts = cards.map((card) => rel(chart, card)).filter(Boolean);
+  if (!pts.length) return null;
+  const left = pts[0];
+  const right = pts[pts.length - 1];
   return {
     pts,
-    midX,
-    bloodX,
-    originX: midX,
-    bloodY: bloodPt ? bloodPt.y : pts[0].y,
-    y: pts[0].y,
+    midX: (left.x + right.x) / 2,
+    bar: (left.y + right.y) / 2,
+    y: left.y,
     top: Math.min(...pts.map((pt) => pt.top)),
     bottom: Math.max(...pts.map((pt) => pt.bottom)),
-    bar: (pts[0].y + pts[pts.length - 1].y) / 2,
   };
 }
 
-function stemOf(info) {
-  if (!info) return null;
-  const couple = (info.pts || []).length >= 2;
-  return {
-    x: couple ? info.bloodX : info.midX,
-    y: info.y,
-    top: info.top,
-  };
+function childAnchor(chart, child) {
+  if (!child) return null;
+  if (child.classList.contains("ft-card")) return rel(chart, child);
+  const pair = child.querySelector(":scope > [data-pair]");
+  if (pair) {
+    const info = pairPoints(chart, pair);
+    if (!info) return null;
+    return { x: info.midX, y: info.y, top: info.top, bottom: info.bottom };
+  }
+  const card = child.querySelector(":scope > .ft-card, .ft-card");
+  return card ? rel(chart, card) : null;
 }
 
-function placeChildRows(chart, z) {
-  const sides = [
-    ['[data-pair="mandi-g2"]', "[data-g3-mandi]"],
-    ['[data-pair="tudu-g2"]', "[data-g3-tudu]"],
-  ];
-  sides.forEach(([pairSel, houseSel]) => {
-    const pair = chart.querySelector(pairSel);
-    const house = chart.querySelector(houseSel);
-    const info = pair ? pairPoints(chart, pair, z) : null;
-    if (info?.pts?.length >= 2) alignCenterTo(chart, house, info.midX, z);
-  });
-  chart.querySelectorAll("[data-unit]").forEach((unit) => {
-    const pair = unit.querySelector("[data-pair]");
-    const kids = unit.querySelector("[data-kids]");
-    const info = pair ? pairPoints(chart, pair, z) : null;
-    if (kids && info?.pts?.length >= 2) alignCenterTo(chart, kids, info.midX, z);
-  });
-}
-
-function placeUnionKids(chart, z) {
+function placeUnionKids(chart) {
   const row = chart.querySelector("[data-union-kids]");
   if (!row || !row.children.length) return;
   const khu = chart.querySelector("[data-khu] .ft-card");
   const bhutku = chart.querySelector("[data-bhutku] .ft-card");
-  const a = khu ? rel(chart, khu, z) : null;
-  const b = bhutku ? rel(chart, bhutku, z) : null;
+  const a = khu ? rel(chart, khu) : null;
+  const b = bhutku ? rel(chart, bhutku) : null;
   if (!a && !b) return;
   const midX = a && b ? (a.x + b.x) / 2 : (a || b).x;
   const bottom = Math.max(a?.bottom || 0, b?.bottom || 0);
@@ -553,21 +520,18 @@ function placeUnionKids(chart, z) {
   if (need > chart.offsetHeight) chart.style.minHeight = `${need}px`;
 }
 
-export function drawFamilyLines(root, scale = 1) {
+export function drawFamilyLines(root) {
   const chart = root.querySelector("[data-chart]");
   const svg = root.querySelector("[data-tree-lines]");
   if (!chart || !svg) return;
-  const z = Number(scale) > 0 ? Number(scale) : 1;
-  placeChildRows(chart, z);
-  placeUnionKids(chart, z);
-  const khu = chart.querySelector("[data-khu] .ft-card");
-  const bhutku = chart.querySelector("[data-bhutku] .ft-card");
-  const childCards = [...chart.querySelectorAll("[data-union-kids] .ft-card")];
-  const w = Math.max(chart.offsetWidth, chart.scrollWidth, 1);
-  const h = Math.max(chart.offsetHeight, chart.scrollHeight, 1);
+  placeUnionKids(chart);
+  const w = Math.max(chart.scrollWidth, chart.offsetWidth, 1);
+  const h = Math.max(chart.scrollHeight, chart.offsetHeight, 1);
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   svg.setAttribute("width", String(w));
   svg.setAttribute("height", String(h));
+  svg.style.width = `${w}px`;
+  svg.style.height = `${h}px`;
   const lines = [];
   const add = (x1, y1, x2, y2) => {
     if (![x1, y1, x2, y2].every(Number.isFinite)) return;
@@ -587,76 +551,58 @@ export function drawFamilyLines(root, scale = 1) {
     lines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
   };
   const join = (pair) => {
-    if (!pair) return null;
-    const info = pairPoints(chart, pair, z);
+    const info = pairPoints(chart, pair);
     if (!info) return null;
-    if (info.pts.length >= 2) {
-      const y = (info.pts[0].y + info.pts[1].y) / 2;
-      add(info.pts[0].x, y, info.pts[1].x, y);
-    }
+    if (info.pts.length >= 2) add(info.pts[0].x, info.bar, info.pts[info.pts.length - 1].x, info.bar);
     return info;
   };
-  const drop = (parent, targets) => {
-    if (!parent) return;
-    const from = Number.isFinite(parent.bar) ? parent.bar : parent.y;
-    const x = Number.isFinite(parent.originX) ? parent.originX : parent.midX;
-    add(x, from, x, parent.bottom);
-    fork(x, parent.bottom, targets);
-  };
   const fork = (originX, originY, targets) => {
-    const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+    const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.top ?? pt.y));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
     const kidTop = Math.min(...kids.map((pt) => (Number.isFinite(pt.top) ? pt.top : pt.y)));
-    const aligned = kids.every((pt) => Math.abs(pt.x - originX) < 14);
-    if (kids.length === 1 && aligned) {
+    if (!(kidTop > originY + 1)) return;
+    if (kids.length === 1 && Math.abs(kids[0].x - originX) <= 2) {
       add(originX, originY, originX, kidTop);
       return;
     }
-    let barY = originY + Math.max(14, (kidTop - originY) * 0.45);
-    if (!(barY > originY && barY < kidTop - 8)) barY = originY + Math.max(8, (kidTop - originY) / 2);
+    let barY = originY + (kidTop - originY) * 0.5;
+    if (!(barY > originY + 6 && barY < kidTop - 6)) barY = (originY + kidTop) / 2;
     add(originX, originY, originX, barY);
-    const xs = kids.map((pt) => (Math.abs(pt.x - originX) < 14 ? originX : pt.x));
+    const xs = kids.map((pt) => pt.x);
     add(Math.min(originX, ...xs), barY, Math.max(originX, ...xs), barY);
-    kids.forEach((pt, i) => add(xs[i], barY, xs[i], Number.isFinite(pt.top) ? pt.top : pt.y));
+    kids.forEach((pt) => add(pt.x, barY, pt.x, Number.isFinite(pt.top) ? pt.top : pt.y));
   };
-  const mandi1 = join(chart.querySelector('[data-pair="mandi-g1"]'));
-  const tudu1 = join(chart.querySelector('[data-pair="tudu-g1"]'));
-  const mandi2 = join(chart.querySelector('[data-pair="mandi-g2"]'));
-  const tudu2 = join(chart.querySelector('[data-pair="tudu-g2"]'));
-  drop(mandi1, [stemOf(mandi2)]);
-  drop(tudu1, [stemOf(tudu2)]);
-  const hang = (parent, units) => {
-    const infos = units.map((unit) => join(unit.querySelector("[data-pair]"))).filter(Boolean);
-    if (!parent || !infos.length) return;
-    drop(parent, infos.map(stemOf));
+  const drop = (parent, targets) => {
+    if (!parent) return;
+    fork(parent.midX, parent.bar, targets);
   };
-  hang(mandi2, [...chart.querySelectorAll('[data-side="mandi"]')]);
-  hang(tudu2, [...chart.querySelectorAll('[data-side="tudu"]')]);
-  if (khu && bhutku) {
-    const a = rel(chart, khu, z);
-    const b = rel(chart, bhutku, z);
-    const y = (a.y + b.y) / 2;
-    add(a.x, y, b.x, y);
-    if (childCards.length) {
-      const midX = (a.x + b.x) / 2;
-      const under = Math.max(a.bottom, b.bottom);
-      add(midX, y, midX, under);
-      fork(midX, under, childCards.map((card) => rel(chart, card, z)));
+  const paintBranch = (branch) => {
+    if (!branch) return;
+    const pair = branch.querySelector(":scope > [data-pair]");
+    const offspring = branch.querySelector(":scope > .ft-offspring");
+    const parent = join(pair);
+    if (parent && offspring) {
+      drop(
+        parent,
+        [...offspring.children].map((child) => childAnchor(chart, child)).filter(Boolean)
+      );
     }
+    offspring?.querySelectorAll(":scope > .ft-branch").forEach(paintBranch);
+  };
+  chart.querySelectorAll(":scope > .chart-cols > .ft-branch").forEach(paintBranch);
+  const khu = chart.querySelector("[data-khu] .ft-card");
+  const bhutku = chart.querySelector("[data-bhutku] .ft-card");
+  const childCards = [...chart.querySelectorAll("[data-union-kids] .ft-card")];
+  if (khu && bhutku) {
+    const a = rel(chart, khu);
+    const b = rel(chart, bhutku);
+    const y = (a.y + b.y) / 2;
+    const midX = (a.x + b.x) / 2;
+    add(a.x, y, b.x, y);
+    if (childCards.length) fork(midX, y, childCards.map((card) => rel(chart, card)));
   } else if (childCards.length && (khu || bhutku)) {
-    const p = rel(chart, khu || bhutku, z);
-    add(p.x, p.y, p.x, p.bottom);
-    fork(p.x, p.bottom, childCards.map((card) => rel(chart, card, z)));
+    const p = rel(chart, khu || bhutku);
+    fork(p.x, p.y, childCards.map((card) => rel(chart, card)));
   }
-  [...chart.querySelectorAll("[data-unit]")].forEach((unit) => {
-    const pair = unit.querySelector("[data-pair]");
-    const kids = unit.querySelector("[data-kids]");
-    const parent = pair ? pairPoints(chart, pair, z) : null;
-    if (!parent || !kids) return;
-    drop(
-      parent,
-      [...kids.querySelectorAll(".ft-card")].map((card) => rel(chart, card, z))
-    );
-  });
   svg.innerHTML = lines.join("");
 }
