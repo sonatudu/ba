@@ -468,6 +468,23 @@ function rel(chart, node, z = 1) {
   };
 }
 
+function chartScale(chart, z = 1) {
+  const box = chart.getBoundingClientRect();
+  const measured = chart.offsetWidth > 0 ? box.width / chart.offsetWidth : 0;
+  return measured > 0.05 ? measured : z > 0 ? z : 1;
+}
+
+function alignCenterTo(chart, node, targetX, z = 1) {
+  if (!node || !Number.isFinite(targetX)) return;
+  node.style.position = "relative";
+  node.style.left = "0px";
+  const box = chart.getBoundingClientRect();
+  const r = node.getBoundingClientRect();
+  const scale = chartScale(chart, z);
+  const center = (r.left - box.left + r.width / 2) / scale;
+  node.style.left = `${targetX - center}px`;
+}
+
 function pairPoints(chart, pair, z = 1) {
   if (!pair) return null;
   const cards = [...pair.querySelectorAll(".ft-card")];
@@ -481,7 +498,7 @@ function pairPoints(chart, pair, z = 1) {
     pts,
     midX,
     bloodX,
-    originX: bloodX,
+    originX: midX,
     bloodY: bloodPt ? bloodPt.y : pts[0].y,
     y: pts[0].y,
     top: Math.min(...pts.map((pt) => pt.top)),
@@ -498,6 +515,25 @@ function stemOf(info) {
     y: info.y,
     top: info.top,
   };
+}
+
+function placeChildRows(chart, z) {
+  const sides = [
+    ['[data-pair="mandi-g2"]', "[data-g3-mandi]"],
+    ['[data-pair="tudu-g2"]', "[data-g3-tudu]"],
+  ];
+  sides.forEach(([pairSel, houseSel]) => {
+    const pair = chart.querySelector(pairSel);
+    const house = chart.querySelector(houseSel);
+    const info = pair ? pairPoints(chart, pair, z) : null;
+    if (info?.pts?.length >= 2) alignCenterTo(chart, house, info.midX, z);
+  });
+  chart.querySelectorAll("[data-unit]").forEach((unit) => {
+    const pair = unit.querySelector("[data-pair]");
+    const kids = unit.querySelector("[data-kids]");
+    const info = pair ? pairPoints(chart, pair, z) : null;
+    if (kids && info?.pts?.length >= 2) alignCenterTo(chart, kids, info.midX, z);
+  });
 }
 
 function placeUnionKids(chart, z) {
@@ -522,6 +558,7 @@ export function drawFamilyLines(root, scale = 1) {
   const svg = root.querySelector("[data-tree-lines]");
   if (!chart || !svg) return;
   const z = Number(scale) > 0 ? Number(scale) : 1;
+  placeChildRows(chart, z);
   placeUnionKids(chart, z);
   const khu = chart.querySelector("[data-khu] .ft-card");
   const bhutku = chart.querySelector("[data-bhutku] .ft-card");
