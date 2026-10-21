@@ -7,7 +7,7 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { APP_VERSION } from "./appVersion.js";
 import { API_BASE, createRoom, enterRoom, loadChat, loadCloud, loadMe, loadPlaces, loadQuote, loadSignals, logoutCloud, pingPresence, previewRoom, readChat, registerPushToken, removeChat, clearChat, saveCloud, saveRoomProfile, sendChat, sendPlace, sendSignal, typingChat, updateChat, deleteAccount } from "./api.js";
 import { decryptPayload, deriveSpaceKey, encryptPayload } from "./crypto.js";
-import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, FAMILY_RELATIONS, familyTreeHtml, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
+import { addChild, addMemberToTree, addSibling, drawFamilyLines, ensureFamilyTree, FAMILY_RELATIONS, familyTreeHtml, findPerson, mapPerson, missingLockFlags, removePerson } from "./familyTree.js";
 import {
   routineHtml,
   ensureRoutine,
@@ -7203,25 +7203,55 @@ function familyView() {
   const wrap = el(`
     <div class="family-page">
       <div class="family-actions">
-        <button type="button" class="family-add-btn" data-add-member>+ Add Member</button>
+        <button type="button" class="edit-ico-btn" data-add-member aria-label="Add member">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4.2L19.4 8.8a1.9 1.9 0 0 0 0-2.7L17.9 4.6a1.9 1.9 0 0 0-2.7 0L4 15.8V20z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m13.8 6.1 4.1 4.1"/></svg>
+        </button>
       </div>
       ${familyTreeHtml(escapeHtml, tree)}
+
+      <div class="hold-menu" data-family-card-menu hidden>
+        <button type="button" class="hold-menu-scrim" data-card-menu-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Family</p>
+          <h2 class="hold-menu-title" data-card-menu-title>Person</h2>
+          <div class="hold-menu-extra">
+            <button type="button" data-card-act="edit">Edit</button>
+            <button type="button" data-card-act="details">Details</button>
+            <button type="button" class="is-danger" data-card-act="delete" data-card-delete>Delete</button>
+          </div>
+          <div class="hold-menu-row" style="margin-top: 12px;">
+            <button type="button" class="hold-menu-btn" data-card-menu-close>Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hold-menu" data-family-details-modal hidden>
+        <button type="button" class="hold-menu-scrim" data-details-close aria-label="Dismiss"></button>
+        <div class="hold-menu-card" role="dialog" aria-modal="true">
+          <p class="hold-menu-kicker">Details</p>
+          <h2 class="hold-menu-title" data-details-name>Person</h2>
+          <p class="hold-menu-note" data-details-body></p>
+          <div class="hold-menu-row" style="margin-top: 16px;">
+            <button type="button" class="hold-menu-btn" data-details-close>Close</button>
+          </div>
+        </div>
+      </div>
 
       <div class="hold-menu" data-family-member-modal hidden>
         <button type="button" class="hold-menu-scrim" data-modal-close aria-label="Dismiss"></button>
         <div class="hold-menu-card" role="dialog" aria-modal="true">
           <p class="hold-menu-kicker">Family Tree</p>
-          <h2 class="hold-menu-title">Add Family Member</h2>
+          <h2 class="hold-menu-title" data-member-title>Add Family Member</h2>
           <div style="margin-top: 12px; display:flex; flex-direction:column; gap:8px;">
             <div>
               <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Full Name</label>
               <input type="text" data-member-name placeholder="e.g. Priya Sharma" maxlength="60" style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--field-bg, rgba(255,255,255,0.06)); color:var(--ink); font:inherit; font-size:0.85rem;" />
             </div>
-            <div>
+            <div data-member-add-only>
               <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Where to add</label>
               ${appChoiceHtml("member-relation", FAMILY_RELATIONS, "Relative")}
             </div>
-            <div>
+            <div data-member-add-only>
               <label style="display:block; font-size:0.75rem; color:var(--ink-soft); margin-bottom:3px;">Family side</label>
               ${appChoiceHtml("member-side", [
                 ["mandi", `${partnerAName}’s side`],
@@ -7253,9 +7283,13 @@ function familyView() {
     </div>
   `);
   const memberModal = wrap.querySelector("[data-family-member-modal]");
+  const cardMenu = wrap.querySelector("[data-family-card-menu]");
+  const detailsModal = wrap.querySelector("[data-family-details-modal]");
   let memberRelation = "Relative";
   let memberSide = "mandi";
   let memberSex = "F";
+  let editingId = "";
+  let skipCardClick = false;
   bindAppChoice(wrap, "member-relation", {
     getValue: () => memberRelation,
     setValue: (id) => {
@@ -7274,88 +7308,137 @@ function familyView() {
       memberSex = id || "F";
     },
   });
-  wrap.querySelector('[data-add-member]')?.addEventListener("click", () => {
+  const closeAllFamilyMenus = () => {
+    if (memberModal) memberModal.hidden = true;
+    if (cardMenu) cardMenu.hidden = true;
+    if (detailsModal) detailsModal.hidden = true;
+    document.body.classList.remove("is-hold-menu");
+  };
+  const syncChoice = (name, id) => {
+    const box = wrap.querySelector(`[data-choice-name="${name}"]`);
+    if (!box) return;
+    box.dataset.choiceValue = id;
+    const match = [...box.querySelectorAll("[data-choice]")].find((item) => item.dataset.choice === id);
+    const trigger = box.querySelector("[data-choice-open]");
+    if (match && trigger) trigger.textContent = match.textContent;
+    box.querySelectorAll("[data-choice]").forEach((item) => item.classList.toggle("is-on", item.dataset.choice === id));
+  };
+  const openMemberForm = (person) => {
+    editingId = person?.id || "";
+    wrap.querySelector("[data-member-title]").textContent = editingId ? "Edit" : "Add Family Member";
+    wrap.querySelector("[data-member-save]").textContent = editingId ? "Save" : "Add to Tree";
+    wrap.querySelectorAll("[data-member-add-only]").forEach((row) => {
+      row.hidden = Boolean(editingId);
+    });
+    wrap.querySelector("[data-member-name]").value = person?.name || "";
+    wrap.querySelector("[data-member-nick]").value = person?.nick || "";
+    wrap.querySelector("[data-member-born]").value = person?.born || "";
+    memberSex = person?.sex === "M" ? "M" : "F";
+    syncChoice("member-sex", memberSex);
+    if (!editingId) {
+      memberRelation = "Relative";
+      memberSide = "mandi";
+      syncChoice("member-relation", memberRelation);
+      syncChoice("member-side", memberSide);
+    }
     memberModal.hidden = false;
     document.body.classList.add("is-hold-menu");
     setTimeout(() => wrap.querySelector("[data-member-name]")?.focus(), 50);
-  });
+  };
+  wrap.querySelector("[data-add-member]")?.addEventListener("click", () => openMemberForm(null));
   wrap.querySelector("[data-member-save]")?.addEventListener("click", () => {
     const name = wrap.querySelector("[data-member-name]")?.value.trim();
-    const relation = memberRelation;
-    const side = memberSide;
-    const sex = memberSex;
     const nick = wrap.querySelector("[data-member-nick]")?.value.trim();
     const born = wrap.querySelector("[data-member-born]")?.value.trim();
-    state.familyTree = addMemberToTree(state.familyTree, { side, relation, name, sex, nick, born });
-    document.body.classList.remove("is-hold-menu");
-    setState({ familyTree: state.familyTree }, true);
-    render();
+    const sex = memberSex;
+    if (editingId) {
+      const next = {
+        mandi: mapPerson(state.familyTree.mandi, editingId, { name, nick, born, sex }),
+        tudu: mapPerson(state.familyTree.tudu, editingId, { name, nick, born, sex }),
+        union: mapPerson(state.familyTree.union, editingId, { name, nick, born, sex }),
+      };
+      closeAllFamilyMenus();
+      setState({ familyTree: next });
+      return;
+    }
+    closeAllFamilyMenus();
+    setState({
+      familyTree: addMemberToTree(state.familyTree, {
+        side: memberSide,
+        relation: memberRelation,
+        name,
+        sex,
+        nick,
+        born,
+      }),
+    });
   });
   wrap.querySelectorAll("[data-family-member-modal] [data-modal-close]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      memberModal.hidden = true;
-      document.body.classList.remove("is-hold-menu");
-    });
+    btn.addEventListener("click", closeAllFamilyMenus);
   });
-  const saveCard = (card) => {
-    const id = card.dataset.treeId;
-    if (!id) return;
-    const next = {
-      mandi: mapPerson(state.familyTree.mandi, id, {
-        name: card.querySelector('[data-field="name"]').value,
-        nick: card.querySelector('[data-field="nick"]').value.trim(),
-        born: card.querySelector('[data-field="born"]').value.trim(),
-      }),
-      tudu: mapPerson(state.familyTree.tudu, id, {
-        name: card.querySelector('[data-field="name"]').value,
-        nick: card.querySelector('[data-field="nick"]').value.trim(),
-        born: card.querySelector('[data-field="born"]').value.trim(),
-      }),
-      union: mapPerson(state.familyTree.union, id, {
-        name: card.querySelector('[data-field="name"]').value,
-        nick: card.querySelector('[data-field="nick"]').value.trim(),
-        born: card.querySelector('[data-field="born"]').value.trim(),
-      }),
-    };
-    setState({ familyTree: next }, true);
+  wrap.querySelectorAll("[data-card-menu-close]").forEach((btn) => {
+    btn.addEventListener("click", closeAllFamilyMenus);
+  });
+  wrap.querySelectorAll("[data-details-close]").forEach((btn) => {
+    btn.addEventListener("click", closeAllFamilyMenus);
+  });
+  const openDetails = (person) => {
+    wrap.querySelector("[data-details-name]").textContent = person?.name || "Person";
+    const lines = [
+      `Nickname: ${String(person?.nick || "").trim() || "—"}`,
+      `Birthday: ${String(person?.born || "").trim() || "—"}`,
+      `Gender: ${person?.sex === "M" ? "Male" : "Female"}`,
+    ];
+    wrap.querySelector("[data-details-body]").textContent = lines.join("\n");
+    detailsModal.hidden = false;
+    document.body.classList.add("is-hold-menu");
   };
-  const menu = storyDeleteMenu(wrap);
-  wrap.querySelectorAll("[data-tree-id]").forEach((card) => {
-    let wait = 0;
-    card.querySelectorAll("input").forEach((input) => {
-      input.addEventListener("input", () => {
-        window.clearTimeout(wait);
-        wait = window.setTimeout(() => saveCard(card), 350);
+  wrap.querySelector("[data-family-card-menu]")?.addEventListener("click", (event) => {
+    const act = event.target.closest("[data-card-act]")?.dataset.cardAct;
+    if (!act) return;
+    const id = cardMenu.dataset.personId;
+    const person = findPerson(state.familyTree, id);
+    closeAllFamilyMenus();
+    skipCardClick = true;
+    if (act === "edit") openMemberForm(person);
+    else if (act === "details") openDetails(person);
+    else if (act === "delete" && id && person?.locked !== true) {
+      setState({
+        familyTree: {
+          mandi: removePerson(state.familyTree.mandi, id),
+          tudu: removePerson(state.familyTree.tudu, id),
+          union: removePerson(state.familyTree.union, id),
+        },
       });
-    });
-    card.querySelector(".ft-face")?.addEventListener("click", () => {
-      const id = card.dataset.treeId;
-      if (!id) return;
-      const isF = card.classList.contains("is-f");
-      const nextSex = isF ? "M" : "F";
-      card.classList.toggle("is-f", nextSex === "F");
-      card.classList.toggle("is-m", nextSex === "M");
-      const next = {
-        mandi: mapPerson(state.familyTree.mandi, id, { sex: nextSex }),
-        tudu: mapPerson(state.familyTree.tudu, id, { sex: nextSex }),
-        union: mapPerson(state.familyTree.union, id, { sex: nextSex }),
-      };
-      setState({ familyTree: next }, true);
-    });
-    if (card.dataset.locked === "1") return;
-    bindHoldOpen(card, {
-      menu,
-      onDelete: () => {
+    }
+  });
+  wrap.querySelectorAll("[data-tree-id]").forEach((card) => {
+    let hold = 0;
+    card.addEventListener("click", (event) => {
+      if (!skipCardClick) return;
+      skipCardClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    card.addEventListener("pointerdown", () => {
+      skipCardClick = false;
+      hold = window.setTimeout(() => {
+        skipCardClick = true;
+        navigator.vibrate?.(10);
         const id = card.dataset.treeId;
-        setState({
-          familyTree: {
-            mandi: removePerson(state.familyTree.mandi, id),
-            tudu: removePerson(state.familyTree.tudu, id),
-            union: removePerson(state.familyTree.union, id),
-          },
-        });
-      },
+        const person = findPerson(state.familyTree, id);
+        cardMenu.dataset.personId = id || "";
+        wrap.querySelector("[data-card-menu-title]").textContent = person?.name || "Person";
+        const del = wrap.querySelector("[data-card-delete]");
+        if (del) del.hidden = card.dataset.locked === "1";
+        cardMenu.hidden = false;
+        document.body.classList.add("is-hold-menu");
+      }, 480);
     });
+    const cancelHold = () => window.clearTimeout(hold);
+    card.addEventListener("pointerup", cancelHold);
+    card.addEventListener("pointercancel", cancelHold);
+    card.addEventListener("contextmenu", (event) => event.preventDefault());
   });
   let lineRaf = 0;
   const paint = () => {

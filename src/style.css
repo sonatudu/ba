@@ -2303,11 +2303,19 @@ body.is-daily-sorting {
   outline: none;
 }
 
+.ft-card .ft-name,
 .ft-card [data-field="name"] {
   margin-top: 8px;
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1.2;
+  text-align: center;
+  width: 100%;
+}
+
+.ft-card .ft-name.is-placeholder {
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .ft-card [data-field="relation"],
@@ -2327,11 +2335,11 @@ body.is-daily-sorting {
 
 .family-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 8px 12px 14px;
+  padding: 4px 16px 8px;
 }
 
 .family-add-btn {
@@ -3134,6 +3142,10 @@ body.is-hold-menu {
   line-height: 1.4;
 }
 
+.hold-menu-note[data-details-body] {
+  white-space: pre-line;
+}
+
 .hold-menu-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3199,6 +3211,10 @@ body.is-hold-menu {
 
 .hold-menu-extra button[hidden] {
   display: none !important;
+}
+
+.hold-menu-extra button.is-danger {
+  color: #f3b4b0;
 }
 
 .nav {
