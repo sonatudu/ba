@@ -401,7 +401,7 @@ function houseUnits(tree) {
 function unitHtml(escapeHtml, unit, key) {
   const kids = (unit.kids || []).map((kid) => cardHtml(escapeHtml, kid, "blood")).join("");
   const mark = unit.join ? (unit.side === "mandi" ? " data-khu" : " data-bhutku") : "";
-  const roles = unit.b ? { a: "blood", b: "inlaw" } : { a: "blood" };
+  const roles = unit.b ? { a: "blood", b: "inlaw", stem: true } : { a: "blood" };
   return `
     <div class="ft-unit" data-unit="${escapeHtml(key)}" data-side="${unit.side}"${mark}>
       ${pairHtml(escapeHtml, unit.a, unit.b, key, roles)}
@@ -426,10 +426,6 @@ export function familyTreeHtml(escapeHtml, tree) {
     )
     .join("");
   return `
-    <div class="family-zoom-bar">
-      <button type="button" class="family-zoom-btn" data-family-zoom-out aria-label="Zoom out">−</button>
-      <button type="button" class="family-zoom-btn" data-family-zoom-in aria-label="Zoom in">+</button>
-    </div>
     <div class="chart-scroll" data-family-scroll>
       <div class="chart" data-chart>
         <svg class="chart-lines" data-tree-lines></svg>
@@ -500,9 +496,9 @@ function stemOf(info) {
   if (!info) return null;
   const couple = (info.pts || []).length >= 2;
   return {
-    x: info.midX,
+    x: couple ? info.bloodX : info.midX,
     y: info.y,
-    top: couple ? info.y : info.top,
+    top: info.top,
   };
 }
 
