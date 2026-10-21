@@ -486,6 +486,7 @@ function pairPoints(chart, pair) {
     bar: (left.y + right.y) / 2,
     y: left.y,
     top: Math.min(...pts.map((pt) => pt.top)),
+    coupleTop: Math.min(...pts.map((pt) => pt.top)),
     bottom: Math.max(...pts.map((pt) => pt.bottom)),
   };
 }
@@ -497,7 +498,18 @@ function childAnchor(chart, child) {
   if (pair) {
     const info = pairPoints(chart, pair);
     if (!info) return null;
-    return { x: info.midX, y: info.y, top: info.top, bottom: info.bottom };
+    const left = info.pts[0];
+    const right = info.pts[info.pts.length - 1];
+    return {
+      x: info.midX,
+      leftX: left.x,
+      rightX: right.x,
+      y: info.y,
+      bar: info.bar,
+      top: info.coupleTop || info.top,
+      bottom: info.bottom,
+      couple: info.pts.length >= 2,
+    };
   }
   const card = child.querySelector(":scope > .ft-card, .ft-card");
   return card ? rel(chart, card) : null;
@@ -514,9 +526,9 @@ function placeUnionKids(chart) {
   const midX = a && b ? (a.x + b.x) / 2 : (a || b).x;
   const bottom = Math.max(a?.bottom || 0, b?.bottom || 0);
   row.style.left = `${midX}px`;
-  row.style.top = `${bottom + 40}px`;
+  row.style.top = `${bottom + 44}px`;
   row.classList.add("is-placed");
-  const need = bottom + 40 + row.offsetHeight + 48;
+  const need = bottom + 44 + row.offsetHeight + 56;
   if (need > chart.offsetHeight) chart.style.minHeight = `${need}px`;
 }
 
@@ -524,6 +536,7 @@ export function drawFamilyLines(root) {
   const chart = root.querySelector("[data-chart]");
   const svg = root.querySelector("[data-tree-lines]");
   if (!chart || !svg) return;
+  placeUnionKids(chart);
   placeUnionKids(chart);
   const w = Math.max(chart.scrollWidth, chart.offsetWidth, 1);
   const h = Math.max(chart.scrollHeight, chart.offsetHeight, 1);
@@ -556,21 +569,28 @@ export function drawFamilyLines(root) {
     if (info.pts.length >= 2) add(info.pts[0].x, info.bar, info.pts[info.pts.length - 1].x, info.bar);
     return info;
   };
+  const endY = (pt) => {
+    if (pt.couple && Number.isFinite(pt.bar)) return pt.bar;
+    return Number.isFinite(pt.top) ? pt.top : pt.y;
+  };
   const fork = (originX, originY, targets) => {
-    const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(pt.top ?? pt.y));
+    const kids = targets.filter((pt) => pt && Number.isFinite(pt.x) && Number.isFinite(endY(pt)));
     if (!kids.length || !Number.isFinite(originX) || !Number.isFinite(originY)) return;
-    const kidTop = Math.min(...kids.map((pt) => (Number.isFinite(pt.top) ? pt.top : pt.y)));
-    if (!(kidTop > originY + 1)) return;
-    if (kids.length === 1 && Math.abs(kids[0].x - originX) <= 2) {
-      add(originX, originY, originX, kidTop);
+    const kidY = Math.min(...kids.map(endY));
+    if (!(kidY > originY + 1)) return;
+    const only = kids.length === 1 ? kids[0] : null;
+    const hitsCouple =
+      only?.couple && Number.isFinite(only.leftX) && Number.isFinite(only.rightX) && originX >= only.leftX && originX <= only.rightX;
+    if (only && (hitsCouple || Math.abs(only.x - originX) <= 12)) {
+      add(originX, originY, originX, endY(only));
       return;
     }
-    let barY = originY + (kidTop - originY) * 0.5;
-    if (!(barY > originY + 6 && barY < kidTop - 6)) barY = (originY + kidTop) / 2;
+    let barY = originY + (kidY - originY) * 0.5;
+    if (!(barY > originY + 6 && barY < kidY - 6)) barY = (originY + kidY) / 2;
     add(originX, originY, originX, barY);
-    const xs = kids.map((pt) => pt.x);
+    const xs = kids.map((pt) => (Math.abs(pt.x - originX) <= 8 ? originX : pt.x));
     add(Math.min(originX, ...xs), barY, Math.max(originX, ...xs), barY);
-    kids.forEach((pt) => add(pt.x, barY, pt.x, Number.isFinite(pt.top) ? pt.top : pt.y));
+    kids.forEach((pt, i) => add(xs[i], barY, xs[i], endY(pt)));
   };
   const drop = (parent, targets) => {
     if (!parent) return;
